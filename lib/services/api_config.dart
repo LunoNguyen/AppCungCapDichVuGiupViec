@@ -3,7 +3,7 @@ class ApiConfig {
   /// - Dùng 'http://10.0.2.2:8080' khi chạy trên Android Emulator
   /// - Dùng 'http://localhost:8080' khi chạy Web hoặc Windows Desktop
   /// - Dùng IP mạng LAN (ví dụ: 'http://192.168.1.100:8080') khi chạy trên điện thoại thật
-  static String baseUrl = 'http://10.0.2.2:8083';
+  static String baseUrl = 'http://192.168.2.10:8083';
 
   /// Base URL cho MinIO Storage API
   static String get storageUrl => '$baseUrl/api/storage';

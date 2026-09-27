@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_colors.dart';
+import '../../services/auth_api_service.dart';
 import '../customer/customer_main_screen.dart';
 import '../collaborator/collaborator_main_screen.dart';
 import '../guest/guest_main_screen.dart';
@@ -16,6 +18,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final AuthApiService _authApiService = AuthApiService();
 
   final TextEditingController _accountController =
       TextEditingController(text: '0901234567');
@@ -52,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -61,24 +64,81 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    Future.delayed(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+    try {
+      final String roleStr = _roleIndex == 0 ? 'KHACH_HANG' : 'CONG_TAC_VIEN';
 
-      if (_roleIndex == 0) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const CustomerMainScreen()),
+      final response = await _authApiService.login(
+        username: _accountController.text.trim(),
+        matKhau: _passwordController.text,
+        vaiTro: roleStr,
+      );
+
+      if (response.success && response.data != null) {
+        final prefs = await SharedPreferences.getInstance();
+        final data = response.data!;
+
+        // Tìm ID từ các key phổ biến
+        dynamic rawId = data['id'] ?? data['userId'] ?? data['collaboratorId'] ?? data['taiKhoanId'];
+        int userId = 0;
+        if (rawId != null) {
+          userId = int.tryParse(rawId.toString()) ?? 0;
+        }
+
+        debugPrint('--- LOGIN DEBUG ---');
+        debugPrint('Response Data: $data');
+        debugPrint('UserId extracted: $userId');
+
+        await prefs.setInt('userId', userId);
+        await prefs.setString('userRole', roleStr);
+
+        if (data['token'] != null) {
+          await prefs.setString('token', data['token']);
+        }
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đăng nhập thành công!'),
+            backgroundColor: AppColors.success,
+          ),
         );
+
+        if (_roleIndex == 0) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const CustomerMainScreen()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const CollaboratorMainScreen()),
+          );
+        }
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const CollaboratorMainScreen()),
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message ?? 'Đăng nhập thất bại. Vui lòng kiểm tra lại!'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
-    });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi kết nối: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _showForgotPasswordDialog() {
@@ -143,50 +203,55 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 10),
-                // App Logo and Brand
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppColors.brand700, AppColors.brand500],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.home_repair_service,
-                            color: Colors.white,
-                            size: 26,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'GIÚP VIỆC TIỆN ÍCH',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.brand700,
-                                letterSpacing: 0.5,
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [AppColors.brand700, AppColors.brand500],
                               ),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            Text(
-                              'Uy tín • Chu đáo • Chuyên nghiệp',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondary,
-                              ),
+                            child: const Icon(
+                              Icons.home_repair_service,
+                              color: Colors.white,
+                              size: 26,
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'GIÚP VIỆC TIỆN ÍCH',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.brand700,
+                                    letterSpacing: 0.5,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  'Uy tín • Chu đáo',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     TextButton(
                       onPressed: () {
@@ -208,7 +273,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 36),
-
                 const Text(
                   'Chào mừng trở lại!',
                   style: TextStyle(
@@ -226,8 +290,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Role selector toggle
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -338,8 +400,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Account input
                 Text(
                   isCustomer
                       ? 'Số điện thoại hoặc Email'
@@ -367,8 +427,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // Password input
                 const Text(
                   'Mật khẩu',
                   style: TextStyle(
@@ -405,8 +463,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 8),
-
-                // Forgot password
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -422,8 +478,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Login Button
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -457,8 +511,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Quick Demo Fill buttons
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -521,8 +573,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 28),
-
-                // Register options
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

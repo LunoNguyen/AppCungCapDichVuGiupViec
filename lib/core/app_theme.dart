@@ -10,7 +10,7 @@ class AppTheme {
         primary: AppColors.brand500,
         secondary: AppColors.brand300,
         surface: AppColors.white,
-        background: AppColors.neutral100,
+        onSurface: AppColors.textPrimary,
       ),
       scaffoldBackgroundColor: AppColors.scaffoldBg,
       appBarTheme: const AppBarTheme(
