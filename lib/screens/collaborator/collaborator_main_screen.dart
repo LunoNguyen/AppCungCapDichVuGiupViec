@@ -51,7 +51,7 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen> {
               _currentIndex = index;
             });
           },
-          selectedItemColor: AppColors.brand500,
+          selectedItemColor: AppColors.ctvYellowDark,
           unselectedItemColor: AppColors.textSecondary,
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w700,

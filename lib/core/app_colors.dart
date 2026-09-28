@@ -10,12 +10,12 @@ class AppColors {
   static const Color brandLight = Color(0xFFE2F4F7); // very light cyan for badges/icons
   static const Color brandSurface = Color(0xFFF0F9FA); // soft background tint
 
-  // CTV Yellow colors (Vàng chủ đạo cho Cộng tác viên theo yêu cầu)
-  static const Color ctvYellow = Color(0xFFF5A623); // Primary warm amber/yellow
-  static const Color ctvYellowDark = Color(0xFFD97706); // Darker amber
-  static const Color ctvYellowLight = Color(0xFFFFF7ED); // Light yellow tint
-  static const Color ctvYellowBorder = Color(0xFFFCD34D); // Yellow border
-  static const Color ctvHeaderBg = Color(0xFF3F51B5); // Deep Indigo/Blue header from Image 3/4
+  // CTV Yellow colors (Vàng chanh chủ đạo cho Cộng tác viên theo yêu cầu)
+  static const Color ctvYellow = Color(0xFFFACC15); // Vàng chanh tươi sáng (Lemon Yellow)
+  static const Color ctvYellowDark = Color(0xFF9A7B00); // Vàng chanh sẫm cho text/accent dễ đọc
+  static const Color ctvYellowLight = Color(0xFFFEFCE8); // Nền vàng chanh rất nhẹ
+  static const Color ctvYellowBorder = Color(0xFFFDE047); // Viền vàng chanh
+  static const Color ctvHeaderBg = Color(0xFF2E384D); // Deep header
   static const Color ctvCardBg = Color(0xFFFFFFFF);
 
   // Neutral colors

@@ -514,6 +514,32 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Center(
+          child: Container(
+            width: 80,
+            height: 80,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.brand500.withValues(alpha: 0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Image.asset(
+                'assets/images/Logo.png',
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
         Text(
           'Chào mừng đến với Neatify',
           style: TextStyle(
@@ -535,7 +561,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Tiêu đề Cộng tác viên (Image 4: Logo bTaskee / Neatify Dành cho Tasker với màu vàng)
+  /// Tiêu đề Cộng tác viên (Image 4: Logo bTaskee / Neatify Dành cho Tasker với màu vàng chanh)
   Widget _buildCollaboratorHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -592,28 +618,30 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
-        // Logo thương hiệu với màu vàng / xanh đặc trưng Image 4
+        // Ảnh Logo Neatify của bạn (thay thế emoji / placeholder icon)
         Container(
-          width: 80,
-          height: 80,
+          width: 88,
+          height: 88,
           decoration: BoxDecoration(
-            color: const Color(0xFF3F51B5), // Deep blue logo box from Image 4
+            color: Colors.white,
             borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: AppColors.ctvYellowBorder, width: 2),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF3F51B5).withValues(alpha: 0.3),
-                blurRadius: 10,
+                color: AppColors.ctvYellow.withValues(alpha: 0.35),
+                blurRadius: 14,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: const Center(
-            child: Icon(
-              Icons.home_repair_service_rounded,
-              color: Colors.white,
-              size: 44,
+          padding: const EdgeInsets.all(8),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.asset(
+              'assets/images/Logo.png',
+              fit: BoxFit.contain,
             ),
           ),
         ),
@@ -623,13 +651,13 @@ class _LoginScreenState extends State<LoginScreen> {
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w900,
-            color: Color(0xFF3F51B5),
+            color: AppColors.neutral800,
             letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
             color: AppColors.ctvYellowLight,
             borderRadius: BorderRadius.circular(12),

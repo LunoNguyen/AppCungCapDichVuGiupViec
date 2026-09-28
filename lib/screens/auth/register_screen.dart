@@ -445,6 +445,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Center(
+          child: Container(
+            width: 76,
+            height: 76,
+            margin: const EdgeInsets.only(bottom: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.brand500.withValues(alpha: 0.12),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                'assets/images/Logo.png',
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
         // Title (Image 2: "Đăng ký" màu chủ đạo)
         Text(
           'Đăng ký',
@@ -664,13 +690,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Row(
                 children: [
                   Container(
-                    width: 32,
-                    height: 32,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: AppColors.ctvYellowLight,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.ctvYellowBorder),
                     ),
-                    child: const Icon(Icons.badge, color: AppColors.ctvYellowDark, size: 20),
+                    padding: const EdgeInsets.all(4),
+                    child: Image.asset(
+                      'assets/images/Logo.png',
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   const Text(
