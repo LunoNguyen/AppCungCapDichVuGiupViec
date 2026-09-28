@@ -35,9 +35,7 @@ class _CollaboratorScheduleScreenState
 
   // Hàm tạo ra 7 ngày trong tuần dựa trên một ngày bất kỳ
   void _generateWeek(DateTime date) {
-    // weekday: 1 (T2) -> 7 (CN)
     int currentWeekday = date.weekday; 
-    // Tìm ngày Thứ 2 của tuần đó
     DateTime monday = DateTime(date.year, date.month, date.day).subtract(Duration(days: currentWeekday - 1));
     
     List<DateTime> dates = [];
@@ -48,7 +46,6 @@ class _CollaboratorScheduleScreenState
     setState(() {
       _weekDates = dates;
       
-      // Nếu tuần này là tuần hiện tại, tự động chọn ngày hôm nay
       final now = DateTime.now();
       final todayStr = DateFormat('yyyy-MM-dd').format(now);
       
@@ -63,12 +60,11 @@ class _CollaboratorScheduleScreenState
       if (foundToday != -1) {
         _selectedDayIndex = foundToday;
       } else {
-        _selectedDayIndex = 0; // Mặc định chọn Thứ 2 nếu xem tuần khác
+        _selectedDayIndex = 0; 
       }
     });
   }
 
-  // Hàm chuyển tuần (step = 1: tới, step = -1: lùi)
   void _changeWeek(int step) {
     setState(() {
       _focusedDate = _focusedDate.add(Duration(days: step * 7));
@@ -103,7 +99,6 @@ class _CollaboratorScheduleScreenState
     }
   }
 
-  // Lọc danh sách ca làm việc của ngày đang được chọn trên thanh lịch
   List<Map<String, dynamic>> get _schedulesForSelectedDay {
     if (_weekDates.isEmpty || _selectedDayIndex >= _weekDates.length) return [];
     final selectedDateStr = DateFormat('yyyy-MM-dd').format(_weekDates[_selectedDayIndex]);
@@ -114,7 +109,6 @@ class _CollaboratorScheduleScreenState
     }).toList();
   }
 
-  // Kiểm tra ngày có đơn hay không để hiện dấu chấm
   bool _hasOrderOnDay(int index) {
     if (_weekDates.isEmpty || index >= _weekDates.length) return false;
     final dateStr = DateFormat('yyyy-MM-dd').format(_weekDates[index]);
@@ -158,7 +152,6 @@ class _CollaboratorScheduleScreenState
     );
   }
 
-  // UI Thanh điều hướng tuần (Có mũi tên sang trái/phải)
   Widget _buildWeekNavigator() {
     String monthYear = DateFormat('MMMM yyyy', 'vi_VN').format(_focusedDate);
     if (monthYear.isNotEmpty) {
@@ -185,7 +178,6 @@ class _CollaboratorScheduleScreenState
                   ),
                 ),
                 const Spacer(),
-                // Nút chuyển về tuần trước
                 IconButton(
                   icon: const Icon(Icons.chevron_left, size: 28, color: AppColors.brand600),
                   onPressed: () => _changeWeek(-1),
@@ -193,7 +185,6 @@ class _CollaboratorScheduleScreenState
                   constraints: const BoxConstraints(),
                 ),
                 const SizedBox(width: 20),
-                // Nút chuyển sang tuần sau
                 IconButton(
                   icon: const Icon(Icons.chevron_right, size: 28, color: AppColors.brand600),
                   onPressed: () => _changeWeek(1),
@@ -204,7 +195,6 @@ class _CollaboratorScheduleScreenState
             ),
           ),
           const SizedBox(height: 12),
-          // Danh sách 7 ngày trong tuần
           SizedBox(
             height: 64,
             child: ListView.builder(

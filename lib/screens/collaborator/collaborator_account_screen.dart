@@ -20,7 +20,6 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   CongTacVien? _profile;
   final CollaboratorApiService _apiService = CollaboratorApiService();
   
-  // Định dạng tiền tệ VNĐ
   final NumberFormat _currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
 
   @override
@@ -61,22 +60,25 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: AppColors.scaffoldBg,
+        backgroundColor: Colors.white,
         body: Center(child: CircularProgressIndicator(color: AppColors.brand500)),
       );
     }
 
     if (_profile == null) {
       return Scaffold(
-        backgroundColor: AppColors.scaffoldBg,
-        appBar: AppBar(title: const Text('Hồ sơ & Thu nhập')),
+        backgroundColor: const Color(0xFFF7F8FA),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text('Không thể tải thông tin tài khoản'),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: _fetchProfileData, child: const Text('Thử lại')),
+              ElevatedButton(
+                onPressed: _fetchProfileData,
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand500),
+                child: const Text('Thử lại'),
+              ),
             ],
           ),
         ),
@@ -84,44 +86,66 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
+      backgroundColor: const Color(0xFFF7F8FA),
+      // Sửa nhanh: Sử dụng AppBar chuẩn để tiêu đề không bao giờ che nội dung bên dưới
       appBar: AppBar(
-        title: const Text('Hồ sơ & Thu nhập'),
+        backgroundColor: AppColors.brand500,
+        elevation: 0,
         automaticallyImplyLeading: false,
+        centerTitle: true,
+        title: const Text('Tài khoản', 
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppColors.brand700, AppColors.brand500],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Colors.white),
+            onPressed: () {},
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _fetchProfileData,
+        color: AppColors.brand500,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              _buildProfileHeader(),
-              const SizedBox(height: 12),
-              _buildAvailabilityToggle(),
-              const SizedBox(height: 12),
-              _buildEarningsCard(),
-              const SizedBox(height: 12),
+              _buildProfileCard(),
+              const SizedBox(height: 16),
               _buildPerformanceStats(),
               const SizedBox(height: 16),
-              _buildMenuSection('Tài chính & Ví', [
-                _CollaboratorMenuItem(
-                  Icons.account_balance_wallet_outlined,
-                  'Ví thu nhập',
-                  AppColors.brand500,
-                  _currencyFormat.format(_profile?.soDuVi ?? 0),
-                  () {},
-                ),
-                _CollaboratorMenuItem(
-                  Icons.credit_card_outlined,
-                  'Tài khoản ngân hàng',
-                  const Color(0xFF9C27B0),
-                  'Chưa liên kết',
-                  () {},
-                ),
-              ]),
+              _buildAvailabilitySection(),
               const SizedBox(height: 16),
-              _buildLogoutButton(context),
-              const SizedBox(height: 32),
+              
+              _buildMenuSection('CÔNG VIỆC & DỊCH VỤ', [
+                _CollaboratorMenuItem(Icons.handyman_outlined, 'Dịch vụ đã đăng ký', '5 dịch vụ', () {}),
+                _CollaboratorMenuItem(Icons.map_outlined, 'Khu vực nhận việc', _profile!.noiCuTru, () {}),
+              ]),
+              
+              const SizedBox(height: 16),
+              _buildMenuSection('TÀI CHÍNH', [
+                _CollaboratorMenuItem(Icons.account_balance_wallet_outlined, 'Ví thu nhập', _currencyFormat.format(_profile?.soDuVi ?? 0), () {}),
+                _CollaboratorMenuItem(Icons.credit_card_outlined, 'Tài khoản ngân hàng', 'Vietcombank', () {}),
+              ]),
+
+              const SizedBox(height: 16),
+              _buildMenuSection('TÀI KHOẢN', [
+                _CollaboratorMenuItem(Icons.badge_outlined, 'Thông tin cá nhân & CCCD', 'Đã xác thực', () {}),
+                _CollaboratorMenuItem(Icons.star_outline, 'Đánh giá từ khách hàng', '${_profile!.diemDanhGia.toStringAsFixed(1)} ★', () {}),
+              ]),
+
+              const SizedBox(height: 24),
+              _buildLogoutButton(),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -129,21 +153,28 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     );
   }
 
-  Widget _buildProfileHeader() {
+  Widget _buildProfileCard() {
     return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [AppColors.brand700, AppColors.brand500]),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
       child: Row(
         children: [
           CircleAvatar(
-            radius: 36,
-            backgroundColor: Colors.white,
+            radius: 35,
+            backgroundColor: const Color(0xFFF0F2F5),
             child: Text(
               _profile!.hoTen.isNotEmpty ? _profile!.hoTen[0].toUpperCase() : 'C',
-              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.brand600),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.brand600),
             ),
           ),
           const SizedBox(width: 16),
@@ -151,40 +182,81 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_profile!.hoTen, style: const TextStyle(color: AppColors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(
+                  _profile!.hoTen,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 4),
-                Text('Mã CTV: ${_profile!.maCongTacVien}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.star, color: AppColors.star, size: 14),
-                    const SizedBox(width: 4),
-                    Text(_profile!.diemDanhGia.toStringAsFixed(1), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                  ],
+                Text(
+                  'Mã CTV: ${_profile!.maCongTacVien}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
           ),
+          const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
         ],
       ),
     );
   }
 
-  Widget _buildAvailabilityToggle() {
+  Widget _buildPerformanceStats() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _statItem('0', 'Hoàn thành', Icons.done_all_rounded, Colors.green),
+          _statItem(_profile!.diemDanhGia.toStringAsFixed(1), 'Đánh giá', Icons.star_rounded, Colors.orange),
+        ],
+      ),
+    );
+  }
+
+  Widget _statItem(String value, String label, IconData icon, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 8),
+        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _buildAvailabilitySection() {
     bool isAvailable = _profile!.trangThai == TrangThaiCTV.HoatDong;
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(
         children: [
-          Expanded(child: Text(isAvailable ? 'Sẵn sàng nhận việc' : 'Tạm dừng nhận việc', style: const TextStyle(fontWeight: FontWeight.bold))),
+          Icon(
+            isAvailable ? Icons.notifications_active : Icons.notifications_off,
+            color: isAvailable ? Colors.green : Colors.grey,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              isAvailable ? 'Đang bật nhận việc' : 'Đang tắt nhận việc',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
           Switch(
             value: isAvailable,
-            activeColor: AppColors.success,
+            activeColor: Colors.green,
             onChanged: (val) async {
-              String newStatus = val ? 'HoatDong' : 'TamDung';
-              final res = await _apiService.updateStatus(_currentUserId, newStatus);
+              String status = val ? 'HoatDong' : 'TamDung';
+              final res = await _apiService.updateStatus(_currentUserId, status);
               if (res.success) {
                 _fetchProfileData();
               }
@@ -195,90 +267,77 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     );
   }
 
-  Widget _buildEarningsCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF0F3B46), Color(0xFF1B5E6E)]),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Số dư ví thu nhập', style: TextStyle(color: Colors.white70, fontSize: 13)),
-          const SizedBox(height: 8),
-          Text(_currencyFormat.format(_profile?.soDuVi ?? 0), style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: ElevatedButton(onPressed: () {}, child: const Text('Rút tiền'))),
-              const SizedBox(width: 10),
-              OutlinedButton(onPressed: () {}, style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white38)), child: const Text('Sao kê')),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPerformanceStats() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        children: [
-          _buildStatItem('0', 'Hoàn thành', Icons.check_circle_outline, AppColors.success),
-          _buildStatItem('0%', 'Tỷ lệ nhận', Icons.trending_up, AppColors.brand500),
-          _buildStatItem(_profile!.diemDanhGia.toStringAsFixed(1), 'Đánh giá', Icons.star_outline, AppColors.star),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String val, String label, IconData icon, Color color) {
-    return Expanded(child: Column(children: [Icon(icon, color: color, size: 20), Text(val, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), Text(label, style: const TextStyle(fontSize: 10))]));
-  }
-
   Widget _buildMenuSection(String title, List<_CollaboratorMenuItem> items) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), child: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary))),
-          ...items.map((item) => ListTile(
-            leading: Icon(item.icon, color: item.color, size: 20),
-            title: Text(item.title, style: const TextStyle(fontSize: 14)),
-            trailing: Text(item.subtext, style: const TextStyle(fontSize: 12)),
-            onTap: item.onTap,
-          )),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 12, bottom: 8),
+          child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            children: items.map((item) => ListTile(
+              leading: Icon(item.icon, size: 22),
+              title: Text(item.title, style: const TextStyle(fontSize: 14)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (item.subtext.isNotEmpty)
+                    Text(item.subtext, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey),
+                ],
+              ),
+              onTap: item.onTap,
+            )).toList(),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildLogoutButton(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16), width: double.infinity,
-      child: OutlinedButton.icon(
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton(
         onPressed: () async {
           final prefs = await SharedPreferences.getInstance();
           await prefs.clear();
-          if (!mounted) return;
-          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen(initialRoleTab: 1)), (route) => false);
+          if (mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen(initialRoleTab: 1)),
+              (route) => false,
+            );
+          }
         },
-        icon: const Icon(Icons.logout, color: AppColors.error),
-        label: const Text('Đăng xuất tài khoản CTV', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
-        style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.error)),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.error),
+          ),
+        ),
+        child: const Text(
+          'Đăng xuất',
+          style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
 }
 
 class _CollaboratorMenuItem {
-  final IconData icon; final String title; final Color color; final String subtext; final VoidCallback onTap;
-  _CollaboratorMenuItem(this.icon, this.title, this.color, this.subtext, this.onTap);
+  final IconData icon;
+  final String title;
+  final String subtext;
+  final VoidCallback onTap;
+
+  _CollaboratorMenuItem(this.icon, this.title, this.subtext, this.onTap);
 }

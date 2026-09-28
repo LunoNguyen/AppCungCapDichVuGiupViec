@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_colors.dart';
 import '../../services/auth_api_service.dart';
-import '../customer/customer_main_screen.dart';
 import '../collaborator/collaborator_main_screen.dart';
-import '../guest/guest_main_screen.dart';
 import 'register_screen.dart';
 import 'collaborator_register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final int initialRoleTab; // 0: Khách hàng, 1: Cộng tác viên
-  const LoginScreen({super.key, this.initialRoleTab = 0});
+  const LoginScreen({super.key, this.initialRoleTab = 1});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -21,7 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final AuthApiService _authApiService = AuthApiService();
 
   final TextEditingController _accountController =
-      TextEditingController(text: '0901234567');
+      TextEditingController(text: '0909888999');
   final TextEditingController _passwordController =
       TextEditingController(text: '123456');
 
@@ -56,6 +54,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    if (_roleIndex == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chức năng Khách hàng đang bảo trì!'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -65,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final String roleStr = _roleIndex == 0 ? 'KHACH_HANG' : 'CONG_TAC_VIEN';
+      final String roleStr = 'CONG_TAC_VIEN';
 
       final response = await _authApiService.login(
         username: _accountController.text.trim(),
@@ -77,16 +85,11 @@ class _LoginScreenState extends State<LoginScreen> {
         final prefs = await SharedPreferences.getInstance();
         final data = response.data!;
 
-        // Tìm ID từ các key phổ biến
         dynamic rawId = data['id'] ?? data['userId'] ?? data['collaboratorId'] ?? data['taiKhoanId'];
         int userId = 0;
         if (rawId != null) {
           userId = int.tryParse(rawId.toString()) ?? 0;
         }
-
-        debugPrint('--- LOGIN DEBUG ---');
-        debugPrint('Response Data: $data');
-        debugPrint('UserId extracted: $userId');
 
         await prefs.setInt('userId', userId);
         await prefs.setString('userRole', roleStr);
@@ -104,17 +107,10 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
 
-        if (_roleIndex == 0) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const CustomerMainScreen()),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const CollaboratorMainScreen()),
-          );
-        }
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const CollaboratorMainScreen()),
+        );
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -153,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Nhập số điện thoại hoặc email đã đăng ký. Hệ thống sẽ gửi mã đặt lại mật khẩu cho bạn.',
+              'Nhập số điện thoại hoặc email đã đăng ký.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 16),
@@ -174,12 +170,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Mã khôi phục đã được gửi tới thông tin của bạn!'),
-                  backgroundColor: AppColors.success,
-                ),
-              );
             },
             child: const Text('Gửi mã'),
           ),
@@ -240,7 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 Text(
-                                  'Uy tín • Chu đáo',
+                                  'Dành cho Đối tác',
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: AppColors.textSecondary,
@@ -253,28 +243,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
                     ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const GuestMainScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        'Khách xem',
-                        style: TextStyle(
-                          color: AppColors.brand500,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 36),
                 const Text(
-                  'Chào mừng trở lại!',
+                  'Chào mừng Đối tác!',
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
@@ -283,7 +256,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Vui lòng đăng nhập để tiếp tục quản lý và sử dụng dịch vụ.',
+                  'Vui lòng đăng nhập để tiếp tục quản lý công việc.',
                   style: TextStyle(
                     fontSize: 14,
                     color: AppColors.textSecondary,
@@ -305,19 +278,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
                               color: isCustomer
-                                  ? AppColors.brand500
+                                  ? Colors.grey[400]
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: isCustomer
-                                  ? [
-                                      BoxShadow(
-                                        color: AppColors.brand500
-                                            .withOpacity(0.3),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -361,7 +324,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? [
                                       BoxShadow(
                                         color: AppColors.brand700
-                                            .withOpacity(0.3),
+                                            .withValues(alpha: 0.3),
                                         blurRadius: 6,
                                         offset: const Offset(0, 2),
                                       ),
@@ -400,178 +363,121 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  isCustomer
-                      ? 'Số điện thoại hoặc Email'
-                      : 'Số điện thoại đăng ký CTV',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: _accountController,
-                  decoration: InputDecoration(
-                    hintText: isCustomer
-                        ? 'Nhập SĐT hoặc email'
-                        : 'Nhập SĐT đã được kích hoạt',
-                    prefixIcon: const Icon(Icons.person_outline),
-                  ),
-                  validator: (val) {
-                    if (val == null || val.trim().isEmpty) {
-                      return 'Vui lòng nhập số điện thoại hoặc email';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Mật khẩu',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    hintText: 'Nhập mật khẩu',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                  ),
-                  validator: (val) {
-                    if (val == null || val.isEmpty) {
-                      return 'Vui lòng nhập mật khẩu';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _showForgotPasswordDialog,
-                    child: const Text(
-                      'Quên mật khẩu?',
-                      style: TextStyle(
-                        color: AppColors.brand600,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                if (isCustomer)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Text(
+                        'Chức năng Khách hàng hiện không khả dụng.',
+                        style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
                       ),
                     ),
+                  )
+                else ...[
+                  const Text(
+                    'Số điện thoại đăng ký CTV',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          isCustomer ? AppColors.brand500 : AppColors.brand700,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _accountController,
+                    decoration: const InputDecoration(
+                      hintText: 'Nhập SĐT đã được kích hoạt',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) {
+                        return 'Vui lòng nhập số điện thoại';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Mật khẩu',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      hintText: 'Nhập mật khẩu',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
                       ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 22,
-                            width: 22,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.5,
-                            ),
-                          )
-                        : Text(
-                            isCustomer
-                                ? 'Đăng nhập Khách hàng'
-                                : 'Đăng nhập Cộng tác viên',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                    validator: (val) {
+                      if (val == null || val.isEmpty) {
+                        return 'Vui lòng nhập mật khẩu';
+                      }
+                      return null;
+                    },
                   ),
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.neutral100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.divider),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Tài khoản thử nghiệm nhanh:',
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _showForgotPasswordDialog,
+                      child: const Text(
+                        'Quên mật khẩu?',
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textSecondary,
+                          color: AppColors.brand600,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => _onRoleChanged(0),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                side: BorderSide(
-                                  color: isCustomer
-                                      ? AppColors.brand500
-                                      : AppColors.divider,
-                                ),
-                              ),
-                              child: const Text(
-                                'Khách hàng',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => _onRoleChanged(1),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                side: BorderSide(
-                                  color: !isCustomer
-                                      ? AppColors.brand700
-                                      : AppColors.divider,
-                                ),
-                              ),
-                              child: const Text(
-                                'Cộng tác viên',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _handleLogin,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brand700,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : const Text(
+                              'Đăng nhập Cộng tác viên',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 28),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -585,59 +491,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     GestureDetector(
                       onTap: () {
-                        if (isCustomer) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const RegisterScreen(),
-                            ),
-                          );
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  const CollaboratorRegisterScreen(),
-                            ),
-                          );
-                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CollaboratorRegisterScreen(),
+                          ),
+                        );
                       },
-                      child: Text(
-                        isCustomer
-                            ? 'Đăng ký ngay'
-                            : 'Đăng ký làm CTV',
+                      child: const Text(
+                        'Đăng ký làm CTV',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: isCustomer
-                              ? AppColors.brand500
-                              : AppColors.brand700,
+                          color: AppColors.brand700,
                         ),
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CollaboratorRegisterScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.work_outline, size: 16),
-                    label: const Text(
-                      'Ứng tuyển trở thành Cộng tác viên',
-                      style: TextStyle(
-                        color: AppColors.brand700,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 24),
               ],
