@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
-import '../auth/collaborator_register_screen.dart';
 
 class GuestAccountScreen extends StatelessWidget {
   const GuestAccountScreen({super.key});
@@ -120,26 +119,6 @@ class GuestAccountScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const CollaboratorRegisterScreen()),
-              );
-            },
-            icon: const Icon(Icons.work_outline),
-            label: const Text('Đăng ký làm cộng tác viên'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.brand700,
-              side: const BorderSide(color: AppColors.brand700),
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
               ),
             ),
           ),
