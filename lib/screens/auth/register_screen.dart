@@ -229,29 +229,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final Color roleColor = isCustomer ? AppColors.brand500 : AppColors.ctvYellow;
 
     return Scaffold(
-      backgroundColor: isCustomer ? Colors.white : const Color(0xFFF6F8FC),
+      backgroundColor: isCustomer ? Colors.white : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: isCustomer ? Colors.white : AppColors.ctvHeaderBg,
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(
+          icon: const Icon(
             Icons.arrow_back,
-            color: isCustomer ? AppColors.textPrimary : Colors.white,
+            color: AppColors.textPrimary,
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: _buildRoleSelector(),
+        title: Text(
+          isCustomer ? 'Đăng ký Khách hàng' : 'Đăng ký Cộng tác viên',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
         centerTitle: true,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // 1. THANH CHUYỂN ĐỔI VAI TRÒ TO NGANG NÚT ĐĂNG KÝ
+                _buildRoleSelector(),
+                const SizedBox(height: 20),
+
+                // 2. NỘI DUNG FORM (KHÁCH HÀNG HOẶC CỘNG TÁC VIÊN)
                 if (isCustomer)
                   _buildCustomerForm()
                 else
@@ -259,7 +271,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 24),
 
-                // NÚT ĐĂNG KÝ
+                // 3. NÚT ĐĂNG KÝ (WIDTH DOUBLE.INFINITY, HEIGHT 52)
                 SizedBox(
                   width: double.infinity,
                   height: 52,
@@ -283,7 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           )
                         : Text(
-                            isCustomer ? 'Đăng ký' : 'Gửi hồ sơ đăng ký CTV',
+                            isCustomer ? 'Đăng ký tài khoản' : 'Gửi hồ sơ đăng ký CTV',
                             style: TextStyle(
                               fontSize: 16.5,
                               fontWeight: FontWeight.bold,
@@ -326,10 +338,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
 
-                if (isCustomer) ...[
-                  const SizedBox(height: 24),
-                  _buildKaiMascotBadge(),
-                ],
                 const SizedBox(height: 20),
               ],
             ),
@@ -339,97 +347,108 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  /// Bộ chọn vai trò ở AppBar (Khách hàng vs Cộng tác viên)
+  /// Nút chuyển đổi vai trò TO NGANG NÚT ĐĂNG KÝ (Khách hàng vs Cộng tác viên)
   Widget _buildRoleSelector() {
     return Container(
-      height: 40,
-      padding: const EdgeInsets.all(3),
+      width: double.infinity,
+      height: 52,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isCustomer ? AppColors.neutral100 : Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(24),
+        color: const Color(0xFFF1F5F9), // Nền xám slate nhạt sạch sẽ
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isCustomer ? AppColors.divider : Colors.white24,
+          color: const Color(0xFFE2E8F0),
+          width: 1.5,
         ),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          // Nút Khách hàng (Teal)
-          GestureDetector(
-            onTap: () => _onRoleChanged(0),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: isCustomer ? AppColors.brand500 : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: isCustomer
-                    ? [
-                        BoxShadow(
-                          color: AppColors.brand500.withValues(alpha: 0.35),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.person,
-                    size: 16,
-                    color: isCustomer ? Colors.white : (isCustomer ? AppColors.textSecondary : Colors.white70),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Khách hàng',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isCustomer ? FontWeight.bold : FontWeight.w500,
-                      color: isCustomer ? Colors.white : (isCustomer ? AppColors.textSecondary : Colors.white),
+          // Nút Khách hàng
+          Expanded(
+            child: InkWell(
+              onTap: () => _onRoleChanged(0),
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isCustomer ? AppColors.brand500 : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: isCustomer
+                      ? [
+                          BoxShadow(
+                            color: AppColors.brand500.withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isCustomer ? Icons.person_rounded : Icons.person_outline_rounded,
+                      size: 22,
+                      color: isCustomer ? Colors.white : AppColors.textSecondary,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      'Khách hàng',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: isCustomer ? FontWeight.bold : FontWeight.w600,
+                        color: isCustomer ? Colors.white : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
 
-          // Nút Cộng tác viên (Vàng)
-          GestureDetector(
-            onTap: () => _onRoleChanged(1),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: !isCustomer ? AppColors.ctvYellow : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: !isCustomer
-                    ? [
-                        BoxShadow(
-                          color: AppColors.ctvYellow.withValues(alpha: 0.45),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.badge,
-                    size: 16,
-                    color: !isCustomer ? AppColors.neutral800 : (isCustomer ? AppColors.textSecondary : Colors.white70),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Cộng tác viên',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: !isCustomer ? FontWeight.bold : FontWeight.w500,
-                      color: !isCustomer ? AppColors.neutral800 : Colors.white,
+          const SizedBox(width: 6),
+
+          // Nút Cộng tác viên
+          Expanded(
+            child: InkWell(
+              onTap: () => _onRoleChanged(1),
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: !isCustomer ? AppColors.ctvYellow : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: !isCustomer
+                      ? [
+                          BoxShadow(
+                            color: AppColors.ctvYellow.withValues(alpha: 0.5),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      !isCustomer ? Icons.handyman_rounded : Icons.handyman_outlined,
+                      size: 22,
+                      color: !isCustomer ? AppColors.neutral800 : AppColors.textSecondary,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      'Cộng tác viên',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: !isCustomer ? FontWeight.bold : FontWeight.w600,
+                        color: !isCustomer ? AppColors.neutral800 : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -669,7 +688,82 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Thẻ chứa toàn bộ form đăng ký CTV bo góc đẹp mắt (Image 3)
+        // Banner chào mừng Cộng tác viên (Theme vàng chanh)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(bottom: 18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFFFEFCE8), // Vàng chanh pastel nhạt
+                Color(0xFFFFFBEB),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.ctvYellowBorder, width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.ctvYellow.withValues(alpha: 0.15),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.ctvYellow.withValues(alpha: 0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Image.asset(
+                  'assets/images/Logo.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Trở thành Đối tác Neatify',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Chủ động nhận việc, thu nhập hấp dẫn lên đến 15 - 20 triệu/tháng',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textSecondary,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Thẻ chứa form đăng ký CTV bo góc đẹp mắt (Image 3)
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -678,7 +772,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
+                blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -697,10 +791,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: AppColors.ctvYellowBorder),
                     ),
-                    padding: const EdgeInsets.all(4),
-                    child: Image.asset(
-                      'assets/images/Logo.png',
-                      fit: BoxFit.contain,
+                    child: const Icon(
+                      Icons.assignment_ind_outlined,
+                      color: AppColors.ctvYellowDark,
+                      size: 20,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -716,12 +810,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Họ và tên
+              // Họ và tên *
               _buildFieldLabel('Họ và tên', isRequired: true),
               const SizedBox(height: 6),
               _buildCleanInputField(
                 controller: _fullNameController,
-                hintText: 'Nguyễn Văn A',
+                hintText: 'Ví dụ: Nguyễn Văn A',
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Vui lòng nhập họ và tên';
                   return null;
@@ -730,7 +824,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 18),
 
-              // Giới tính (Nam / Nữ radio buttons - Image 3)
+              // Giới tính (Hai nút Nam / Nữ to rõ, bo tròn mềm mại)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -744,81 +838,102 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 6),
               Row(
                 children: [
+                  // Nút Nam
                   Expanded(
                     child: InkWell(
                       onTap: () => setState(() => _ctvGender = 'Nam'),
-                      child: Row(
-                        children: [
-                          Radio<String>(
-                            value: 'Nam',
-                            groupValue: _ctvGender,
-                            activeColor: AppColors.ctvYellowDark,
-                            onChanged: (val) => setState(() => _ctvGender = val!),
+                      borderRadius: BorderRadius.circular(12),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _ctvGender == 'Nam' ? AppColors.ctvYellowLight : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _ctvGender == 'Nam' ? AppColors.ctvYellowDark : AppColors.divider,
+                            width: _ctvGender == 'Nam' ? 1.8 : 1.2,
                           ),
-                          const Text('Nam', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.male_rounded,
+                              size: 22,
+                              color: _ctvGender == 'Nam' ? AppColors.ctvYellowDark : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Nam',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: _ctvGender == 'Nam' ? FontWeight.bold : FontWeight.w500,
+                                color: _ctvGender == 'Nam' ? AppColors.neutral800 : AppColors.textPrimary,
+                              ),
+                            ),
+                            if (_ctvGender == 'Nam') ...[
+                              const SizedBox(width: 6),
+                              const Icon(Icons.check_circle, size: 16, color: AppColors.ctvYellowDark),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 14),
+                  // Nút Nữ
                   Expanded(
                     child: InkWell(
                       onTap: () => setState(() => _ctvGender = 'Nữ'),
-                      child: Row(
-                        children: [
-                          Radio<String>(
-                            value: 'Nữ',
-                            groupValue: _ctvGender,
-                            activeColor: AppColors.ctvYellowDark,
-                            onChanged: (val) => setState(() => _ctvGender = val!),
+                      borderRadius: BorderRadius.circular(12),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _ctvGender == 'Nữ' ? AppColors.ctvYellowLight : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _ctvGender == 'Nữ' ? AppColors.ctvYellowDark : AppColors.divider,
+                            width: _ctvGender == 'Nữ' ? 1.8 : 1.2,
                           ),
-                          const Text('Nữ', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.female_rounded,
+                              size: 22,
+                              color: _ctvGender == 'Nữ' ? AppColors.ctvYellowDark : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Nữ',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: _ctvGender == 'Nữ' ? FontWeight.bold : FontWeight.w500,
+                                color: _ctvGender == 'Nữ' ? AppColors.neutral800 : AppColors.textPrimary,
+                              ),
+                            ),
+                            if (_ctvGender == 'Nữ') ...[
+                              const SizedBox(width: 6),
+                              const Icon(Icons.check_circle, size: 16, color: AppColors.ctvYellowDark),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 16),
-
-              // Ngày sinh (UC-KH02)
-              _buildFieldLabel('Ngày sinh', isRequired: false),
-              const SizedBox(height: 6),
-              InkWell(
-                onTap: _pickCtvDob,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.divider, width: 1.2),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.cake_outlined, size: 18, color: AppColors.ctvYellowDark),
-                      const SizedBox(width: 10),
-                      Text(
-                        _ctvDob != null
-                            ? '${_ctvDob!.day}/${_ctvDob!.month}/${_ctvDob!.year}'
-                            : 'Chọn ngày sinh',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: _ctvDob != null ? AppColors.textPrimary : AppColors.textMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
               // Số CMND/CCCD (Image 3)
               _buildFieldLabel('Số CMND/CCCD', isRequired: true),
               const SizedBox(height: 6),
               _buildCleanInputField(
                 controller: _idCardController,
-                hintText: '123456789',
+                hintText: '12 số CCCD gắn chip',
                 keyboardType: TextInputType.number,
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Vui lòng nhập CCCD/CMND';
@@ -852,6 +967,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 18),
 
+              // Ngày sinh (UC-KH02)
+              _buildFieldLabel('Ngày sinh', isRequired: false),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: _pickCtvDob,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.divider, width: 1.2),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.cake_outlined, size: 20, color: AppColors.ctvYellowDark),
+                      const SizedBox(width: 10),
+                      Text(
+                        _ctvDob != null
+                            ? '${_ctvDob!.day}/${_ctvDob!.month}/${_ctvDob!.year}'
+                            : 'Chọn ngày sinh',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _ctvDob != null ? AppColors.textPrimary : AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
               // Nơi cư trú / Khu vực mong muốn nhận việc (UC-KH02)
               _buildFieldLabel('Nơi cư trú / Khu vực nhận việc', isRequired: true),
               const SizedBox(height: 6),
@@ -863,6 +1010,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: AppColors.divider),
                   ),
+                  prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.ctvYellowDark),
                 ),
                 hint: const Text('Chọn khu vực bạn muốn nhận việc', style: TextStyle(fontSize: 13)),
                 items: _districts.map((d) {
@@ -873,32 +1021,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 },
               ),
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
 
               // Dịch vụ mong muốn tham gia (UC-KH02)
               _buildFieldLabel('Dịch vụ / Kỹ năng đảm nhận', isRequired: true),
               const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.neutral100,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.divider),
-                ),
-                child: Column(
-                  children: _selectedSkills.keys.map((skill) {
-                    return CheckboxListTile(
-                      title: Text(skill, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500)),
-                      value: _selectedSkills[skill],
-                      activeColor: AppColors.ctvYellowDark,
-                      dense: true,
-                      onChanged: (val) {
-                        setState(() {
-                          _selectedSkills[skill] = val ?? false;
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
+              _buildSkillItem(
+                title: 'Dọn dẹp nhà cơ bản',
+                icon: Icons.cleaning_services_outlined,
+              ),
+              _buildSkillItem(
+                title: 'Dọn dẹp tổng thể',
+                icon: Icons.home_work_outlined,
+              ),
+              _buildSkillItem(
+                title: 'Giặt ủi quần áo',
+                icon: Icons.local_laundry_service_outlined,
+              ),
+              _buildSkillItem(
+                title: 'Nấu ăn gia đình',
+                icon: Icons.restaurant_outlined,
+              ),
+              _buildSkillItem(
+                title: 'Trông trẻ',
+                icon: Icons.child_care_outlined,
+              ),
+              _buildSkillItem(
+                title: 'Chăm sóc người cao tuổi',
+                icon: Icons.elderly_outlined,
               ),
 
               const SizedBox(height: 18),
@@ -908,7 +1058,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 6),
               _buildCleanInputField(
                 controller: _experienceController,
-                hintText: 'Ví dụ: 2 năm dọn dẹp gia đình...',
+                hintText: 'Ví dụ: 2 năm dọn dẹp gia đình, biết nấu ăn...',
               ),
 
               const SizedBox(height: 20),
@@ -917,33 +1067,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFEBEE), // Light pink box from Image 3
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFFFCDD2)),
+                  color: const Color(0xFFFFF1F2), // Light soft pink box from Image 3
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFFECDD3), width: 1.2),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.share, color: Color(0xFFE53935), size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Nhập mã giới thiệu để nhận quà.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFC62828),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFE4E6),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.card_giftcard_rounded,
+                            color: Color(0xFFE11D48),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Nhập mã giới thiệu để nhận quà.',
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFBE123C),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     const Text(
                       'Nhập mã giới thiệu từ Tasker để nhận được nhiều ưu đãi hấp dẫn từ hệ thống.',
-                      style: TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.3),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFF4B5563),
+                        height: 1.35,
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     Row(
                       children: [
                         // Nút Không
@@ -953,44 +1120,68 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             style: OutlinedButton.styleFrom(
                               backgroundColor: !_hasReferralCode ? Colors.white : Colors.transparent,
                               side: BorderSide(
-                                color: !_hasReferralCode ? const Color(0xFFE53935) : AppColors.divider,
+                                color: !_hasReferralCode ? const Color(0xFFE11D48) : const Color(0xFFCBD5E1),
+                                width: !_hasReferralCode ? 1.8 : 1.0,
                               ),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                             ),
-                            child: const Text('Không', style: TextStyle(color: AppColors.textPrimary)),
+                            child: Text(
+                              'Không',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: !_hasReferralCode ? FontWeight.bold : FontWeight.w500,
+                                color: !_hasReferralCode ? const Color(0xFFE11D48) : AppColors.textSecondary,
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 14),
                         // Nút Có
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () => setState(() => _hasReferralCode = true),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: _hasReferralCode ? const Color(0xFFFF5252) : Colors.white,
+                              backgroundColor: _hasReferralCode ? const Color(0xFFE11D48) : Colors.white,
                               foregroundColor: _hasReferralCode ? Colors.white : AppColors.textPrimary,
-                              elevation: 0,
+                              elevation: _hasReferralCode ? 2 : 0,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(24),
                                 side: BorderSide(
-                                  color: _hasReferralCode ? Colors.transparent : AppColors.divider,
+                                  color: _hasReferralCode ? Colors.transparent : const Color(0xFFCBD5E1),
                                 ),
                               ),
                             ),
-                            child: const Text('Có', style: TextStyle(fontWeight: FontWeight.bold)),
+                            child: Text(
+                              'Có',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: _hasReferralCode ? Colors.white : AppColors.textPrimary,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
                     if (_hasReferralCode) ...[
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _referralController,
-                        decoration: InputDecoration(
-                          hintText: 'Nhập mã giới thiệu Tasker',
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      const SizedBox(height: 14),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFECDD3)),
+                        ),
+                        child: TextFormField(
+                          controller: _referralController,
+                          decoration: const InputDecoration(
+                            hintText: 'Nhập mã giới thiệu Tasker',
+                            hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 13.5),
+                            prefixIcon: Icon(Icons.confirmation_number_outlined, color: Color(0xFFE11D48), size: 20),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
                         ),
                       ),
                     ],
@@ -998,7 +1189,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
               // Checkbox đồng ý điều khoản (Image 3)
               Row(
@@ -1038,6 +1229,65 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Widget hiển thị kỹ năng dạng thẻ có icon và highlight vàng chanh
+  Widget _buildSkillItem({required String title, required IconData icon}) {
+    final bool isSelected = _selectedSkills[title] ?? false;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedSkills[title] = !isSelected;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.ctvYellowLight : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.ctvYellowDark : AppColors.divider,
+            width: isSelected ? 1.6 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.ctvYellow.withValues(alpha: 0.3) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isSelected ? AppColors.neutral800 : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? AppColors.neutral800 : AppColors.textPrimary,
+                ),
+              ),
+            ),
+            Icon(
+              isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+              size: 22,
+              color: isSelected ? AppColors.ctvYellowDark : AppColors.textMuted,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1206,61 +1456,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (picked != null) {
       setState(() => _ctvDob = picked);
     }
-  }
-
-  Widget _buildKaiMascotBadge() {
-    return Align(
-      alignment: Alignment.bottomRight,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFF9800),
-                shape: BoxShape.circle,
-              ),
-              child: const Center(
-                child: Icon(Icons.smart_toy_outlined, color: Colors.white, size: 16),
-              ),
-            ),
-            const SizedBox(width: 6),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'KAI AI',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFF9800),
-                  ),
-                ),
-                Text(
-                  'Trợ lý hỗ trợ',
-                  style: TextStyle(fontSize: 9, color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildFlagIcon() {

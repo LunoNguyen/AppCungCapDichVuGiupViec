@@ -18,9 +18,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final AuthApiService _authApiService = AuthApiService();
 
-  late final TextEditingController _phoneController;
-  final TextEditingController _passwordController =
-      TextEditingController(text: '123456');
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   late int _roleIndex; // 0: Khách hàng, 1: Cộng tác viên
   bool get isCustomer => _roleIndex == 0;
@@ -35,9 +34,6 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _roleIndex = widget.initialRoleTab;
-    _phoneController = TextEditingController(
-      text: _roleIndex == 0 ? '0901234567' : '0909888999',
-    );
   }
 
   @override
@@ -51,13 +47,6 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_roleIndex == index) return;
     setState(() {
       _roleIndex = index;
-      if (index == 0) {
-        _phoneController.text = '0901234567';
-        _passwordController.text = '123456';
-      } else {
-        _phoneController.text = '0909888999';
-        _passwordController.text = '123456';
-      }
     });
   }
 
@@ -229,19 +218,28 @@ class _LoginScreenState extends State<LoginScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: _buildRoleSelector(),
+        title: Text(
+          isCustomer ? 'Đăng nhập Khách hàng' : 'Đăng nhập Cộng tác viên',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
         centerTitle: true,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment:
                   isCustomer ? CrossAxisAlignment.start : CrossAxisAlignment.center,
               children: [
-                const SizedBox(height: 12),
+                // 1. THANH CHUYỂN ĐỔI VAI TRÒ TO NGANG NÚT ĐĂNG NHẬP
+                _buildRoleSelector(),
+                const SizedBox(height: 18),
 
                 // DỰA TRÊN ẢNH:
                 // Nếu là Khách hàng -> Hiển thị layout Image 1 (Màu chủ đạo app)
@@ -367,10 +365,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // SOCIAL LOGIN (Image 1: Apple, Facebook, Google)
                   _buildSocialLoginRow(),
-
-                  const SizedBox(height: 24),
-                  // Mascot KAI icon badge (Image 1)
-                  _buildKaiMascotBadge(),
                 ] else ...[
                   // Image 4: "Bạn chưa có tài khoản? Đăng ký" (Màu vàng CTV)
                   Center(
@@ -412,95 +406,108 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Bộ chọn vai trò ở AppBar: Khách hàng (Màu chủ đạo app) vs Cộng tác viên (Màu vàng)
+  /// Bộ chọn vai trò TO NGANG NÚT ĐĂNG NHẬP (Khách hàng vs Cộng tác viên)
   Widget _buildRoleSelector() {
     return Container(
-      height: 40,
-      padding: const EdgeInsets.all(3),
+      width: double.infinity,
+      height: 52,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColors.neutral100,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.divider),
+        color: const Color(0xFFF1F5F9), // Nền xám slate nhạt sạch sẽ
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1.5,
+        ),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          // Nút Khách hàng (Teal)
-          GestureDetector(
-            onTap: () => _onRoleChanged(0),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: isCustomer ? AppColors.brand500 : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: isCustomer
-                    ? [
-                        BoxShadow(
-                          color: AppColors.brand500.withValues(alpha: 0.35),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.person,
-                    size: 16,
-                    color: isCustomer ? Colors.white : AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Khách hàng',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isCustomer ? FontWeight.bold : FontWeight.w500,
+          // Nút Khách hàng
+          Expanded(
+            child: InkWell(
+              onTap: () => _onRoleChanged(0),
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isCustomer ? AppColors.brand500 : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: isCustomer
+                      ? [
+                          BoxShadow(
+                            color: AppColors.brand500.withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      isCustomer ? Icons.person_rounded : Icons.person_outline_rounded,
+                      size: 22,
                       color: isCustomer ? Colors.white : AppColors.textSecondary,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      'Khách hàng',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: isCustomer ? FontWeight.bold : FontWeight.w600,
+                        color: isCustomer ? Colors.white : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
 
-          // Nút Cộng tác viên (Vàng)
-          GestureDetector(
-            onTap: () => _onRoleChanged(1),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: !isCustomer ? AppColors.ctvYellow : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: !isCustomer
-                    ? [
-                        BoxShadow(
-                          color: AppColors.ctvYellow.withValues(alpha: 0.45),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.badge,
-                    size: 16,
-                    color: !isCustomer ? AppColors.neutral800 : AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Cộng tác viên',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: !isCustomer ? FontWeight.bold : FontWeight.w500,
+          const SizedBox(width: 6),
+
+          // Nút Cộng tác viên
+          Expanded(
+            child: InkWell(
+              onTap: () => _onRoleChanged(1),
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: !isCustomer ? AppColors.ctvYellow : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: !isCustomer
+                      ? [
+                          BoxShadow(
+                            color: AppColors.ctvYellow.withValues(alpha: 0.5),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      !isCustomer ? Icons.handyman_rounded : Icons.handyman_outlined,
+                      size: 22,
                       color: !isCustomer ? AppColors.neutral800 : AppColors.textSecondary,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      'Cộng tác viên',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: !isCustomer ? FontWeight.bold : FontWeight.w600,
+                        color: !isCustomer ? AppColors.neutral800 : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -894,65 +901,6 @@ class _LoginScreenState extends State<LoginScreen> {
       SnackBar(
         content: Text('Đang kết nối đăng nhập qua $provider...'),
         backgroundColor: AppColors.brand500,
-      ),
-    );
-  }
-
-  /// Linh vật KAI ở góc phải màn hình (Dựa trên Image 1 & 2)
-  Widget _buildKaiMascotBadge() {
-    return Align(
-      alignment: Alignment.bottomRight,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFF9800),
-                shape: BoxShape.circle,
-              ),
-              child: const Center(
-                child: Icon(Icons.smart_toy_outlined, color: Colors.white, size: 16),
-              ),
-            ),
-            const SizedBox(width: 6),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'KAI AI',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFF9800),
-                  ),
-                ),
-                Text(
-                  'Trợ lý hỗ trợ 24/7',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
