@@ -6,11 +6,13 @@ import 'login_screen.dart';
 class OtpVerificationScreen extends StatefulWidget {
   final String destination; // phone or email
   final bool isPhone;
+  final int targetRoleTab; // 0: Khách hàng, 1: Cộng tác viên
 
   const OtpVerificationScreen({
     super.key,
     required this.destination,
     this.isPhone = true,
+    this.targetRoleTab = 0,
   });
 
   @override
@@ -128,7 +130,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const LoginScreen(initialRoleTab: 1),
+                        builder: (_) => LoginScreen(initialRoleTab: widget.targetRoleTab),
                       ),
                       (route) => false,
                     );
@@ -302,6 +304,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _verifyOtp,
                   style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.targetRoleTab == 1
+                        ? AppColors.ctvYellow
+                        : AppColors.brand500,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
