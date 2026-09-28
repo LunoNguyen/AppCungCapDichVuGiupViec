@@ -11,6 +11,7 @@ class CongTacVien {
   final String noiCuTru;
   final String soDienThoai;
   final double diemDanhGia;
+  final double soDuVi; // Số dư ví thu nhập
   final CapDoCTV capDo;
   final TrangThaiCTV trangThai;
   final DateTime ngayDangKy;
@@ -25,245 +26,86 @@ class CongTacVien {
     required this.noiCuTru,
     required this.soDienThoai,
     this.diemDanhGia = 0.0,
+    this.soDuVi = 0.0,
     this.capDo = CapDoCTV.Moi,
     required this.trangThai,
     required this.ngayDangKy,
   });
 
-  factory CongTacVien.fromJson(Map<String, dynamic> json) => CongTacVien(
-        id: json['id'] as int?,
-        maCongTacVien: json['MaCongTacVien'] as String,
-        taiKhoanId: json['taiKhoanId'] as int?,
-        hoTen: json['HoTen'] as String,
-        ngaySinh: json['NgaySinh'] != null
-            ? DateTime.parse(json['NgaySinh'] as String)
-            : null,
-        gioiTinh: json['GioiTinh'] != null
-            ? GioiTinhCTV.values.byName(json['GioiTinh'] as String)
-            : null,
-        noiCuTru: json['NoiCuTru'] as String,
-        soDienThoai: json['SoDienThoai'] as String,
-        diemDanhGia: (json['DiemDanhGia'] as num).toDouble(),
-        capDo: CapDoCTV.values.byName(json['CapDo'] as String),
-        trangThai: TrangThaiCTV.values.byName(json['TrangThai'] as String),
-        ngayDangKy: DateTime.parse(json['NgayDangKy'] as String),
-      );
+  factory CongTacVien.fromJson(Map<String, dynamic> json) {
+    // Xử lý lấy taiKhoanId từ object lồng nhau nếu có
+    int? tId = json['taiKhoanId'] as int?;
+    if (tId == null && json['taiKhoan'] != null) {
+      tId = json['taiKhoan']['id'] as int?;
+    }
+
+    return CongTacVien(
+      id: json['id'] as int?,
+      maCongTacVien: json['maCongTacVien'] ?? '',
+      taiKhoanId: tId,
+      hoTen: json['hoTen'] ?? '',
+      ngaySinh: json['ngaySinh'] != null
+          ? DateTime.parse(json['ngaySinh'] as String)
+          : null,
+      gioiTinh: (json['gioiTinh'] != null)
+          ? _parseGioiTinh(json['gioiTinh'])
+          : null,
+      noiCuTru: json['noiCuTru'] ?? '',
+      soDienThoai: json['soDienThoai'] ?? '',
+      diemDanhGia: (json['diemDanhGia'] as num?)?.toDouble() ?? 0.0,
+      soDuVi: (json['soDuVi'] as num?)?.toDouble() ?? 0.0,
+      capDo: _parseCapDo(json['capDo']),
+      trangThai: _parseTrangThai(json['trangThai']),
+      ngayDangKy: json['ngayDangKy'] != null 
+          ? DateTime.parse(json['ngayDangKy'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  static GioiTinhCTV _parseGioiTinh(dynamic value) {
+    try {
+      return GioiTinhCTV.values.byName(value.toString());
+    } catch (_) {
+      return GioiTinhCTV.Khac;
+    }
+  }
+
+  static CapDoCTV _parseCapDo(dynamic value) {
+    try {
+      return CapDoCTV.values.byName(value.toString());
+    } catch (_) {
+      return CapDoCTV.Moi;
+    }
+  }
+
+  static TrangThaiCTV _parseTrangThai(dynamic value) {
+    try {
+      return TrangThaiCTV.values.byName(value.toString());
+    } catch (_) {
+      if (value.toString() == 'TamDung') return TrangThaiCTV.TamDung;
+      return TrangThaiCTV.ChoDuyet;
+    }
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'MaCongTacVien': maCongTacVien,
+        'maCongTacVien': maCongTacVien,
         'taiKhoanId': taiKhoanId,
-        'HoTen': hoTen,
-        'NgaySinh': ngaySinh?.toIso8601String().split('T')[0],
-        'GioiTinh': gioiTinh?.name,
-        'NoiCuTru': noiCuTru,
-        'SoDienThoai': soDienThoai,
-        'DiemDanhGia': diemDanhGia,
-        'CapDo': capDo.name,
-        'TrangThai': trangThai.name,
-        'NgayDangKy': ngayDangKy.toIso8601String().split('T')[0],
+        'hoTen': hoTen,
+        'ngaySinh': ngaySinh?.toIso8601String().split('T')[0],
+        'gioiTinh': gioiTinh?.name,
+        'noiCuTru': noiCuTru,
+        'soDienThoai': soDienThoai,
+        'diemDanhGia': diemDanhGia,
+        'soDuVi': soDuVi,
+        'capDo': capDo.name,
+        'trangThai': trangThai.name,
+        'ngayDangKy': ngayDangKy.toIso8601String().split('T')[0],
       };
-
-  CongTacVien copyWith({
-    int? id,
-    String? maCongTacVien,
-    int? taiKhoanId,
-    String? hoTen,
-    DateTime? ngaySinh,
-    GioiTinhCTV? gioiTinh,
-    String? noiCuTru,
-    String? soDienThoai,
-    double? diemDanhGia,
-    CapDoCTV? capDo,
-    TrangThaiCTV? trangThai,
-    DateTime? ngayDangKy,
-  }) =>
-      CongTacVien(
-        id: id ?? this.id,
-        maCongTacVien: maCongTacVien ?? this.maCongTacVien,
-        taiKhoanId: taiKhoanId ?? this.taiKhoanId,
-        hoTen: hoTen ?? this.hoTen,
-        ngaySinh: ngaySinh ?? this.ngaySinh,
-        gioiTinh: gioiTinh ?? this.gioiTinh,
-        noiCuTru: noiCuTru ?? this.noiCuTru,
-        soDienThoai: soDienThoai ?? this.soDienThoai,
-        diemDanhGia: diemDanhGia ?? this.diemDanhGia,
-        capDo: capDo ?? this.capDo,
-        trangThai: trangThai ?? this.trangThai,
-        ngayDangKy: ngayDangKy ?? this.ngayDangKy,
-      );
 }
 
 enum CapDoCTV { Moi, Thuong, UuTu }
 
-enum TrangThaiCTV { ChoDuyet, HoatDong, DinhChi, TuChoi }
+enum TrangThaiCTV { ChoDuyet, HoatDong, DinhChi, TuChoi, TamDung }
 
 enum GioiTinhCTV { Nam, Nu, Khac }
-
-/// Model tương ứng bảng ChungChiCTV
-class ChungChiCTV {
-  final int? id;
-  final String maChungChi;
-  final int congTacVienId;
-  final LoaiChungChi loaiChungChi;
-  final String tenChungChi;
-  final String? noiCap;
-  final DateTime? ngayCap;
-  final String? duongDanFile;
-
-  const ChungChiCTV({
-    this.id,
-    required this.maChungChi,
-    required this.congTacVienId,
-    required this.loaiChungChi,
-    required this.tenChungChi,
-    this.noiCap,
-    this.ngayCap,
-    this.duongDanFile,
-  });
-
-  factory ChungChiCTV.fromJson(Map<String, dynamic> json) => ChungChiCTV(
-        id: json['id'] as int?,
-        maChungChi: json['MaChungChi'] as String,
-        congTacVienId: json['congTacVienId'] as int,
-        loaiChungChi: LoaiChungChi.values.byName(json['LoaiChungChi'] as String),
-        tenChungChi: json['TenChungChi'] as String,
-        noiCap: json['NoiCap'] as String?,
-        ngayCap: json['NgayCap'] != null
-            ? DateTime.parse(json['NgayCap'] as String)
-            : null,
-        duongDanFile: json['DuongDanFile'] as String?,
-      );
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'MaChungChi': maChungChi,
-        'congTacVienId': congTacVienId,
-        'LoaiChungChi': loaiChungChi.name,
-        'TenChungChi': tenChungChi,
-        'NoiCap': noiCap,
-        'NgayCap': ngayCap?.toIso8601String().split('T')[0],
-        'DuongDanFile': duongDanFile,
-      };
-
-  ChungChiCTV copyWith({
-    int? id,
-    String? maChungChi,
-    int? congTacVienId,
-    LoaiChungChi? loaiChungChi,
-    String? tenChungChi,
-    String? noiCap,
-    DateTime? ngayCap,
-    String? duongDanFile,
-  }) =>
-      ChungChiCTV(
-        id: id ?? this.id,
-        maChungChi: maChungChi ?? this.maChungChi,
-        congTacVienId: congTacVienId ?? this.congTacVienId,
-        loaiChungChi: loaiChungChi ?? this.loaiChungChi,
-        tenChungChi: tenChungChi ?? this.tenChungChi,
-        noiCap: noiCap ?? this.noiCap,
-        ngayCap: ngayCap ?? this.ngayCap,
-        duongDanFile: duongDanFile ?? this.duongDanFile,
-      );
-}
-
-enum LoaiChungChi { BangCap, ChungNhan, ChungChi }
-
-/// Model tương ứng bảng HoSoCTV
-class HoSoCTV {
-  final int? id;
-  final String maHoSo;
-  final int congTacVienId;
-  final LoaiTaiLieuHoSo loaiTaiLieu;
-  final String duongDanFile;
-  final DateTime ngayTai;
-
-  const HoSoCTV({
-    this.id,
-    required this.maHoSo,
-    required this.congTacVienId,
-    required this.loaiTaiLieu,
-    required this.duongDanFile,
-    required this.ngayTai,
-  });
-
-  factory HoSoCTV.fromJson(Map<String, dynamic> json) => HoSoCTV(
-        id: json['id'] as int?,
-        maHoSo: json['MaHoSo'] as String,
-        congTacVienId: json['congTacVienId'] as int,
-        loaiTaiLieu: LoaiTaiLieuHoSo.values.byName(json['LoaiTaiLieu'] as String),
-        duongDanFile: json['DuongDanFile'] as String,
-        ngayTai: DateTime.parse(json['NgayTai'] as String),
-      );
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'MaHoSo': maHoSo,
-        'congTacVienId': congTacVienId,
-        'LoaiTaiLieu': loaiTaiLieu.name,
-        'DuongDanFile': duongDanFile,
-        'NgayTai': ngayTai.toIso8601String(),
-      };
-
-  HoSoCTV copyWith({
-    int? id,
-    String? maHoSo,
-    int? congTacVienId,
-    LoaiTaiLieuHoSo? loaiTaiLieu,
-    String? duongDanFile,
-    DateTime? ngayTai,
-  }) =>
-      HoSoCTV(
-        id: id ?? this.id,
-        maHoSo: maHoSo ?? this.maHoSo,
-        congTacVienId: congTacVienId ?? this.congTacVienId,
-        loaiTaiLieu: loaiTaiLieu ?? this.loaiTaiLieu,
-        duongDanFile: duongDanFile ?? this.duongDanFile,
-        ngayTai: ngayTai ?? this.ngayTai,
-      );
-}
-
-enum LoaiTaiLieuHoSo { AnhChanDung, CCCD_Mat_Truoc, CCCD_Mat_Sau, TaiLieuKhac }
-
-/// Model tương ứng bảng ChuyenMon
-class ChuyenMon {
-  final String maChuyenMon;
-  final String maCongTacVien;
-  final String tenChuyenMon;
-  final int? soKinhNghiem;
-
-  const ChuyenMon({
-    required this.maChuyenMon,
-    required this.maCongTacVien,
-    required this.tenChuyenMon,
-    this.soKinhNghiem,
-  });
-
-  factory ChuyenMon.fromJson(Map<String, dynamic> json) => ChuyenMon(
-        maChuyenMon: json['MaChuyenMon'] as String,
-        maCongTacVien: json['MaCongTacVien'] as String,
-        tenChuyenMon: json['TenChuyenMon'] as String,
-        soKinhNghiem: json['SoKinhNghiem'] as int?,
-      );
-
-  Map<String, dynamic> toJson() => {
-        'MaChuyenMon': maChuyenMon,
-        'MaCongTacVien': maCongTacVien,
-        'TenChuyenMon': tenChuyenMon,
-        'SoKinhNghiem': soKinhNghiem,
-      };
-
-  ChuyenMon copyWith({
-    String? maChuyenMon,
-    String? maCongTacVien,
-    String? tenChuyenMon,
-    int? soKinhNghiem,
-  }) =>
-      ChuyenMon(
-        maChuyenMon: maChuyenMon ?? this.maChuyenMon,
-        maCongTacVien: maCongTacVien ?? this.maCongTacVien,
-        tenChuyenMon: tenChuyenMon ?? this.tenChuyenMon,
-        soKinhNghiem: soKinhNghiem ?? this.soKinhNghiem,
-      );
-}

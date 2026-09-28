@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import 'customer_home_screen.dart';
+import 'customer_services_screen.dart';
 import 'booking_history_screen.dart';
-import 'customer_notification_screen.dart';
 import 'customer_account_screen.dart';
 
 class CustomerMainScreen extends StatefulWidget {
@@ -16,31 +16,38 @@ class CustomerMainScreen extends StatefulWidget {
 class _CustomerMainScreenState extends State<CustomerMainScreen> {
   late int _currentIndex;
 
-  final List<Widget> _screens = const [
-    CustomerHomeScreen(),
-    BookingHistoryScreen(),
-    CustomerNotificationScreen(),
-    CustomerAccountScreen(),
-  ];
-
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
   }
 
+  void _switchTab(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      CustomerHomeScreen(onSwitchTab: _switchTab),
+      CustomerServicesScreen(onSwitchTab: _switchTab),
+      BookingHistoryScreen(onSwitchTab: _switchTab),
+      const CustomerAccountScreen(),
+    ];
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _screens,
+        children: screens,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
+          color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),
@@ -57,33 +64,34 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
           unselectedItemColor: AppColors.textSecondary,
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w700,
-            fontSize: 12,
+            fontSize: 11.5,
           ),
           unselectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.normal,
-            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            fontSize: 11.5,
           ),
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
+          elevation: 0,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
+              activeIcon: Icon(Icons.home_rounded),
               label: 'Trang chủ',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today_outlined),
-              activeIcon: Icon(Icons.calendar_today),
-              label: 'Lịch hẹn',
+              icon: Icon(Icons.auto_awesome_mosaic_outlined),
+              activeIcon: Icon(Icons.auto_awesome_mosaic_rounded),
+              label: 'Dịch vụ',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.notifications_none_outlined),
-              activeIcon: Icon(Icons.notifications),
-              label: 'Thông báo',
+              icon: Icon(Icons.receipt_long_outlined),
+              activeIcon: Icon(Icons.receipt_long_rounded),
+              label: 'Hoạt động',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
+              icon: Icon(Icons.person_outline_rounded),
+              activeIcon: Icon(Icons.person_rounded),
               label: 'Tài khoản',
             ),
           ],

@@ -71,7 +71,7 @@ class AuthApiService {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/auth/login',
       body: {
-        'username': username,
+        'tenDangNhap': username,
         'matKhau': matKhau,
         'vaiTro': vaiTro,
       },

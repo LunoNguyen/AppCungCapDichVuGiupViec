@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
+import '../../services/collaborator_api_service.dart';
 
 class CollaboratorScheduleScreen extends StatefulWidget {
   const CollaboratorScheduleScreen({super.key});
@@ -12,66 +15,105 @@ class CollaboratorScheduleScreen extends StatefulWidget {
 class _CollaboratorScheduleScreenState
     extends State<CollaboratorScheduleScreen> {
   int _selectedView = 0; // 0 = week, 1 = list
-  int _selectedDay = DateTime.now().weekday - 1;
+  int _selectedDayIndex = 0; 
+  bool _isLoading = true;
+  int _currentUserId = 0;
 
-  final List<String> _weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-  final List<int> _dates = [29, 30, 1, 2, 3, 4, 5]; // Demo dates
+  final CollaboratorApiService _apiService = CollaboratorApiService();
+  final List<String> _weekDayLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+  
+  DateTime _focusedDate = DateTime.now(); // Ngày mốc để xác định tuần đang xem
+  List<DateTime> _weekDates = [];
+  List<Map<String, dynamic>> _allSchedules = [];
 
-  final List<Map<String, dynamic>> _allSchedules = [
-    {
-      'day': 0, // Monday
-      'service': 'Dọn dẹp nhà cơ bản',
-      'customer': 'Nguyễn Thị B',
-      'time': '08:00 – 10:00',
-      'address': '123 Nguyễn Trãi, Q.1',
-      'price': '300.000đ',
-      'status': 'upcoming',
-      'color': AppColors.brand500,
-    },
-    {
-      'day': 1, // Tuesday
-      'service': 'Giặt ủi quần áo',
-      'customer': 'Trần Văn C',
-      'time': '09:00 – 11:00',
-      'address': '456 Lê Văn Sỹ, Q.3',
-      'price': '150.000đ',
-      'status': 'upcoming',
-      'color': Color(0xFF4CAF50),
-    },
-    {
-      'day': 1, // Tuesday
-      'service': 'Nấu ăn tại nhà',
-      'customer': 'Lê Thị D',
-      'time': '14:00 – 17:00',
-      'address': '789 Đinh Tiên Hoàng, Q.BT',
-      'price': '200.000đ',
-      'status': 'upcoming',
-      'color': Color(0xFFFF5722),
-    },
-    {
-      'day': 3, // Thursday
-      'service': 'Dọn dẹp tổng thể',
-      'customer': 'Phạm Văn E',
-      'time': '08:00 – 12:00',
-      'address': '321 Pasteur, Q.1',
-      'price': '500.000đ',
-      'status': 'inProgress',
-      'color': AppColors.brand600,
-    },
-    {
-      'day': 5, // Saturday
-      'service': 'Trông trẻ',
-      'customer': 'Hoàng Thị F',
-      'time': '14:00 – 18:00',
-      'address': '99 Võ Thị Sáu, Q.1',
-      'price': '320.000đ',
-      'status': 'upcoming',
-      'color': Color(0xFF9C27B0),
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _generateWeek(_focusedDate);
+    _loadUserAndFetchSchedules();
+  }
 
-  List<Map<String, dynamic>> get _schedulesForSelectedDay =>
-      _allSchedules.where((s) => s['day'] == _selectedDay).toList();
+  // Hàm tạo ra 7 ngày trong tuần dựa trên một ngày bất kỳ
+  void _generateWeek(DateTime date) {
+    int currentWeekday = date.weekday; 
+    DateTime monday = DateTime(date.year, date.month, date.day).subtract(Duration(days: currentWeekday - 1));
+    
+    List<DateTime> dates = [];
+    for (int i = 0; i < 7; i++) {
+      dates.add(monday.add(Duration(days: i)));
+    }
+
+    setState(() {
+      _weekDates = dates;
+      
+      final now = DateTime.now();
+      final todayStr = DateFormat('yyyy-MM-dd').format(now);
+      
+      int foundToday = -1;
+      for(int i=0; i<dates.length; i++) {
+        if(DateFormat('yyyy-MM-dd').format(dates[i]) == todayStr) {
+          foundToday = i;
+          break;
+        }
+      }
+      
+      if (foundToday != -1) {
+        _selectedDayIndex = foundToday;
+      } else {
+        _selectedDayIndex = 0; 
+      }
+    });
+  }
+
+  void _changeWeek(int step) {
+    setState(() {
+      _focusedDate = _focusedDate.add(Duration(days: step * 7));
+      _generateWeek(_focusedDate);
+    });
+  }
+
+  Future<void> _loadUserAndFetchSchedules() async {
+    final prefs = await SharedPreferences.getInstance();
+    _currentUserId = prefs.getInt('userId') ?? 0;
+    if (_currentUserId == 0) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    await _fetchSchedules();
+  }
+
+  Future<void> _fetchSchedules() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final response = await _apiService.getSchedules(congTacVienId: _currentUserId);
+      if (response.success && response.data != null) {
+        setState(() {
+          _allSchedules = List<Map<String, dynamic>>.from(response.data!);
+        });
+      }
+    } catch (e) {
+      debugPrint('Lỗi tải lịch làm việc: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  List<Map<String, dynamic>> get _schedulesForSelectedDay {
+    if (_weekDates.isEmpty || _selectedDayIndex >= _weekDates.length) return [];
+    final selectedDateStr = DateFormat('yyyy-MM-dd').format(_weekDates[_selectedDayIndex]);
+    
+    return _allSchedules.where((s) {
+      final ngayLam = s['ngayLam']?.toString() ?? '';
+      return ngayLam.startsWith(selectedDateStr);
+    }).toList();
+  }
+
+  bool _hasOrderOnDay(int index) {
+    if (_weekDates.isEmpty || index >= _weekDates.length) return false;
+    final dateStr = DateFormat('yyyy-MM-dd').format(_weekDates[index]);
+    return _allSchedules.any((s) => (s['ngayLam']?.toString() ?? '').startsWith(dateStr));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +124,10 @@ class _CollaboratorScheduleScreenState
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _fetchSchedules,
+          ),
+          IconButton(
             icon: Icon(
               _selectedView == 0 ? Icons.list : Icons.calendar_view_week,
               color: AppColors.white,
@@ -90,21 +136,28 @@ class _CollaboratorScheduleScreenState
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildWeekSelector(),
-          _buildStats(),
-          Expanded(
-            child: _selectedView == 0
-                ? _buildDayView()
-                : _buildListView(),
-          ),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.brand500))
+          : Column(
+              children: [
+                _buildWeekNavigator(),
+                _buildStats(),
+                Expanded(
+                  child: _selectedView == 0
+                      ? _buildDayView()
+                      : _buildListView(),
+                ),
+              ],
+            ),
     );
   }
 
-  Widget _buildWeekSelector() {
+  Widget _buildWeekNavigator() {
+    String monthYear = DateFormat('MMMM yyyy', 'vi_VN').format(_focusedDate);
+    if (monthYear.isNotEmpty) {
+      monthYear = monthYear[0].toUpperCase() + monthYear.substring(1);
+    }
+
     return Container(
       color: AppColors.white,
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -115,81 +168,82 @@ class _CollaboratorScheduleScreenState
             child: Row(
               children: [
                 const Icon(Icons.calendar_month, color: AppColors.brand500, size: 18),
-                const SizedBox(width: 6),
-                const Text(
-                  'Tuần 40 • Tháng 9/2026',
-                  style: TextStyle(
+                const SizedBox(width: 8),
+                Text(
+                  monthYear,
+                  style: const TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                    fontSize: 15,
                     color: AppColors.textPrimary,
                   ),
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.chevron_left, size: 20),
-                  onPressed: () {},
+                  icon: const Icon(Icons.chevron_left, size: 28, color: AppColors.brand600),
+                  onPressed: () => _changeWeek(-1),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 20),
                 IconButton(
-                  icon: const Icon(Icons.chevron_right, size: 20),
-                  onPressed: () {},
+                  icon: const Icon(Icons.chevron_right, size: 28, color: AppColors.brand600),
+                  onPressed: () => _changeWeek(1),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           SizedBox(
-            height: 62,
+            height: 64,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: 7,
               itemBuilder: (context, i) {
-                final selected = i == _selectedDay;
-                final hasOrder = _allSchedules.any((s) => s['day'] == i);
+                final date = _weekDates[i];
+                final isSelected = i == _selectedDayIndex;
+                final isToday = DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(DateTime.now());
+                final hasOrder = _hasOrderOnDay(i);
+
                 return GestureDetector(
-                  onTap: () => setState(() => _selectedDay = i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 44,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                  onTap: () => setState(() => _selectedDayIndex = i),
+                  child: Container(
+                    width: (MediaQuery.of(context).size.width - 24) / 7,
                     decoration: BoxDecoration(
-                      color: selected ? AppColors.brand500 : Colors.transparent,
+                      color: isSelected ? AppColors.brand500 : Colors.transparent,
                       borderRadius: BorderRadius.circular(12),
+                      border: isToday && !isSelected ? Border.all(color: AppColors.brand500, width: 1.5) : null,
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          _weekDays[i],
+                          _weekDayLabels[i],
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: selected
-                                ? Colors.white70
-                                : AppColors.textSecondary,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected ? Colors.white : AppColors.textSecondary,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Text(
-                          '${_dates[i]}',
+                          '${date.day}',
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: selected ? AppColors.white : AppColors.textPrimary,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: isSelected ? AppColors.white : AppColors.textPrimary,
                           ),
                         ),
                         if (hasOrder)
                           Container(
-                            margin: const EdgeInsets.only(top: 2),
+                            margin: const EdgeInsets.only(top: 4),
                             width: 6,
                             height: 6,
                             decoration: BoxDecoration(
-                              color: selected ? Colors.white : AppColors.brand300,
+                              color: isSelected ? Colors.white : AppColors.brand500,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -212,25 +266,16 @@ class _CollaboratorScheduleScreenState
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.brand700, AppColors.brand500],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.brand500.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         children: [
-          _statItem('5', 'Ca tuần này', Icons.work_outline),
+          _statItem('${_allSchedules.length}', 'Tổng ca phân', Icons.work_outline),
           _divider(),
-          _statItem('1.450.000đ', 'Thu nhập', Icons.account_balance_wallet_outlined),
+          _statItem('Hoạt động', 'Trạng thái', Icons.check_circle_outline),
           _divider(),
-          _statItem('4.9★', 'Đánh giá', Icons.star_outline),
+          _statItem('5.0★', 'Đánh giá', Icons.star_outline),
         ],
       ),
     );
@@ -242,26 +287,14 @@ class _CollaboratorScheduleScreenState
         children: [
           Icon(icon, color: Colors.white70, size: 18),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-              color: AppColors.white,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 10, color: Colors.white70),
-          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.white)),
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.white70)),
         ],
       ),
     );
   }
 
-  Widget _divider() {
-    return Container(width: 1, height: 36, color: Colors.white24);
-  }
+  Widget _divider() => Container(width: 1, height: 36, color: Colors.white24);
 
   Widget _buildDayView() {
     final schedules = _schedulesForSelectedDay;
@@ -273,18 +306,10 @@ class _CollaboratorScheduleScreenState
             Icon(Icons.event_available, size: 60, color: AppColors.brand300),
             const SizedBox(height: 12),
             Text(
-              'Không có lịch vào ${_weekDays[_selectedDay]}',
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-              ),
+              'Không có lịch vào ${_weekDayLabels[_selectedDayIndex]}',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
             ),
-            const SizedBox(height: 6),
-            const Text(
-              'Hãy tận hưởng ngày nghỉ của bạn 🎉',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
+            const Text('Hãy tận hưởng ngày nghỉ của bạn 🎉', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           ],
         ),
       );
@@ -298,26 +323,22 @@ class _CollaboratorScheduleScreenState
   }
 
   Widget _buildListView() {
+    if (_allSchedules.isEmpty) {
+      return const Center(child: Text('Không có ca làm việc nào', style: TextStyle(color: AppColors.textSecondary)));
+    }
     return ListView.builder(
       padding: const EdgeInsets.only(top: 12, bottom: 20),
       itemCount: _allSchedules.length,
       itemBuilder: (context, index) {
         final s = _allSchedules[index];
+        final dateStr = s['ngayLam']?.toString() ?? '';
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (index == 0 ||
-                _allSchedules[index - 1]['day'] != s['day'])
+            if (index == 0 || _allSchedules[index - 1]['ngayLam'] != s['ngayLam'])
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                child: Text(
-                  '${_weekDays[s['day'] as int]}, ${_dates[s['day'] as int]}/09/2026',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: AppColors.brand600,
-                  ),
-                ),
+                child: Text(dateStr, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.brand600)),
               ),
             _buildScheduleCard(s),
           ],
@@ -327,33 +348,26 @@ class _CollaboratorScheduleScreenState
   }
 
   Widget _buildScheduleCard(Map<String, dynamic> s) {
-    final statusLabel = s['status'] == 'inProgress' ? 'Đang thực hiện' : 'Sắp tới';
-    final statusColor = s['status'] == 'inProgress' ? AppColors.warning : AppColors.brand500;
+    final String serviceName = s['tenDichVu'] ?? 'Dịch vụ giúp việc';
+    final String customerName = s['khachHangTen'] ?? 'Khách hàng';
+    final String address = s['diaChi'] ?? 'Chưa cập nhật địa chỉ';
+    final String timeStr = '${s['gioBatDau'] ?? ''} - ${s['gioKetThuc'] ?? ''}';
+    final String status = s['trangThai'] ?? 'SapToi';
+    
+    final statusLabel = status == 'HoanThanh' ? 'Hoàn thành' : 'Sắp tới';
+    final statusColor = status == 'HoanThanh' ? AppColors.success : AppColors.brand500;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2))],
       ),
       child: IntrinsicHeight(
         child: Row(
           children: [
-            Container(
-              width: 6,
-              decoration: BoxDecoration(
-                color: s['color'] as Color,
-                borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(16)),
-              ),
-            ),
+            Container(width: 6, decoration: BoxDecoration(color: statusColor, borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)))),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(14),
@@ -362,86 +376,20 @@ class _CollaboratorScheduleScreenState
                   children: [
                     Row(
                       children: [
-                        Expanded(
-                          child: Text(
-                            s['service'] as String,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
+                        Expanded(child: Text(serviceName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary))),
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            statusLabel,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: statusColor,
-                            ),
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                          child: Text(statusLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: statusColor)),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.person_outline,
-                            size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          s['customer'] as String,
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                        const Spacer(),
-                        Text(
-                          s['price'] as String,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            color: AppColors.brand600,
-                          ),
-                        ),
-                      ],
-                    ),
+                    _infoRow(Icons.person_outline, customerName),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time,
-                            size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          s['time'] as String,
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
+                    _infoRow(Icons.access_time, timeStr),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on_outlined,
-                            size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            s['address'] as String,
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textSecondary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
+                    _infoRow(Icons.location_on_outlined, address),
                   ],
                 ),
               ),
@@ -449,6 +397,16 @@ class _CollaboratorScheduleScreenState
           ],
         ),
       ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: AppColors.textSecondary),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+      ],
     );
   }
 }
