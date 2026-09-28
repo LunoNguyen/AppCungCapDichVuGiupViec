@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../customer/customer_main_screen.dart';
+import 'login_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final String destination; // phone or email
@@ -80,7 +80,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         _isLoading = false;
       });
 
-      // Show success modal then navigate to customer main
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -93,7 +92,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.12),
+                  color: AppColors.success.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -113,7 +112,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Tài khoản của bạn đã được kích hoạt. Hãy trải nghiệm ngay các dịch vụ giúp việc tiện ích!',
+                'Tài khoản của bạn đã được kích hoạt. Vui lòng đăng nhập để bắt đầu!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
@@ -129,12 +128,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const CustomerMainScreen(),
+                        builder: (_) => const LoginScreen(initialRoleTab: 1),
                       ),
                       (route) => false,
                     );
                   },
-                  child: const Text('Bắt đầu ngay'),
+                  child: const Text('Đăng nhập ngay'),
                 ),
               ),
             ],
@@ -169,7 +168,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: AppColors.brand500.withOpacity(0.1),
+                  color: AppColors.brand500.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -206,7 +205,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              // OTP 6 input boxes
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(6, (index) {

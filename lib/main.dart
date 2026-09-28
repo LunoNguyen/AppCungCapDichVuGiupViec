@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'core/app_theme.dart';
 import 'screens/customer/customer_main_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Khởi tạo ngôn ngữ Tiếng Việt cho toàn bộ ứng dụng
+  await initializeDateFormatting('vi_VN', null);
   runApp(const HousekeepingApp());
 }
 
