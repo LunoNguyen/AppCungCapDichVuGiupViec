@@ -44,58 +44,58 @@ class _AppEntryScreenState extends State<AppEntryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 40),
+              const SizedBox(height: 60),
               Container(
-                width: 90,
-                height: 90,
+                width: 100,
+                height: 100,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [AppColors.brand700, AppColors.brand500],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.brand500.withValues(alpha: 0.3),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
                 child: const Icon(
                   Icons.home_repair_service,
                   color: Colors.white,
-                  size: 48,
+                  size: 54,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               const Text(
                 'GIÚP VIỆC TIỆN ÍCH',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 24,
                   fontWeight: FontWeight.w900,
                   color: AppColors.brand700,
-                  letterSpacing: 1.0,
+                  letterSpacing: 1.2,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               const Text(
-                'Hệ thống quản lý dành cho Cộng tác viên',
+                'Nền tảng kết nối dịch vụ chuyên nghiệp\nDành riêng cho Cộng tác viên',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 15,
                   color: AppColors.textSecondary,
-                  height: 1.4,
+                  height: 1.5,
                 ),
               ),
-              const SizedBox(height: 60),
+              const SizedBox(height: 80),
               _buildRoleCard(
                 title: 'Cộng tác viên (Partner)',
-                subtitle: 'Nhận đơn, quản lý lịch làm việc và theo dõi thu nhập hàng ngày.',
+                subtitle: 'Quản lý lịch làm việc, nhận đơn mới và theo dõi thu nhập hàng ngày.',
                 icon: Icons.badge_outlined,
-                badge: 'Đang hoạt động',
+                badge: 'Hoạt động',
                 badgeColor: Colors.green,
                 color: AppColors.brand700,
                 onTap: () {
@@ -116,12 +116,13 @@ class _AppEntryScreenState extends State<AppEntryScreen> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 4,
                   ),
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 60),
               const Text(
-                'Lưu ý: Các chức năng dành cho Khách hàng đang trong quá trình bảo trì.',
+                'Lưu ý: Các chức năng dành cho Khách hàng hiện đang bảo trì.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: AppColors.error, fontWeight: FontWeight.w500),
               ),
@@ -153,8 +154,8 @@ class _AppEntryScreenState extends State<AppEntryScreen> {
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
             )
           ],
         ),
@@ -163,7 +164,7 @@ class _AppEntryScreenState extends State<AppEntryScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
-              child: Icon(icon, color: color, size: 28),
+              child: Icon(icon, color: color, size: 32),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -181,12 +182,12 @@ class _AppEntryScreenState extends State<AppEntryScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4)),
+                  const SizedBox(height: 6),
+                  Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.5)),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: AppColors.textSecondary),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 18, color: AppColors.textSecondary),
           ],
         ),
       ),

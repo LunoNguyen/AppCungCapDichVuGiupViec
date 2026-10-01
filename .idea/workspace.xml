@@ -7,21 +7,11 @@
     <list default="true" id="16518615-c9a4-4cd1-a52a-7676614e02af" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app_cung_cap_dich_vu_giup_viec.iml" beforeDir="false" afterPath="$PROJECT_DIR$/app_cung_cap_dich_vu_giup_viec.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/main.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/auth/login_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/auth/login_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/auth/otp_verification_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/auth/otp_verification_screen.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/screens/collaborator/collaborator_account_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/collaborator/collaborator_account_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/screens/collaborator/collaborator_orders_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/collaborator/collaborator_orders_screen.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/screens/collaborator/collaborator_schedule_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/collaborator/collaborator_schedule_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/customer/booking_history_screen.dart" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/customer/booking_screen.dart" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/customer/customer_account_screen.dart" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/customer/customer_home_screen.dart" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/customer/customer_main_screen.dart" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/customer/customer_notification_screen.dart" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/customer/service_detail_screen.dart" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/guest/guest_account_screen.dart" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/guest/guest_home_screen.dart" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/guest/guest_main_screen.dart" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -99,5 +89,16 @@
     <layout>
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
     </layout>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="Dart">
+          <url>file://$PROJECT_DIR$/lib/screens/collaborator/collaborator_account_screen.dart</url>
+          <line>736</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
