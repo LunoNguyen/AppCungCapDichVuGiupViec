@@ -36,13 +36,10 @@ class _CollaboratorScheduleScreenState
   List<DateTime> _weekDates = [];
   List<Map<String, dynamic>> _allSchedules = [];
 
-  // Màu sắc đồng bộ với trang đơn hàng
-  static const _headerTop = Color(0xFF3F4A8A);
-  static const _headerBottom = Color(0xFF5B62B3);
-  static const _coral = Color(0xFFE8646A);
-  static const _chipBg = Color(0xFFE6E7F2);
-  static const _tileBg = Color(0xFFF4F5FA);
-  static const _ink = Color(0xFF1F2544);
+  // Màu theo phong cách bTaskee Partner
+  static const _primary = AppColors.partner500;
+  static const _money = AppColors.brand500;
+  static const _ink = AppColors.textPrimary;
 
   // Cặp màu avatar: [nền, chữ]
   static const _avatarColors = [
@@ -188,7 +185,7 @@ class _CollaboratorScheduleScreenState
               child: _isLoading
                   ? const Center(
                   child: CircularProgressIndicator(
-                      color: AppColors.brand500))
+                      color: _primary))
                   : TabBarView(
                 controller: _viewTabController,
                 children: [
@@ -205,62 +202,49 @@ class _CollaboratorScheduleScreenState
 
   Widget _buildHeader() {
     return Container(
-      padding: EdgeInsets.fromLTRB(
-          16, MediaQuery.of(context).padding.top + 8, 16, 16),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_headerTop, _headerBottom],
-        ),
-      ),
+      color: _primary,
+      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
       child: Column(
         children: [
-          Row(
-            children: [
-              const SizedBox(width: 48),
-              const Expanded(
-                child: Text(
-                  'Lịch làm việc',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+          SizedBox(
+            height: 52,
+            child: Row(
+              children: [
+                const SizedBox(width: 48),
+                const Expanded(
+                  child: Text(
+                    'Lịch làm việc',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.refresh, color: Colors.white),
-                onPressed: _fetchSchedules,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: TabBar(
-              controller: _viewTabController,
-              dividerColor: Colors.transparent,
-              indicatorSize: TabBarIndicatorSize.tab,
-              labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-              indicator: BoxDecoration(
-                color: _headerTop,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              labelColor: Colors.white,
-              unselectedLabelColor: _headerTop,
-              labelStyle:
-              const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-              tabs: const [
-                Tab(height: 38, child: Text('THEO NGÀY')),
-                Tab(height: 38, child: Text('TẤT CẢ CA')),
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                  onPressed: _fetchSchedules,
+                ),
               ],
             ),
+          ),
+          TabBar(
+            controller: _viewTabController,
+            indicatorColor: Colors.white,
+            indicatorWeight: 3,
+            indicatorSize: TabBarIndicatorSize.label,
+            dividerColor: Colors.transparent,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white.withValues(alpha: 0.75),
+            labelStyle:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            unselectedLabelStyle:
+                const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            tabs: const [
+              Tab(text: 'Theo ngày'),
+              Tab(text: 'Tất cả ca'),
+            ],
           ),
         ],
       ),
@@ -291,20 +275,23 @@ class _CollaboratorScheduleScreenState
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                const Icon(Icons.calendar_month, color: _headerTop, size: 18),
+                const Icon(Icons.calendar_month, color: _primary, size: 18),
                 const SizedBox(width: 8),
-                Text(
-                  monthYear,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: AppColors.textPrimary,
+                Expanded(
+                  child: Text(
+                    monthYear,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.chevron_left,
-                      size: 28, color: _headerTop),
+                      size: 28, color: _primary),
                   onPressed: () => _changeWeek(-1),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -312,7 +299,7 @@ class _CollaboratorScheduleScreenState
                 const SizedBox(width: 20),
                 IconButton(
                   icon: const Icon(Icons.chevron_right,
-                      size: 28, color: _headerTop),
+                      size: 28, color: _primary),
                   onPressed: () => _changeWeek(1),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -340,10 +327,10 @@ class _CollaboratorScheduleScreenState
                   child: Container(
                     width: (MediaQuery.of(context).size.width - 24) / 7,
                     decoration: BoxDecoration(
-                      color: isSelected ? _headerTop : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
+                      color: isSelected ? _primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
                       border: isToday && !isSelected
-                          ? Border.all(color: _headerTop, width: 1.5)
+                          ? Border.all(color: _primary, width: 1.5)
                           : null,
                     ),
                     child: Column(
@@ -378,7 +365,7 @@ class _CollaboratorScheduleScreenState
                             width: 6,
                             height: 6,
                             decoration: BoxDecoration(
-                              color: isSelected ? Colors.white : _headerTop,
+                              color: isSelected ? Colors.white : AppColors.partner500,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -401,7 +388,7 @@ class _CollaboratorScheduleScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.event_available, size: 60, color: AppColors.brand300),
+            const Icon(Icons.event_available, size: 60, color: AppColors.ctvYellowBorder),
             const SizedBox(height: 12),
             Text(
               'Không có lịch vào ${_weekDayLabels[_selectedDayIndex]}',
@@ -448,7 +435,7 @@ class _CollaboratorScheduleScreenState
                   style: const TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 14,
-                      color: _headerTop),
+                      color: AppColors.textSecondary),
                 ),
               ),
             _buildScheduleCard(s),
@@ -466,231 +453,187 @@ class _CollaboratorScheduleScreenState
     final String address = s['diaChi'] ?? 'Chưa cập nhật địa chỉ';
     final String rawDate = s['ngayLam']?.toString() ?? '';
     final String dateStr = _fmtDate(rawDate);
-    final String timeStr =
-        '${_fmtTime(s['gioBatDau']?.toString())} - ${_fmtTime(s['gioKetThuc']?.toString())}';
+    final String startStr = _fmtTime(s['gioBatDau']?.toString());
+    final String endStr = _fmtTime(s['gioKetThuc']?.toString());
     final String status = s['trangThai'] ?? 'SapToi';
 
     final bool isCompleted = status == 'HoanThanh';
-    final Color sc =
-    isCompleted ? const Color(0xFF2E9E6B) : const Color(0xFF2F80ED);
+    final Color sc = isCompleted ? AppColors.success : AppColors.info;
     final String statusText = isCompleted ? 'Hoàn thành' : 'Sắp tới';
 
     final String? dayLbl = _dayLabel(rawDate);
     final avatar = _avatarPair(customerName);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Hàng 1: chip dịch vụ (trái) + nhãn trạng thái (phải)
-          Row(
-            children: [
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _chipBg,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      serviceName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _headerTop,
-                      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Cột giờ bên trái như timeline
+            Container(
+              width: 72,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: sc.withValues(alpha: 0.08),
+                borderRadius:
+                    const BorderRadius.horizontal(left: Radius.circular(12)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    startStr,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: sc,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: sc.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  statusText,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: sc,
+                  const SizedBox(height: 2),
+                  Container(width: 1, height: 14, color: sc.withValues(alpha: 0.4)),
+                  const SizedBox(height: 2),
+                  Text(
+                    endStr,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Hàng 2: avatar + tên khách (tối đa 2 dòng) + nhãn ngày
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: avatar[0],
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  _initials(customerName),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: avatar[1],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      customerName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: _ink,
-                        height: 1.25,
-                      ),
-                    ),
-                    if (dayLbl != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        dayLbl,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            serviceName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: _ink,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: sc.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: sc,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: avatar[0],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            _initials(customerName),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: avatar[1],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            customerName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: _ink,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.location_on_outlined,
+                            size: 16, color: AppColors.textSecondary),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            address,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.calendar_today_outlined,
+                            size: 15, color: AppColors.textSecondary),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            dayLbl != null ? '$dayLbl, $dateStr' : dateStr,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        if (s['thanhTien'] != null)
+                          Text(
+                            _formatPrice(s['thanhTien']),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: _money,
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Hàng 3: ô ngày + ô giờ (icon màu theo trạng thái)
-          Row(
-            children: [
-              Expanded(
-                  child: _infoTile(
-                      Icons.calendar_today_outlined, dateStr, sc)),
-              const SizedBox(width: 8),
-              Expanded(child: _infoTile(Icons.access_time, timeStr, sc)),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Hàng 4: địa chỉ
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(top: 1),
-                child: Icon(Icons.location_on_outlined,
-                    size: 14, color: AppColors.textSecondary),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  address,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // Hàng 5: thu nhập (chỉ hiện khi API có thanhTien)
-          if (s['thanhTien'] != null) ...[
-            const SizedBox(height: 12),
-            Divider(height: 1, color: Colors.black.withValues(alpha: 0.08)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Text(
-                  'Thu nhập ca',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  _formatPrice(s['thanhTien']),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: _coral,
-                  ),
-                ),
-              ],
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  // Ô thông tin nền nhạt (ngày / giờ), icon màu theo trạng thái
-  Widget _infoTile(IconData icon, String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-      decoration: BoxDecoration(
-        color: _tileBg,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
-          Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                text,
-                maxLines: 1,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: _ink,
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

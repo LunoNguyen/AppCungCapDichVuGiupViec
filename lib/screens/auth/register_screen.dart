@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/auth_api_service.dart';
+import '../../services/session_service.dart';
 import 'login_screen.dart';
 import 'otp_verification_screen.dart';
 
@@ -89,139 +90,182 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
+  String _fmtApiDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  bool _isAdult(DateTime dob) {
+    final now = DateTime.now();
+    final adultDay = DateTime(dob.year + 18, dob.month, dob.day);
+    return !adultDay.isAfter(now);
+  }
+
+  void _showSnack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
+  }
+
   Future<void> _submitRegister() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     if (!_agreeTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đồng ý với Điều khoản sử dụng và Chính sách bảo mật!'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showSnack('Vui lòng đồng ý với Điều khoản sử dụng và Chính sách bảo mật!',
+          AppColors.error);
       return;
     }
 
-    // Kiểm tra CTV: khu vực và kỹ năng
-    if (!isCustomer) {
+    if (isCustomer) {
+      if (_customerDob != null && !_isAdult(_customerDob!)) {
+        _showSnack('Khách hàng phải từ đủ 18 tuổi trở lên.', AppColors.error);
+        return;
+      }
+    } else {
+      // Kiểm tra CTV: ngày sinh, khu vực và kỹ năng
+      if (_ctvDob == null) {
+        _showSnack('Vui lòng chọn ngày sinh!', AppColors.error);
+        return;
+      }
+      if (!_isAdult(_ctvDob!)) {
+        _showSnack('Cộng tác viên phải từ đủ 18 tuổi trở lên.', AppColors.error);
+        return;
+      }
       if (_selectedCtvArea == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng chọn nơi cư trú / khu vực nhận việc!'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        _showSnack('Vui lòng chọn nơi cư trú / khu vực nhận việc!',
+            AppColors.error);
         return;
       }
       final hasSkill = _selectedSkills.values.any((s) => s);
       if (!hasSkill) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng chọn ít nhất 1 dịch vụ bạn mong muốn tham gia!'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        _showSnack('Vui lòng chọn ít nhất 1 dịch vụ bạn mong muốn tham gia!',
+            AppColors.error);
         return;
       }
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+
+    final phone = SessionService.normalizePhone(_phoneController.text);
 
     try {
       if (isCustomer) {
-        // UC-KH01: Đăng ký Khách hàng qua API
+        // UC-KH01: Đăng ký Khách hàng -> backend tạo tài khoản chờ kích hoạt + mã OTP
+        final address = [
+          _addressController.text.trim(),
+          if (_selectedCustomerArea != null) _selectedCustomerArea!,
+        ].where((e) => e.isNotEmpty).join(', ');
+
         final response = await _authApiService.registerCustomer(
           hoTen: _fullNameController.text.trim(),
-          soDienThoai: _phoneController.text.trim(),
+          soDienThoai: phone,
           email: _emailController.text.trim(),
           matKhau: _passwordController.text,
-          ngaySinh: _customerDob?.toIso8601String().split('T')[0],
-          diaChi: _addressController.text.trim(),
-          khuVucPhucVu: _selectedCustomerArea,
+          ngaySinh: _customerDob != null ? _fmtApiDate(_customerDob!) : null,
+          diaChiChiTiet: address,
         );
-
         if (!mounted) return;
 
-        if (response.success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đăng ký thành công! Vui lòng xác thực mã OTP.'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => OtpVerificationScreen(
-                destination: _phoneController.text.trim(),
-                isPhone: true,
-                targetRoleTab: 0,
-              ),
-            ),
-          );
-        } else {
-          // Nếu backend chưa chạy hoặc số điện thoại demo -> vẫn hỗ trợ chuyển sang xác thực OTP để test UI
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(response.message ?? 'Đang chuyển sang bước xác thực OTP...'),
-              backgroundColor: AppColors.brand500,
-            ),
-          );
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => OtpVerificationScreen(
-                destination: _phoneController.text.trim(),
-                isPhone: true,
-                targetRoleTab: 0,
-              ),
-            ),
-          );
+        if (!response.success) {
+          _showSnack(response.message ?? 'Đăng ký thất bại. Vui lòng thử lại!',
+              AppColors.error);
+          return;
         }
-      } else {
-        // UC-KH02: Đăng ký Cộng tác viên (Ứng viên)
-        await Future.delayed(const Duration(milliseconds: 700));
-        if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Hồ sơ đã được tiếp nhận! Vui lòng xác thực số điện thoại.'),
-            backgroundColor: AppColors.ctvYellowDark,
-          ),
-        );
-
-        Navigator.push(
+        _showSnack('Đăng ký thành công! Vui lòng nhập mã OTP để kích hoạt.',
+            AppColors.success);
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (_) => OtpVerificationScreen(
-              destination: _phoneController.text.trim(),
-              isPhone: true,
-              targetRoleTab: 1,
+              destination: phone,
+              password: _passwordController.text,
+              demoOtp: response.data?['otpCode']?.toString(),
             ),
           ),
+        );
+      } else {
+        // UC-KH02: Đăng ký Cộng tác viên -> hồ sơ chờ phòng HCNS duyệt
+        final response = await _authApiService.registerCollaborator(
+          hoTen: _fullNameController.text.trim(),
+          soDienThoai: phone,
+          matKhau: _passwordController.text,
+          ngaySinh: _fmtApiDate(_ctvDob!),
+          gioiTinh: _ctvGender == 'Nam' ? 'Nam' : 'Nu',
+          noiCuTru: _selectedCtvArea!,
+        );
+        if (!mounted) return;
+
+        if (!response.success) {
+          _showSnack(response.message ?? 'Gửi hồ sơ thất bại. Vui lòng thử lại!',
+              AppColors.error);
+          return;
+        }
+        _showCtvSubmittedDialog(
+          response.data?['maCongTacVien']?.toString(),
+          response.data?['thoiGianXetDuyetDuKien']?.toString(),
         );
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showSnack('Lỗi: $e', AppColors.error);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showCtvSubmittedDialog(String? maCtv, String? thoiGian) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.assignment_turned_in_outlined,
+                color: AppColors.partner500, size: 60),
+            const SizedBox(height: 14),
+            const Text(
+              'Đã gửi hồ sơ!',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Hồ sơ${maCtv != null ? ' $maCtv' : ''} đang chờ duyệt'
+              '${thoiGian != null ? ' (dự kiến $thoiGian)' : ''}. '
+              'Bạn có thể đăng nhập bằng số điện thoại và mật khẩu vừa tạo sau khi hồ sơ được duyệt.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 13.5, color: AppColors.textSecondary, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.partner500),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const LoginScreen(initialRoleTab: 1)),
+                  );
+                },
+                child: const Text('Về trang đăng nhập'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -967,8 +1011,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 18),
 
-              // Ngày sinh (UC-KH02)
-              _buildFieldLabel('Ngày sinh', isRequired: false),
+              // Ngày sinh (UC-KH02) - backend bắt buộc
+              _buildFieldLabel('Ngày sinh', isRequired: true),
               const SizedBox(height: 6),
               InkWell(
                 onTap: _pickCtvDob,
@@ -1386,7 +1430,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               validator: (val) {
                 if (val == null || val.trim().isEmpty) return 'Vui lòng nhập số điện thoại';
-                if (val.trim().length < 9) return 'Số điện thoại không hợp lệ';
+                final p = SessionService.normalizePhone(val);
+                if (!RegExp(r'^0\d{9}$').hasMatch(p)) return 'Số điện thoại không hợp lệ (10 số)';
                 return null;
               },
             ),
@@ -1439,7 +1484,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       context: context,
       initialDate: _customerDob ?? DateTime(2000, 1, 1),
       firstDate: DateTime(1940),
-      lastDate: DateTime.now(),
+      lastDate: DateTime(DateTime.now().year - 18, DateTime.now().month, DateTime.now().day),
     );
     if (picked != null) {
       setState(() => _customerDob = picked);
@@ -1451,7 +1496,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       context: context,
       initialDate: _ctvDob ?? DateTime(1995, 1, 1),
       firstDate: DateTime(1950),
-      lastDate: DateTime.now(),
+      lastDate: DateTime(DateTime.now().year - 18, DateTime.now().month, DateTime.now().day),
     );
     if (picked != null) {
       setState(() => _ctvDob = picked);

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import 'customer_home_screen.dart';
-import 'customer_services_screen.dart';
 import 'booking_history_screen.dart';
+import 'customer_notification_screen.dart';
 import 'customer_account_screen.dart';
 
+/// Khung chính app Khách hàng - bố cục tab giống bTaskee:
+/// Trang chủ / Hoạt động / Thông báo / Tài khoản
 class CustomerMainScreen extends StatefulWidget {
   final int initialIndex;
   const CustomerMainScreen({super.key, this.initialIndex = 0});
@@ -32,8 +34,8 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
   Widget build(BuildContext context) {
     final screens = [
       CustomerHomeScreen(onSwitchTab: _switchTab),
-      CustomerServicesScreen(onSwitchTab: _switchTab),
       BookingHistoryScreen(onSwitchTab: _switchTab),
+      const CustomerNotificationScreen(),
       const CustomerAccountScreen(),
     ];
 
@@ -43,25 +45,15 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
         children: screens,
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
+          border: Border(top: BorderSide(color: AppColors.divider)),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
+          onTap: _switchTab,
           selectedItemColor: AppColors.brand500,
-          unselectedItemColor: AppColors.textSecondary,
+          unselectedItemColor: AppColors.textMuted,
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 11.5,
@@ -80,14 +72,14 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
               label: 'Trang chủ',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.auto_awesome_mosaic_outlined),
-              activeIcon: Icon(Icons.auto_awesome_mosaic_rounded),
-              label: 'Dịch vụ',
+              icon: Icon(Icons.event_note_outlined),
+              activeIcon: Icon(Icons.event_note_rounded),
+              label: 'Hoạt động',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long_outlined),
-              activeIcon: Icon(Icons.receipt_long_rounded),
-              label: 'Hoạt động',
+              icon: Icon(Icons.notifications_none_rounded),
+              activeIcon: Icon(Icons.notifications_rounded),
+              label: 'Thông báo',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline_rounded),

@@ -184,174 +184,137 @@ class CustomerServicesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Screen Header (Matching Image 2)
-              const Text(
-                'Tất cả dịch vụ',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // Category section tag
-              const Text(
-                'DỊCH VỤ PHỔ THÔNG',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Services List matching layout in Image 2
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: popularServices.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final item = popularServices[index];
-                  return _buildServiceCard(context, item);
-                },
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
+      appBar: AppBar(
+        title: const Text('Tất cả dịch vụ'),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1),
         ),
+      ),
+      body: ListView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 24),
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              'DỊCH VỤ PHỔ BIẾN',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+          Container(
+            color: Colors.white,
+            child: Column(
+              children: [
+                for (int i = 0; i < popularServices.length; i++) ...[
+                  _buildServiceRow(context, popularServices[i]),
+                  if (i != popularServices.length - 1)
+                    const Divider(height: 1, indent: 84),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildServiceCard(BuildContext context, Map<String, dynamic> item) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ServiceDetailScreen(service: item),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.cardBorder, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
+  Widget _buildServiceRow(BuildContext context, Map<String, dynamic> item) {
+    final Color c = item['iconColor'] as Color;
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ServiceDetailScreen(service: item),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Icon Box with rounded background
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: item['iconBg'] as Color,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  item['icon'] as IconData,
-                  color: item['iconColor'] as Color,
-                  size: 26,
-                ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: c.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
               ),
-              const SizedBox(width: 14),
-
-              // Text info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item['title'] as String,
-                            style: const TextStyle(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                              height: 1.25,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+              child: Icon(item['icon'] as IconData, color: c, size: 26),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          item['title'] as String,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
                           ),
                         ),
-                        if (item['badge'] != null) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: item['badge'] == 'HOT'
-                                  ? const Color(0xFFEF4444)
-                                  : (item['badge'] == 'NEW'
-                                      ? AppColors.brand500
-                                      : const Color(0xFFDB2777)),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              item['badge'] as String,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                              ),
+                      ),
+                      if (item['badge'] != null) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: item['badge'] == 'NEW'
+                                ? AppColors.green500
+                                : AppColors.error,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            item['badge'] as String,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                        ],
+                        ),
                       ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    item['subtitle'] as String,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.textSecondary,
+                      height: 1.3,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item['subtitle'] as String,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: AppColors.textSecondary,
-                        height: 1.3,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item['price'] as String,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.brand600,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      item['price'] as String,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.brand500,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+          ],
         ),
       ),
     );

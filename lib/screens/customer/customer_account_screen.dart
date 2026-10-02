@@ -1,88 +1,109 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
+import '../../services/session_service.dart';
+import 'customer_main_screen.dart';
 
-class CustomerAccountScreen extends StatelessWidget {
+class CustomerAccountScreen extends StatefulWidget {
   const CustomerAccountScreen({super.key});
 
   @override
+  State<CustomerAccountScreen> createState() => _CustomerAccountScreenState();
+}
+
+class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
+  UserSession? _session;
+
+  bool get _loggedIn => _session?.isCustomer == true;
+
+  @override
+  void initState() {
+    super.initState();
+    SessionService.load().then((s) {
+      if (mounted) setState(() => _session = s);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
-      body: SafeArea(
-        child: SingleChildScrollView(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: AppColors.scaffoldBg,
+        body: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Screen Header (Matching Image 1: "Cá nhân")
-              const Text(
-                'Cá nhân',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.3,
+              _buildHeader(context),
+              const SizedBox(height: 10),
+
+              // Tiện ích nhanh dạng lưới như bTaskee
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Row(
+                  children: [
+                    _quickAction(Icons.local_offer_outlined, 'Ưu đãi\ncủa tôi',
+                        const Color(0xFFFF8228),
+                        () => _promptLogin(context, 'Ưu đãi của tôi')),
+                    _quickAction(Icons.receipt_long_outlined,
+                        'Lịch sử\ngiao dịch', const Color(0xFF2F80ED),
+                        () => _promptLogin(context, 'Lịch sử giao dịch')),
+                    _quickAction(Icons.favorite_border_rounded,
+                        'Người làm\nyêu thích', const Color(0xFFEF4444),
+                        () => _promptLogin(context, 'Người làm yêu thích')),
+                    _quickAction(Icons.card_giftcard_rounded,
+                        'Giới thiệu\nbạn bè', const Color(0xFF1BB55C),
+                        () => _showReferralDialog(context)),
+                  ],
                 ),
               ),
+              const SizedBox(height: 10),
+
+              _buildMenuGroup([
+                _OptionItem(
+                  icon: Icons.help_outline_rounded,
+                  title: 'Trợ giúp',
+                  onTap: () => _showHelpDialog(context),
+                ),
+                _OptionItem(
+                  icon: Icons.settings_outlined,
+                  title: 'Cài đặt',
+                  onTap: () => _showSettingsDialog(context),
+                ),
+                _OptionItem(
+                  icon: Icons.info_outline_rounded,
+                  title: 'Giới thiệu Neatify',
+                  onTap: () => _showAboutDialog(context),
+                ),
+              ]),
+              if (_loggedIn) ...[
+                const SizedBox(height: 10),
+                Container(
+                  color: Colors.white,
+                  child: ListTile(
+                    onTap: _confirmLogout,
+                    leading:
+                        const Icon(Icons.logout_rounded, color: AppColors.error),
+                    title: const Text(
+                      'Đăng xuất',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
-
-              // Guest Profile Card with Action Buttons
-              _buildGuestProfileCard(context),
-              const SizedBox(height: 18),
-
-              // Section 1: "TIỆN ÍCH"
-              _buildSectionCard(
-                title: 'TIỆN ÍCH',
-                items: [
-                  _OptionItem(
-                    icon: Icons.local_offer_outlined,
-                    title: 'Ưu đãi của tôi',
-                    onTap: () => _promptLogin(context, 'Ưu đãi của tôi'),
-                  ),
-                  _OptionItem(
-                    icon: Icons.access_time_rounded,
-                    title: 'Lịch sử giao dịch',
-                    onTap: () => _promptLogin(context, 'Lịch sử giao dịch'),
-                  ),
-                  _OptionItem(
-                    icon: Icons.favorite_border_rounded,
-                    title: 'Tasker yêu thích',
-                    onTap: () => _promptLogin(context, 'Tasker yêu thích'),
-                  ),
-                  _OptionItem(
-                    icon: Icons.people_outline_rounded,
-                    title: 'Giới thiệu bạn bè',
-                    onTap: () => _showReferralDialog(context),
-                  ),
-                ],
+              const Text(
+                'Phiên bản 1.0.0',
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
-              const SizedBox(height: 18),
-
-              // Section 2: "HỖ TRỢ"
-              _buildSectionCard(
-                title: 'HỖ TRỢ',
-                items: [
-                  _OptionItem(
-                    icon: Icons.help_outline_rounded,
-                    title: 'Trợ giúp',
-                    onTap: () => _showHelpDialog(context),
-                  ),
-                  _OptionItem(
-                    icon: Icons.settings_outlined,
-                    title: 'Cài đặt',
-                    onTap: () => _showSettingsDialog(context),
-                  ),
-                  _OptionItem(
-                    icon: Icons.info_outline_rounded,
-                    title: 'Giới thiệu Neatify',
-                    onTap: () => _showAboutDialog(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -90,141 +111,193 @@ class CustomerAccountScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildGuestProfileCard(BuildContext context) {
+  Widget _buildHeader(BuildContext context) {
+    if (_loggedIn) return _buildUserHeader(context);
+    return _buildGuestHeader(context);
+  }
+
+  Widget _buildUserHeader(BuildContext context) {
+    final s = _session!;
+    final name = s.fullName.isNotEmpty ? s.fullName : 'Khách hàng';
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.cardBorder, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+      color: AppColors.brand500,
+      padding: EdgeInsets.fromLTRB(
+          16, MediaQuery.of(context).padding.top + 16, 16, 20),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: Colors.white,
+            child: Text(
+              name.characters.first.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: AppColors.brand600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  s.soDienThoai,
+                  style: const TextStyle(fontSize: 13.5, color: Colors.white),
+                ),
+                if (s.maNguoiDung != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Mã KH: ${s.maNguoiDung}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _confirmLogout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text('Đăng xuất?'),
+        content: const Text('Bạn có chắc muốn đăng xuất khỏi tài khoản này?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await SessionService.clear();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const CustomerMainScreen()),
+      (route) => false,
+    );
+  }
+
+  Widget _buildGuestHeader(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.brand500,
+      padding: EdgeInsets.fromLTRB(
+          16, MediaQuery.of(context).padding.top + 16, 16, 20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar + Name + "Chưa có tài khoản" badge
           Row(
             children: [
               Container(
                 width: 60,
                 height: 60,
-                decoration: const BoxDecoration(
-                  color: AppColors.brandLight,
+                decoration: BoxDecoration(
+                  color: Colors.white,
                   shape: BoxShape.circle,
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.6), width: 2),
                 ),
                 child: const Icon(
-                  Icons.person_outline_rounded,
-                  color: AppColors.brand500,
-                  size: 32,
+                  Icons.person_rounded,
+                  color: AppColors.brand300,
+                  size: 36,
                 ),
               ),
               const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Khách',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.brandLight,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Chưa có tài khoản',
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Khách',
                       style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.brand500,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
                       ),
                     ),
-                  ),
-                ],
+                    SizedBox(height: 4),
+                    Text(
+                      'Đăng nhập để đặt lịch và nhận ưu đãi',
+                      style: TextStyle(fontSize: 13, color: Colors.white),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-
-          // Two Action Buttons: [Đăng ký] (Dark) and [Đăng nhập] (Teal)
+          const SizedBox(height: 16),
           Row(
             children: [
-              // Register Button (Dark Charcoal)
               Expanded(
                 child: SizedBox(
-                  height: 46,
-                  child: ElevatedButton(
+                  height: 44,
+                  child: OutlinedButton(
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const RegisterScreen(),
-                        ),
+                            builder: (_) => const RegisterScreen()),
                       );
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.darkButton,
+                    style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      side: const BorderSide(color: Colors.white, width: 1.2),
+                      padding: EdgeInsets.zero,
                     ),
                     child: const Text(
                       'Đăng ký',
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
-
-              // Login Button (Brand Teal)
               Expanded(
                 child: SizedBox(
-                  height: 46,
+                  height: 44,
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const LoginScreen(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brand500,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.brand500,
+                      padding: EdgeInsets.zero,
                     ),
-                    child: const Text(
-                      'Đăng nhập',
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    child: const Text('Đăng nhập'),
                   ),
                 ),
               ),
@@ -235,117 +308,78 @@ class CustomerAccountScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionCard({
-    required String title,
-    required List<_OptionItem> items,
-  }) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.cardBorder, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Section Title
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              title,
+  Widget _quickAction(
+      IconData icon, String label, Color color, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary,
-                letterSpacing: 0.6,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+                height: 1.25,
               ),
             ),
-          ),
-          const Divider(height: 1, color: AppColors.divider),
+          ],
+        ),
+      ),
+    );
+  }
 
-          // Menu Options
-          ...items.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final item = entry.value;
-            return Column(
-              children: [
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: item.onTap,
-                    borderRadius: BorderRadius.vertical(
-                      bottom: idx == items.length - 1
-                          ? const Radius.circular(20)
-                          : Radius.zero,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 13,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: AppColors.brandLight,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              item.icon,
-                              color: AppColors.brand500,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Text(
-                              item.title,
-                              style: const TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ),
-                          const Icon(
-                            Icons.chevron_right_rounded,
-                            color: AppColors.textMuted,
-                            size: 20,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+  Widget _buildMenuGroup(List<_OptionItem> items) {
+    return Container(
+      color: Colors.white,
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            ListTile(
+              onTap: items[i].onTap,
+              leading: Icon(items[i].icon, color: AppColors.textSecondary),
+              title: Text(
+                items[i].title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
                 ),
-                if (idx < items.length - 1)
-                  const Divider(
-                    height: 1,
-                    indent: 68,
-                    color: AppColors.divider,
-                  ),
-              ],
-            );
-          }),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textMuted),
+            ),
+            if (i < items.length - 1) const Divider(height: 1, indent: 56),
+          ],
         ],
       ),
     );
   }
 
   void _promptLogin(BuildContext context, String featureName) {
+    if (_loggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$featureName đang được cập nhật.')),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 30),

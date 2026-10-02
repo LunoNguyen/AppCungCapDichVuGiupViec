@@ -21,13 +21,10 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
   int _currentUserId = 0;
   List<Map<String, dynamic>> _allAssignments = [];
 
-  // Màu riêng của màn hình
-  static const _headerTop = Color(0xFF3F4A8A);
-  static const _headerBottom = Color(0xFF5B62B3);
-  static const _coral = Color(0xFFE8646A);
-  static const _chipBg = Color(0xFFE6E7F2);
-  static const _tileBg = Color(0xFFF4F5FA);
-  static const _ink = Color(0xFF1F2544);
+  // Màu theo phong cách bTaskee Partner
+  static const _primary = AppColors.partner500;
+  static const _money = AppColors.brand500;
+  static const _ink = AppColors.textPrimary;
 
   // Cặp màu avatar: [nền, chữ]
   static const _avatarColors = [
@@ -140,16 +137,15 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
             Expanded(
               child: _isLoading
                   ? const Center(
-                  child: CircularProgressIndicator(
-                      color: AppColors.brand500))
+                      child: CircularProgressIndicator(color: _primary))
                   : TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildOrderList('new'),
-                  _buildOrderList('confirmed'),
-                  _buildOrderList('completed'),
-                ],
-              ),
+                      controller: _tabController,
+                      children: [
+                        _buildOrderList('new'),
+                        _buildOrderList('confirmed'),
+                        _buildOrderList('completed'),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -157,75 +153,54 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     );
   }
 
-  // Header gradient + tab dạng segmented
+  // Header xanh lá + tab gạch chân như bTaskee Partner
   Widget _buildHeader() {
+    final newCount = _getFilteredList('new').length;
     return Container(
-      padding: EdgeInsets.fromLTRB(
-          16, MediaQuery.of(context).padding.top + 8, 16, 16),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_headerTop, _headerBottom],
-        ),
-      ),
+      color: _primary,
+      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
       child: Column(
         children: [
-          Row(
-            children: [
-              const SizedBox(width: 48),
-              const Expanded(
-                child: Text(
-                  'Đơn của tôi',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+          SizedBox(
+            height: 52,
+            child: Row(
+              children: [
+                const SizedBox(width: 48),
+                const Expanded(
+                  child: Text(
+                    'Công việc',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.refresh, color: Colors.white),
-                onPressed: _fetchAssignments,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              dividerColor: Colors.transparent,
-              indicatorSize: TabBarIndicatorSize.tab,
-              labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-              indicator: BoxDecoration(
-                color: _headerTop,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              labelColor: Colors.white,
-              unselectedLabelColor: _headerTop,
-              labelStyle:
-              const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-              tabs: const [
-                Tab(
-                    height: 38,
-                    child: FittedBox(
-                        fit: BoxFit.scaleDown, child: Text('MỚI'))),
-                Tab(
-                    height: 38,
-                    child: FittedBox(
-                        fit: BoxFit.scaleDown, child: Text('ĐÃ XÁC NHẬN'))),
-                Tab(
-                    height: 38,
-                    child: FittedBox(
-                        fit: BoxFit.scaleDown, child: Text('HOÀN THÀNH'))),
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                  onPressed: _fetchAssignments,
+                ),
               ],
             ),
+          ),
+          TabBar(
+            controller: _tabController,
+            indicatorColor: Colors.white,
+            indicatorWeight: 3,
+            indicatorSize: TabBarIndicatorSize.label,
+            dividerColor: Colors.transparent,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white.withValues(alpha: 0.75),
+            labelStyle:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            unselectedLabelStyle:
+                const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            tabs: [
+              Tab(text: newCount > 0 ? 'Việc mới ($newCount)' : 'Việc mới'),
+              const Tab(text: 'Đã nhận'),
+              const Tab(text: 'Hoàn thành'),
+            ],
           ),
         ],
       ),
@@ -236,32 +211,57 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     final filtered = _getFilteredList(status);
 
     if (filtered.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      return RefreshIndicator(
+        onRefresh: _fetchAssignments,
+        color: _primary,
+        child: ListView(
           children: [
-            Icon(Icons.assignment_outlined,
-                size: 60, color: AppColors.brand300),
-            const SizedBox(height: 12),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+            Center(
+              child: Container(
+                width: 96,
+                height: 96,
+                decoration: const BoxDecoration(
+                  color: AppColors.partnerLight,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.work_off_outlined,
+                    size: 44, color: _primary),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              status == 'new'
+                  ? 'Hiện chưa có công việc mới'
+                  : status == 'confirmed'
+                      ? 'Bạn chưa nhận công việc nào'
+                      : 'Chưa có công việc hoàn thành',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 6),
             const Text(
-              'Chưa có đơn nào',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary),
+              'Kéo xuống để làm mới danh sách',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(top: 12, bottom: 20),
-      itemCount: filtered.length,
-      itemBuilder: (context, index) {
-        final o = filtered[index];
-        return _buildOrderCard(o, status);
-      },
+    return RefreshIndicator(
+      onRefresh: _fetchAssignments,
+      color: _primary,
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 10, bottom: 20),
+        itemCount: filtered.length,
+        itemBuilder: (context, index) =>
+            _buildOrderCard(filtered[index], status),
+      ),
     );
   }
 
@@ -276,15 +276,15 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     return '${s}đ';
   }
 
-  // Màu theo trạng thái: Mới = cam, Đã xác nhận = xanh dương, Hoàn thành = xanh lá
+  // Màu theo trạng thái: Mới = cam, Đã nhận = xanh dương, Hoàn thành = xanh lá
   Color _statusColor(String tab) {
     switch (tab) {
       case 'new':
-        return const Color(0xFFC77700);
+        return AppColors.partner500;
       case 'confirmed':
-        return const Color(0xFF2F80ED);
+        return AppColors.info;
       default:
-        return const Color(0xFF2E9E6B);
+        return AppColors.success;
     }
   }
 
@@ -333,7 +333,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     return _avatarColors[sum % _avatarColors.length];
   }
 
-  // ===================== THẺ ĐƠN =====================
+  // ===================== THẺ CÔNG VIỆC =====================
 
   Widget _buildOrderCard(Map<String, dynamic> o, String currentTab) {
     final String serviceName = o['tenDichVu'] ?? 'Dịch vụ giúp việc';
@@ -350,283 +350,216 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     final String statusText = isNew
         ? 'Chờ nhận'
         : currentTab == 'confirmed'
-        ? 'Đã xác nhận'
-        : 'Hoàn thành';
+            ? 'Đã nhận'
+            : 'Hoàn thành';
 
     final String? dayLbl = _dayLabel(rawDate);
     final avatar = _avatarPair(customerName);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isNew ? null : AppColors.white,
-        gradient: isNew
-            ? const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFE9A8), Color(0xFFFFF8E1)],
-        )
-            : null,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Hàng 1: chip dịch vụ (trái) + nhãn trạng thái (phải)
-          Row(
-            children: [
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _chipBg,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      serviceName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _headerTop,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: sc.withOpacity(0.14),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  statusText,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: sc,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Hàng 2: avatar + tên khách (tối đa 2 dòng) + nhãn ngày
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: avatar[0],
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  _initials(customerName),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: avatar[1],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      customerName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: _ink,
-                        height: 1.25,
-                      ),
-                    ),
-                    if (dayLbl != null) ...[
-                      const SizedBox(height: 2),
+          // Tên dịch vụ + thu nhập
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        dayLbl,
+                        serviceName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: _ink,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: sc.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: sc,
+                          ),
                         ),
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      price,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: _money,
+                      ),
+                    ),
+                    const Text(
+                      'Thu nhập',
+                      style: TextStyle(
+                          fontSize: 11.5, color: AppColors.textSecondary),
+                    ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
+          const Divider(height: 1),
 
-          // Hàng 3: ô ngày + ô giờ (icon màu theo trạng thái)
-          Row(
-            children: [
-              Expanded(
-                  child: _infoTile(
-                      Icons.calendar_today_outlined, dateStr, sc, isNew)),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: _infoTile(Icons.access_time, timeStr, sc, isNew)),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Hàng 4: địa chỉ
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(top: 1),
-                child: Icon(Icons.location_on_outlined,
-                    size: 14, color: AppColors.textSecondary),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  address,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Divider(height: 1, color: Colors.black.withOpacity(0.08)),
-          const SizedBox(height: 12),
-
-          // Hàng 5: giá tiền
-          Row(
-            children: [
-              const Text(
-                'Thành tiền',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                price,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: _coral,
-                ),
-              ),
-            ],
-          ),
-
-          // Nút thao tác theo tab
-          if (isNew) ...[
-            const SizedBox(height: 12),
-            Row(
+          // Thông tin chi tiết
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+            child: Column(
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _handleAction(o, 'reject'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      backgroundColor: Colors.white,
-                      side: const BorderSide(color: AppColors.error),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Từ chối'),
-                  ),
+                _infoRow(
+                  Icons.calendar_today_outlined,
+                  dayLbl != null ? '$dayLbl, $dateStr' : dateStr,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _handleAction(o, 'accept'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _headerTop,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Nhận đơn'),
+                _infoRow(Icons.access_time_rounded, timeStr),
+                _infoRow(Icons.location_on_outlined, address, maxLines: 2),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 22,
+                        height: 22,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: avatar[0],
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          _initials(customerName),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: avatar[1],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          customerName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _ink,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ] else if (currentTab == 'confirmed') ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _handleAction(o, 'complete'),
-                icon: const Icon(Icons.check_circle_outline, size: 18),
-                label: const Text('Đánh dấu hoàn thành'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+          ),
+
+          // Nút thao tác
+          if (isNew)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: OutlinedButton(
+                        onPressed: () => _handleAction(o, 'reject'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          side: const BorderSide(color: AppColors.divider),
+                          padding: EdgeInsets.zero,
+                        ),
+                        child: const Text('Từ chối',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 44,
+                      child: ElevatedButton(
+                        onPressed: () => _handleAction(o, 'accept'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primary,
+                          padding: EdgeInsets.zero,
+                        ),
+                        child: const Text('Nhận việc'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (currentTab == 'confirmed')
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  onPressed: () => _handleAction(o, 'complete'),
+                  icon: const Icon(Icons.check_circle_outline, size: 18),
+                  label: const Text('Hoàn thành công việc'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    padding: EdgeInsets.zero,
+                  ),
                 ),
               ),
             ),
-          ],
         ],
       ),
     );
   }
 
-  // Ô thông tin nền nhạt (ngày / giờ), icon màu theo trạng thái
-  Widget _infoTile(IconData icon, String text, Color color, bool onYellow) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-      decoration: BoxDecoration(
-        color: onYellow ? Colors.white.withOpacity(0.7) : _tileBg,
-        borderRadius: BorderRadius.circular(10),
-      ),
+  Widget _infoRow(IconData icon, String text, {int maxLines = 1}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
+          Icon(icon, size: 20, color: AppColors.textSecondary),
+          const SizedBox(width: 10),
           Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                text,
-                maxLines: 1,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: _ink,
-                ),
+            child: Text(
+              text,
+              maxLines: maxLines,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14,
+                color: _ink,
+                height: 1.35,
               ),
             ),
           ),

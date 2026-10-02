@@ -18,11 +18,9 @@ class _CollaboratorNotificationsScreenState
   bool _onlyUnread = false;
   List<Map<String, dynamic>> _items = [];
 
-  // Màu đồng bộ với các trang khác
-  static const _headerTop = Color(0xFF3F4A8A);
-  static const _headerBottom = Color(0xFF5B62B3);
-  static const _coral = Color(0xFFE8646A);
-  static const _ink = Color(0xFF1F2544);
+  // Màu theo phong cách bTaskee Partner
+  static const _primary = AppColors.partner500;
+  static const _ink = AppColors.textPrimary;
 
   @override
   void initState() {
@@ -133,13 +131,12 @@ class _CollaboratorNotificationsScreenState
             Expanded(
               child: _isLoading
                   ? const Center(
-                  child: CircularProgressIndicator(
-                      color: AppColors.brand500))
+                      child: CircularProgressIndicator(color: _primary))
                   : RefreshIndicator(
-                onRefresh: _fetchNotifications,
-                color: _headerTop,
-                child: _buildList(),
-              ),
+                      onRefresh: _fetchNotifications,
+                      color: _primary,
+                      child: _buildList(),
+                    ),
             ),
           ],
         ),
@@ -148,81 +145,83 @@ class _CollaboratorNotificationsScreenState
   }
 
   Widget _buildHeader() {
+    final canPop = Navigator.canPop(context);
     return Container(
-      padding: EdgeInsets.fromLTRB(
-          16, MediaQuery.of(context).padding.top + 8, 16, 16),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_headerTop, _headerBottom],
-        ),
-      ),
+      color: _primary,
+      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
       child: Column(
         children: [
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.maybePop(context),
-              ),
-              const Expanded(
-                child: Text(
-                  'Thông báo',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Đánh dấu tất cả đã đọc',
-                icon: const Icon(Icons.done_all, color: Colors.white),
-                onPressed: _unreadCount == 0 ? null : _markAllRead,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Segmented: Tất cả / Chưa đọc
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-            ),
+          SizedBox(
+            height: 52,
             child: Row(
               children: [
-                _segment('TẤT CẢ', !_onlyUnread,
-                        () => setState(() => _onlyUnread = false)),
-                _segment('CHƯA ĐỌC${_unreadCount > 0 ? ' ($_unreadCount)' : ''}',
-                    _onlyUnread, () => setState(() => _onlyUnread = true)),
+                canPop
+                    ? IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () => Navigator.maybePop(context),
+                      )
+                    : const SizedBox(width: 48),
+                const Expanded(
+                  child: Text(
+                    'Thông báo',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Đánh dấu tất cả đã đọc',
+                  icon: Icon(Icons.done_all,
+                      color: _unreadCount == 0
+                          ? Colors.white.withValues(alpha: 0.5)
+                          : Colors.white),
+                  onPressed: _unreadCount == 0 ? null : _markAllRead,
+                ),
               ],
             ),
+          ),
+          Row(
+            children: [
+              _segment('Tất cả', !_onlyUnread,
+                  () => setState(() => _onlyUnread = false)),
+              _segment(
+                  'Chưa đọc${_unreadCount > 0 ? ' ($_unreadCount)' : ''}',
+                  _onlyUnread,
+                  () => setState(() => _onlyUnread = true)),
+            ],
           ),
         ],
       ),
     );
   }
 
+  // Tab gạch chân trắng như bTaskee Partner
   Widget _segment(String text, bool selected, VoidCallback onTap) {
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
         onTap: onTap,
         child: Container(
-          height: 38,
+          height: 46,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? _headerTop : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            border: Border(
+              bottom: BorderSide(
+                color: selected ? Colors.white : Colors.transparent,
+                width: 3,
+              ),
+            ),
           ),
           child: Text(
             text,
             style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              color: selected ? Colors.white : _headerTop,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 14,
+              color: selected
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.75),
             ),
           ),
         ),
@@ -233,16 +232,16 @@ class _CollaboratorNotificationsScreenState
   // Dòng bật/tắt nhận thông báo
   Widget _buildSettingRow() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: _cardDecoration(),
+      color: Colors.white,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
           Icon(
             _notifEnabled
                 ? Icons.notifications_active_outlined
                 : Icons.notifications_off_outlined,
-            color: _notifEnabled ? _headerTop : Colors.grey,
+            color: _notifEnabled ? _primary : AppColors.textMuted,
             size: 22,
           ),
           const SizedBox(width: 12),
@@ -250,12 +249,11 @@ class _CollaboratorNotificationsScreenState
             child: Text(
               _notifEnabled ? 'Đang nhận thông báo' : 'Đã tắt thông báo',
               style: const TextStyle(
-                  fontWeight: FontWeight.w700, fontSize: 14, color: _ink),
+                  fontWeight: FontWeight.w600, fontSize: 14, color: _ink),
             ),
           ),
           Switch(
             value: _notifEnabled,
-            activeTrackColor: const Color(0xFF2E9E6B),
             onChanged: _toggleNotif,
           ),
         ],
@@ -271,7 +269,7 @@ class _CollaboratorNotificationsScreenState
         children: [
           SizedBox(height: MediaQuery.of(context).size.height * 0.15),
           const Icon(Icons.notifications_none,
-              size: 60, color: AppColors.brand300),
+              size: 60, color: AppColors.ctvYellowBorder),
           const SizedBox(height: 12),
           Center(
             child: Text(
@@ -286,15 +284,16 @@ class _CollaboratorNotificationsScreenState
       );
     }
 
-    return ListView.builder(
+    return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(top: 8, bottom: 20),
+      padding: const EdgeInsets.only(bottom: 20),
       itemCount: list.length,
+      separatorBuilder: (_, __) => const Divider(height: 1, indent: 72),
       itemBuilder: (context, i) => _buildItem(list[i]),
     );
   }
 
-  // ===================== THẺ THÔNG BÁO =====================
+  // ===================== DÒNG THÔNG BÁO =====================
 
   Widget _buildItem(Map<String, dynamic> n) {
     final style = _typeStyle(n['loai']?.toString() ?? '');
@@ -304,51 +303,33 @@ class _CollaboratorNotificationsScreenState
       key: ValueKey(n['id']),
       direction: DismissDirection.endToStart,
       background: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         padding: const EdgeInsets.only(right: 24),
         alignment: Alignment.centerRight,
-        decoration: BoxDecoration(
-          color: AppColors.error,
-          borderRadius: BorderRadius.circular(20),
-        ),
+        color: AppColors.error,
         child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
       onDismissed: (_) {
         // TODO: gọi API xóa thông báo
         setState(() => _items.removeWhere((e) => e['id'] == n['id']));
       },
-      child: GestureDetector(
+      child: InkWell(
         onTap: () => _markRead(n),
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: unread ? const Color(0xFFF1F2FB) : Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: unread
-                ? Border.all(color: _headerTop.withValues(alpha: 0.25))
-                : null,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
+          color: unread ? AppColors.partnerLight : Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  color: style.color.withValues(alpha: 0.14),
+                  color: style.color.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(style.icon, color: style.color, size: 22),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,9 +342,9 @@ class _CollaboratorNotificationsScreenState
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 15,
+                              fontSize: 14.5,
                               fontWeight:
-                              unread ? FontWeight.w800 : FontWeight.w600,
+                                  unread ? FontWeight.w800 : FontWeight.w600,
                               color: _ink,
                             ),
                           ),
@@ -374,7 +355,7 @@ class _CollaboratorNotificationsScreenState
                             height: 8,
                             margin: const EdgeInsets.only(left: 6),
                             decoration: const BoxDecoration(
-                              color: _coral,
+                              color: AppColors.partner500,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -386,18 +367,17 @@ class _CollaboratorNotificationsScreenState
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 13,
-                        height: 1.3,
+                        fontSize: 13.5,
+                        height: 1.35,
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
                       _timeAgo(n['thoiGian'] as DateTime),
                       style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        color: AppColors.textMuted,
                       ),
                     ),
                   ],
@@ -415,16 +395,16 @@ class _CollaboratorNotificationsScreenState
   _TypeStyle _typeStyle(String loai) {
     switch (loai) {
       case 'donMoi':
-        return const _TypeStyle(Icons.assignment_outlined, Color(0xFFC77700));
+        return const _TypeStyle(Icons.work_outline_rounded, AppColors.partner500);
       case 'nhacLich':
-        return const _TypeStyle(Icons.access_time, Color(0xFF2F80ED));
+        return const _TypeStyle(Icons.access_time, AppColors.info);
       case 'hoanThanh':
         return const _TypeStyle(
-            Icons.check_circle_outline, Color(0xFF2E9E6B));
+            Icons.check_circle_outline, AppColors.success);
       case 'huy':
-        return const _TypeStyle(Icons.cancel_outlined, _coral);
+        return const _TypeStyle(Icons.cancel_outlined, AppColors.error);
       default:
-        return const _TypeStyle(Icons.campaign_outlined, _headerTop);
+        return const _TypeStyle(Icons.campaign_outlined, AppColors.textSecondary);
     }
   }
 
@@ -437,18 +417,6 @@ class _CollaboratorNotificationsScreenState
     if (diff.inDays < 7) return '${diff.inDays} ngày trước';
     return '${t.day.toString().padLeft(2, '0')}/${t.month.toString().padLeft(2, '0')}/${t.year}';
   }
-
-  BoxDecoration _cardDecoration() => BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(16),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withValues(alpha: 0.06),
-        blurRadius: 12,
-        offset: const Offset(0, 3),
-      ),
-    ],
-  );
 }
 
 class _TypeStyle {

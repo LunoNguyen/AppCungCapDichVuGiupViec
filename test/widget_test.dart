@@ -6,7 +6,8 @@ void main() {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const HousekeepingApp());
 
-    // Verify that our app header renders.
-    expect(find.text('ỨNG DỤNG GIÚP VIỆC TIỆN ÍCH'), findsOneWidget);
+    // Mở app là vào thẳng Trang chủ Khách hàng.
+    expect(find.text('Trang chủ'), findsOneWidget);
+    expect(find.text('Đăng nhập / Tạo tài khoản'), findsOneWidget);
   });
 }

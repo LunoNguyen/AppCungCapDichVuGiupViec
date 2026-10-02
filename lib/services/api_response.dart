@@ -15,9 +15,11 @@ class ApiResponse<T> {
     Map<String, dynamic> json, [
     T Function(dynamic json)? fromJsonT,
   ]) {
-    final bool isSuccess = json['success'] == true ||
-        json['code'] == 200 ||
-        (json.containsKey('error') ? json['error'] == null : true);
+    // Ưu tiên cờ "success" do backend trả về; chỉ đoán khi không có cờ này
+    final bool isSuccess = json.containsKey('success')
+        ? json['success'] == true
+        : (json['code'] == 200 ||
+            (json.containsKey('error') ? json['error'] == null : true));
 
     T? parsedData;
     if (json.containsKey('data') && json['data'] != null) {
