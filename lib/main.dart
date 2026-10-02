@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'core/app_colors.dart';
 import 'core/app_theme.dart';
 import 'screens/collaborator/collaborator_main_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -18,7 +17,7 @@ class HousekeepingApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Ứng dụng Cung cấp Dịch vụ Giúp việc',
+      title: 'Ứng dụng Dịch vụ Giúp việc Neatify',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
       home: const AppEntryScreen(),
@@ -169,7 +168,7 @@ class _AppEntryScreenState extends State<AppEntryScreen> {
             const SizedBox(width: 16),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: Cross.start,
                 children: [
                   Row(
                     children: [

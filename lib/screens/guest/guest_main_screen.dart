@@ -1,24 +1,22 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import 'collaborator_orders_screen.dart';
-import 'collaborator_schedule_screen.dart';
-import 'collaborator_account_screen.dart';
+import 'guest_home_screen.dart';
+import 'guest_account_screen.dart';
 
-class CollaboratorMainScreen extends StatefulWidget {
+class GuestMainScreen extends StatefulWidget {
   final int initialIndex;
-  const CollaboratorMainScreen({super.key, this.initialIndex = 0});
+  const GuestMainScreen({super.key, this.initialIndex = 0});
 
   @override
-  State<CollaboratorMainScreen> createState() => _CollaboratorMainScreenState();
+  State<GuestMainScreen> createState() => _GuestMainScreenState();
 }
 
-class _CollaboratorMainScreenState extends State<CollaboratorMainScreen> {
+class _GuestMainScreenState extends State<GuestMainScreen> {
   late int _currentIndex;
 
   final List<Widget> _screens = const [
-    CollaboratorOrdersScreen(),
-    CollaboratorScheduleScreen(),
-    CollaboratorAccountScreen(),
+    GuestHomeScreen(),
+    GuestAccountScreen(),
   ];
 
   @override
@@ -51,7 +49,7 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen> {
               _currentIndex = index;
             });
           },
-          selectedItemColor: AppColors.ctvYellowDark,
+          selectedItemColor: AppColors.brand500,
           unselectedItemColor: AppColors.textSecondary,
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w700,
@@ -65,19 +63,14 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen> {
           backgroundColor: Colors.white,
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.assignment_outlined),
-              activeIcon: Icon(Icons.assignment),
-              label: 'Đơn hàng',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_month_outlined),
-              activeIcon: Icon(Icons.calendar_month),
-              label: 'Lịch làm việc',
+              icon: Icon(Icons.explore_outlined),
+              activeIcon: Icon(Icons.explore),
+              label: 'Khám phá',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
               activeIcon: Icon(Icons.person),
-              label: 'Hồ sơ & Ví',
+              label: 'Tài khoản',
             ),
           ],
         ),
