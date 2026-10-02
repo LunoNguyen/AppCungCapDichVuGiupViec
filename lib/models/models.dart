@@ -1,4 +1,4 @@
-﻿/// Barrel export - import tất cả models chỉ với 1 dòng:
+/// Barrel export - import tất cả models chỉ với 1 dòng:
 /// import 'package:app_cung_cap_dich_vu_giup_viec/models/models.dart';
 
 // Nhóm 1: Xác thực & Tài khoản
@@ -25,6 +25,7 @@ export 'dich_vu.dart';       // chứa LoaiDichVu, DichVu, DichVuCTV, BangGiaDic
 export 'khuyen_mai.dart';    // chứa ChuongTrinhKhuyenMai, MaKhuyenMai
 
 // Nhóm 8: Đơn đặt dịch vụ
+export 'chi_tiet_don_dat.dart';
 export 'don_dat_dich_vu.dart'; // chứa DonDatDichVu, LichSuSuDungKhuyenMai, LichSuTrangThaiDon, PhanCongCTV
 
 // Nhóm 9: Biểu mẫu tài sản

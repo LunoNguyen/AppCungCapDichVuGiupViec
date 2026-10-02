@@ -1,44 +1,72 @@
-﻿// ignore_for_file: constant_identifier_names
+// ignore_for_file: constant_identifier_names
+
+import 'chi_tiet_don_dat.dart';
 
 /// Model tương ứng bảng DonDatDichVu
 class DonDatDichVu {
   final int? id;
   final String maDonDat;
   final int khachHangId;
-  final int dichVuId;
-  final String? tenDichVu;
+  final int? khuyenMaiId;
+  final String? maKhuyenMai;
   final String? khachHangTen;
   final String? khachHangPhone;
   final String? diaChi;
   final DateTime ngayThucHien;
   final String gioBatDau;
   final String? gioKetThuc;
+  final num? chiPhiGoc;
+  final num? soTienGiam;
   final int thanhTien;
   final String trangThai;
+  final List<ChiTietDonDat> chiTietList;
+
+  // Backward compatible getters
+  int get dichVuId => chiTietList.isNotEmpty ? chiTietList.first.dichVuId : 0;
+  String? get tenDichVu => chiTietList.isNotEmpty ? chiTietList.first.tenDichVu : null;
 
   const DonDatDichVu({
     this.id,
     required this.maDonDat,
     required this.khachHangId,
-    required this.dichVuId,
-    this.tenDichVu,
+    this.khuyenMaiId,
+    this.maKhuyenMai,
     this.khachHangTen,
     this.khachHangPhone,
     this.diaChi,
     required this.ngayThucHien,
     required this.gioBatDau,
     this.gioKetThuc,
+    this.chiPhiGoc,
+    this.soTienGiam,
     required this.thanhTien,
     required this.trangThai,
+    this.chiTietList = const [],
   });
 
   factory DonDatDichVu.fromJson(Map<String, dynamic> json) {
+    // Parse chiTietList tu backend Java (chiTietList hoac chiTietDonDats)
+    List<ChiTietDonDat> parsedChiTiet = [];
+    var listRaw = json['chiTietList'] ?? json['chiTietDonDats'];
+    if (listRaw is List) {
+      parsedChiTiet = listRaw.map((e) => ChiTietDonDat.fromJson(e)).toList();
+    } else if (json['dichVuId'] != null) {
+      // Direct fallback for single-service legacy JSON response
+      parsedChiTiet = [
+        ChiTietDonDat(
+          dichVuId: json['dichVuId'] as int? ?? 0,
+          tenDichVu: json['tenDichVu'] as String?,
+          thanhTien: (json['thanhTien'] as num?) ?? 0,
+        )
+      ];
+    }
+
     return DonDatDichVu(
       id: json['id'] as int? ?? json['donDatId'] as int?,
       maDonDat: json['maDonDat'] ?? '',
       khachHangId: json['khachHangId'] ?? 0,
-      dichVuId: json['dichVuId'] ?? 0,
-      tenDichVu: json['tenDichVu'],
+      khuyenMaiId: json['khuyenMaiId'] as int? ?? json['couponId'] as int?,
+      maKhuyenMai: json['maKhuyenMai'] as String? ?? json['codeKhuyenMai'] as String?,
       khachHangTen: json['khachHangTen'],
       khachHangPhone: json['khachHangPhone'],
       diaChi: json['diaChi'],
@@ -47,8 +75,11 @@ class DonDatDichVu {
           : DateTime.now(),
       gioBatDau: json['gioBatDau'] ?? '',
       gioKetThuc: json['gioKetThuc'],
+      chiPhiGoc: json['chiPhiGoc'] as num? ?? json['soTienGoc'] as num?,
+      soTienGiam: json['soTienGiam'] as num?,
       thanhTien: (json['thanhTien'] as num?)?.toInt() ?? 0,
       trangThai: json['trangThai'] ?? json['trangThaiDon'] ?? '',
+      chiTietList: parsedChiTiet,
     );
   }
 }

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_colors.dart';
 import '../../models/cong_tac_vien.dart';
 import '../../services/collaborator_api_service.dart';
 import '../auth/login_screen.dart';
+import '../collaborator/collaborator_notifications_screen.dart';
 
 class CollaboratorAccountScreen extends StatefulWidget {
   const CollaboratorAccountScreen({super.key});
@@ -19,8 +21,19 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   int _currentUserId = 0;
   CongTacVien? _profile;
   final CollaboratorApiService _apiService = CollaboratorApiService();
-  
-  final NumberFormat _currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
+
+  // Số liệu tính từ danh sách đơn
+  int _completedCount = 0;
+  num _totalIncome = 0;
+
+  final NumberFormat _currencyFormat =
+  NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
+
+  // Màu đồng bộ với trang Đơn / Lịch
+  static const _headerTop = Color(0xFF3F4A8A);
+  static const _headerBottom = Color(0xFF5B62B3);
+  static const _coral = Color(0xFFE8646A);
+  static const _ink = Color(0xFF1F2544);
 
   @override
   void initState() {
@@ -28,10 +41,12 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     _loadProfile();
   }
 
+  // ===================== DỮ LIỆU =====================
+
   Future<void> _loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
     _currentUserId = prefs.getInt('userId') ?? 0;
-    
+
     if (_currentUserId == 0) {
       if (mounted) setState(() => _isLoading = false);
       return;
@@ -45,10 +60,9 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     try {
       final response = await _apiService.getProfile(_currentUserId);
       if (response.success && response.data != null) {
-        setState(() {
-          _profile = response.data;
-        });
+        _profile = response.data;
       }
+      await _fetchStats();
     } catch (e) {
       debugPrint('Lỗi tải hồ sơ: $e');
     } finally {
@@ -56,27 +70,65 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     }
   }
 
+  // Đếm đơn hoàn thành + tổng thu nhập từ API đơn
+  Future<void> _fetchStats() async {
+    try {
+      final res =
+      await _apiService.getAssignments(congTacVienId: _currentUserId);
+      if (res.success && res.data != null) {
+        int count = 0;
+        num income = 0;
+        for (final a in res.data!) {
+          final st = (a['trangThaiPhanCong']?.toString() ?? '').toLowerCase();
+          if (st == 'hoanthanh' || st == 'hoan_thanh' || st == 'completed') {
+            count++;
+            income += num.tryParse(a['thanhTien']?.toString() ?? '') ?? 0;
+          }
+        }
+        _completedCount = count;
+        _totalIncome = income;
+      }
+    } catch (e) {
+      debugPrint('Lỗi tải thống kê: $e');
+    }
+  }
+
+  // ===================== GIAO DIỆN CHÍNH =====================
+
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_isLoading && _profile == null) {
       return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator(color: AppColors.brand500)),
+        backgroundColor: AppColors.scaffoldBg,
+        body: Center(
+            child: CircularProgressIndicator(color: AppColors.brand500)),
       );
     }
 
     if (_profile == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF7F8FA),
+        backgroundColor: AppColors.scaffoldBg,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Không thể tải thông tin tài khoản'),
+              const Icon(Icons.cloud_off_outlined,
+                  size: 60, color: AppColors.brand300),
+              const SizedBox(height: 12),
+              const Text('Không thể tải thông tin tài khoản',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary)),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _fetchProfileData,
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand500),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _headerTop,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
                 child: const Text('Thử lại'),
               ),
             ],
@@ -85,135 +137,247 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      // Sửa nhanh: Sử dụng AppBar chuẩn để tiêu đề không bao giờ che nội dung bên dưới
-      appBar: AppBar(
-        backgroundColor: AppColors.brand500,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        centerTitle: true,
-        title: const Text('Tài khoản', 
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColors.brand700, AppColors.brand500],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Colors.white),
-            onPressed: () {},
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _fetchProfileData,
-        color: AppColors.brand500,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              _buildProfileCard(),
-              const SizedBox(height: 16),
-              _buildPerformanceStats(),
-              const SizedBox(height: 16),
-              _buildAvailabilitySection(),
-              const SizedBox(height: 16),
-              
-              _buildMenuSection('CÔNG VIỆC & DỊCH VỤ', [
-                _CollaboratorMenuItem(Icons.handyman_outlined, 'Dịch vụ đã đăng ký', '5 dịch vụ', () {}),
-                _CollaboratorMenuItem(Icons.map_outlined, 'Khu vực nhận việc', _profile!.noiCuTru, () {}),
-              ]),
-              
-              const SizedBox(height: 16),
-              _buildMenuSection('TÀI CHÍNH', [
-                _CollaboratorMenuItem(Icons.account_balance_wallet_outlined, 'Ví thu nhập', _currencyFormat.format(_profile?.soDuVi ?? 0), () {}),
-                _CollaboratorMenuItem(Icons.credit_card_outlined, 'Tài khoản ngân hàng', 'Vietcombank', () {}),
-              ]),
-
-              const SizedBox(height: 16),
-              _buildMenuSection('TÀI KHOẢN', [
-                _CollaboratorMenuItem(Icons.badge_outlined, 'Thông tin cá nhân & CCCD', 'Đã xác thực', () {}),
-                _CollaboratorMenuItem(Icons.star_outline, 'Đánh giá từ khách hàng', '${_profile!.diemDanhGia.toStringAsFixed(1)} ★', () {}),
-              ]),
-
-              const SizedBox(height: 24),
-              _buildLogoutButton(),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 35,
-            backgroundColor: const Color(0xFFF0F2F5),
-            child: Text(
-              _profile!.hoTen.isNotEmpty ? _profile!.hoTen[0].toUpperCase() : 'C',
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.brand600),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: AppColors.scaffoldBg,
+        body: RefreshIndicator(
+          onRefresh: _fetchProfileData,
+          color: _headerTop,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _profile!.hoTen,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                _buildHeader(),
+                // Thẻ số liệu đè lên header
+                Transform.translate(
+                  offset: const Offset(0, -28),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _buildStatsCard(),
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Mã CTV: ${_profile!.maCongTacVien}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                  child: Column(
+                    children: [
+                      _buildWalletCard(),
+                      const SizedBox(height: 16),
+                      _buildAvailabilityCard(),
+                      const SizedBox(height: 20),
+                      _buildMenuSection('CÔNG VIỆC & DỊCH VỤ', [
+                        _MenuItem(Icons.handyman_outlined, 'Dịch vụ đã đăng ký',
+                            '5 dịch vụ', const Color(0xFF5B62B3), () {}),
+                        _MenuItem(Icons.map_outlined, 'Khu vực nhận việc',
+                            _profile!.noiCuTru, const Color(0xFF2F80ED), () {}),
+                      ]),
+                      const SizedBox(height: 16),
+                      _buildMenuSection('TÀI CHÍNH', [
+                        _MenuItem(
+                            Icons.credit_card_outlined,
+                            'Tài khoản ngân hàng',
+                            'Vietcombank',
+                            const Color(0xFF2E9E6B),
+                                () {}),
+                        _MenuItem(Icons.receipt_long_outlined,
+                            'Lịch sử thu nhập', '', const Color(0xFFC77700), () {}),
+                      ]),
+                      const SizedBox(height: 16),
+                      _buildMenuSection('TÀI KHOẢN', [
+                        _MenuItem(
+                            Icons.notifications_outlined,
+                            'Thông báo',
+                            '',
+                            const Color(0xFFC77700),
+                                () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                  const CollaboratorNotificationsScreen()),
+                            )),
+                        _MenuItem(
+                            Icons.badge_outlined,
+                            'Thông tin cá nhân & CCCD',
+                            'Đã xác thực',
+                            _headerTop,
+                                () {}),
+                        _MenuItem(
+                            Icons.star_outline,
+                            'Đánh giá từ khách hàng',
+                            '${_profile!.diemDanhGia.toStringAsFixed(1)} ★',
+                            const Color(0xFFF2A100),
+                                () {}),
+                        _MenuItem(Icons.lock_outline, 'Đổi mật khẩu', '',
+                            _coral, () {}),
+                      ]),
+                      const SizedBox(height: 16),
+                      _buildMenuSection('HỖ TRỢ', [
+                        _MenuItem(Icons.headset_mic_outlined,
+                            'Trung tâm trợ giúp', '', const Color(0xFF2F80ED), () {}),
+                        _MenuItem(Icons.description_outlined,
+                            'Điều khoản & chính sách', '', Colors.grey, () {}),
+                      ]),
+                      const SizedBox(height: 24),
+                      _buildLogoutButton(),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Neatify • Phiên bản 1.0.0',
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+        ),
+      ),
+    );
+  }
+
+  // ===================== HEADER =====================
+
+  Widget _buildHeader() {
+    final name = _profile!.hoTen;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+          16, MediaQuery.of(context).padding.top + 8, 16, 52),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_headerTop, _headerBottom],
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const SizedBox(width: 48),
+              const Expanded(
+                child: Text(
+                  'Tài khoản',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon:
+                const Icon(Icons.settings_outlined, color: Colors.white),
+                onPressed: () {},
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Avatar có viền
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
+            ),
+            child: CircleAvatar(
+              radius: 38,
+              backgroundColor: const Color(0xFFCECBF6),
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : 'C',
+                style: const TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF3C3489),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Mã CTV: ${_profile!.maCongTacVien}',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _headerChip(Icons.star_rounded,
+                  _profile!.diemDanhGia.toStringAsFixed(1), const Color(0xFFFFD166)),
+              const SizedBox(width: 8),
+              _headerChip(
+                  Icons.verified_outlined, 'Đã xác thực', const Color(0xFF9FE1CB)),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildPerformanceStats() {
+  Widget _headerChip(IconData icon, String text, Color iconColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _statItem('0', 'Hoàn thành', Icons.done_all_rounded, Colors.green),
-          _statItem(_profile!.diemDanhGia.toStringAsFixed(1), 'Đánh giá', Icons.star_rounded, Colors.orange),
+          Icon(icon, size: 14, color: iconColor),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===================== SỐ LIỆU =====================
+
+  Widget _buildStatsCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: _cardDecoration(),
+      child: Row(
+        children: [
+          Expanded(
+            child: _statItem('$_completedCount', 'Đơn hoàn thành',
+                Icons.done_all_rounded, const Color(0xFF2E9E6B)),
+          ),
+          Container(width: 1, height: 36, color: Colors.black.withValues(alpha: 0.08)),
+          Expanded(
+            child: _statItem(_profile!.diemDanhGia.toStringAsFixed(1),
+                'Đánh giá', Icons.star_rounded, const Color(0xFFF2A100)),
+          ),
+          Container(width: 1, height: 36, color: Colors.black.withValues(alpha: 0.08)),
+          Expanded(
+            child: _statItem(_compactMoney(_totalIncome), 'Tổng thu nhập',
+                Icons.trending_up_rounded, _coral),
+          ),
         ],
       ),
     );
@@ -222,43 +386,185 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   Widget _statItem(String value, String label, IconData icon, Color color) {
     return Column(
       children: [
-        Icon(icon, color: color, size: 24),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
         const SizedBox(height: 8),
-        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+        const SizedBox(height: 2),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 11, color: AppColors.textSecondary)),
       ],
     );
   }
 
-  Widget _buildAvailabilitySection() {
-    bool isAvailable = _profile!.trangThai == TrangThaiCTV.HoatDong;
+  // 1.250.000 -> 1,25tr | 340.000 -> 340k
+  String _compactMoney(num v) {
+    if (v >= 1000000) {
+      final m = (v / 1000000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+      return '${m.replaceAll('.', ',')}tr';
+    }
+    if (v >= 1000) return '${(v / 1000).round()}k';
+    return '${v.round()}đ';
+  }
+
+  // ===================== VÍ =====================
+
+  Widget _buildWalletCard() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFE8646A), Color(0xFFF08A7E)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _coral.withValues(alpha: 0.3),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Icon(
-            isAvailable ? Icons.notifications_active : Icons.notifications_off,
-            color: isAvailable ? Colors.green : Colors.grey,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.22),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.account_balance_wallet_outlined,
+                color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ví thu nhập',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _currencyFormat.format(_profile?.soDuVi ?? 0),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {},
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: _coral,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Rút tiền',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===================== NHẬN VIỆC =====================
+
+  Widget _buildAvailabilityCard() {
+    final bool isAvailable = _profile!.trangThai == TrangThaiCTV.HoatDong;
+    final Color c = isAvailable ? const Color(0xFF2E9E6B) : Colors.grey;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: _cardDecoration(),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: c.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isAvailable
+                  ? Icons.notifications_active_outlined
+                  : Icons.notifications_off_outlined,
+              color: c,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              isAvailable ? 'Đang bật nhận việc' : 'Đang tắt nhận việc',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isAvailable ? 'Đang bật nhận việc' : 'Đang tắt nhận việc',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 14, color: _ink),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isAvailable
+                      ? 'Bạn sẽ nhận được đơn mới'
+                      : 'Bạn sẽ không nhận đơn mới',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ],
             ),
           ),
           Switch(
             value: isAvailable,
-            activeColor: Colors.green,
+            activeTrackColor: const Color(0xFF2E9E6B),
             onChanged: (val) async {
-              String status = val ? 'HoatDong' : 'TamDung';
-              final res = await _apiService.updateStatus(_currentUserId, status);
+              final status = val ? 'HoatDong' : 'TamDung';
+              final res =
+              await _apiService.updateStatus(_currentUserId, status);
+              if (!mounted) return;
               if (res.success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        val ? 'Đã bật nhận việc' : 'Đã tạm dừng nhận việc'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
                 _fetchProfileData();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Không thể đổi trạng thái'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
           ),
@@ -267,77 +573,174 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     );
   }
 
-  Widget _buildMenuSection(String title, List<_CollaboratorMenuItem> items) {
+  // ===================== MENU =====================
+
+  Widget _buildMenuSection(String title, List<_MenuItem> items) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 12, bottom: 8),
-          child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+          padding: const EdgeInsets.only(left: 8, bottom: 8),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.5,
+            ),
+          ),
         ),
         Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
+          decoration: _cardDecoration(),
           child: Column(
-            children: items.map((item) => ListTile(
-              leading: Icon(item.icon, size: 22),
-              title: Text(item.title, style: const TextStyle(fontSize: 14)),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (item.subtext.isNotEmpty)
-                    Text(item.subtext, style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey),
-                ],
-              ),
-              onTap: item.onTap,
-            )).toList(),
+            children: [
+              for (int i = 0; i < items.length; i++) ...[
+                _menuRow(items[i]),
+                if (i != items.length - 1)
+                  Divider(
+                    height: 1,
+                    indent: 64,
+                    color: Colors.black.withValues(alpha: 0.06),
+                  ),
+              ],
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildLogoutButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: TextButton(
-        onPressed: () async {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.clear();
-          if (mounted) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const LoginScreen(initialRoleTab: 1)),
-              (route) => false,
-            );
-          }
-        },
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: AppColors.error),
-          ),
-        ),
-        child: const Text(
-          'Đăng xuất',
-          style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
+  Widget _menuRow(_MenuItem item) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: item.onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: item.color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(item.icon, size: 20, color: item.color),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                item.title,
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w600, color: _ink),
+              ),
+            ),
+            if (item.subtext.isNotEmpty)
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text(
+                    item.subtext,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                ),
+              ),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right,
+                size: 20, color: AppColors.textSecondary),
+          ],
         ),
       ),
     );
   }
+
+  // ===================== ĐĂNG XUẤT =====================
+
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _confirmLogout,
+        icon: const Icon(Icons.logout, size: 18),
+        label: const Text('Đăng xuất',
+            style: TextStyle(fontWeight: FontWeight.w700)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.error,
+          backgroundColor: Colors.white,
+          side: const BorderSide(color: AppColors.error),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmLogout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Đăng xuất?',
+            style: TextStyle(fontWeight: FontWeight.w800)),
+        content: const Text('Bạn có chắc muốn đăng xuất khỏi tài khoản này?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+          builder: (_) => const LoginScreen(initialRoleTab: 1)),
+          (route) => false,
+    );
+  }
+
+  // ===================== HÀM HỖ TRỢ =====================
+
+  BoxDecoration _cardDecoration() => BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(20),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.06),
+        blurRadius: 12,
+        offset: const Offset(0, 3),
+      ),
+    ],
+  );
 }
 
-class _CollaboratorMenuItem {
+class _MenuItem {
   final IconData icon;
   final String title;
   final String subtext;
+  final Color color;
   final VoidCallback onTap;
 
-  _CollaboratorMenuItem(this.icon, this.title, this.subtext, this.onTap);
+  _MenuItem(this.icon, this.title, this.subtext, this.color, this.onTap);
 }
