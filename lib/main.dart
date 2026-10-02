@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'core/app_theme.dart';
+import 'core/app_colors.dart';
 import 'screens/collaborator/collaborator_main_screen.dart';
 import 'screens/auth/login_screen.dart';
 
@@ -168,7 +169,7 @@ class _AppEntryScreenState extends State<AppEntryScreen> {
             const SizedBox(width: 16),
             Expanded(
               child: Column(
-                crossAxisAlignment: Cross.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
