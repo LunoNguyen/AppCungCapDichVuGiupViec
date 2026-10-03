@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_colors.dart';
+import '../../services/notification_api_service.dart';
+import 'collaborator_main_screen.dart';
 
 class CollaboratorNotificationsScreen extends StatefulWidget {
   const CollaboratorNotificationsScreen({super.key});
@@ -13,9 +15,11 @@ class CollaboratorNotificationsScreen extends StatefulWidget {
 
 class _CollaboratorNotificationsScreenState
     extends State<CollaboratorNotificationsScreen> {
+  final NotificationApiService _apiService = NotificationApiService();
   bool _isLoading = true;
   bool _notifEnabled = true;
   bool _onlyUnread = false;
+  int _currentUserId = 0;
   List<Map<String, dynamic>> _items = [];
 
   // Màu đồng bộ với các trang khác
@@ -33,61 +37,39 @@ class _CollaboratorNotificationsScreenState
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _notifEnabled = prefs.getBool('notifEnabled') ?? true;
+    _currentUserId = prefs.getInt('taiKhoanId') ?? prefs.getInt('userId') ?? 9;
     await _fetchNotifications();
   }
 
-  // ===================== DỮ LIỆU =====================
+  // ===================== DỮ LIỆU TỪ API =====================
 
-  // TODO: sau này thay bằng gọi API backend.
-  // Mỗi item cần: id, loai (donMoi | nhacLich | hoanThanh | huy | heThong),
-  // tieuDe, noiDung, thoiGian (DateTime), daDoc (bool)
   Future<void> _fetchNotifications() async {
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 400));
-    final now = DateTime.now();
-    _items = [
-      {
-        'id': 1,
-        'loai': 'donMoi',
-        'tieuDe': 'Bạn có đơn mới',
-        'noiDung':
-        'Dọn dẹp nhà cửa • 123 Lê Lợi, Quận 1 • 09:00 - 12:00. Nhận đơn ngay!',
-        'thoiGian': now.subtract(const Duration(minutes: 5)),
-        'daDoc': false,
-      },
-      {
-        'id': 2,
-        'loai': 'nhacLich',
-        'tieuDe': 'Sắp đến giờ làm việc',
-        'noiDung': 'Ca của bạn với khách Nguyễn Văn A bắt đầu lúc 09:00 ngày mai.',
-        'thoiGian': now.subtract(const Duration(hours: 2)),
-        'daDoc': false,
-      },
-      {
-        'id': 3,
-        'loai': 'hoanThanh',
-        'tieuDe': 'Đơn đã hoàn thành',
-        'noiDung': 'Bạn nhận được 216.000đ từ đơn DON-2026-004.',
-        'thoiGian': now.subtract(const Duration(days: 1, hours: 3)),
-        'daDoc': true,
-      },
-      {
-        'id': 4,
-        'loai': 'huy',
-        'tieuDe': 'Đơn bị hủy',
-        'noiDung': 'Khách đã hủy đơn DON-2026-002. Rất tiếc về sự bất tiện này.',
-        'thoiGian': now.subtract(const Duration(days: 2)),
-        'daDoc': true,
-      },
-      {
-        'id': 5,
-        'loai': 'heThong',
-        'tieuDe': 'Chào mừng đến Neatify',
-        'noiDung': 'Hoàn thiện hồ sơ để nhận được nhiều đơn hơn.',
-        'thoiGian': now.subtract(const Duration(days: 5)),
-        'daDoc': true,
-      },
-    ];
+    try {
+      final response =
+          await _apiService.getCollaboratorNotifications(_currentUserId);
+      if (response.success && response.data != null) {
+        final List<Map<String, dynamic>> loaded = [];
+        for (final raw in response.data!) {
+          DateTime thoiGian = DateTime.now();
+          if (raw['thoiGianGui'] != null) {
+            thoiGian =
+                DateTime.tryParse(raw['thoiGianGui'].toString()) ?? DateTime.now();
+          }
+          loaded.add({
+            'id': raw['id'],
+            'thongBaoId': raw['thongBaoId'],
+            'loai': raw['loai']?.toString() ?? 'heThong',
+            'tieuDe': raw['tieuDe']?.toString() ?? '',
+            'noiDung': raw['noiDung']?.toString() ?? '',
+            'nguoiGui': raw['nguoiGui']?.toString() ?? 'Hệ thống',
+            'thoiGian': thoiGian,
+            'daDoc': raw['daDoc'] == true,
+          });
+        }
+        if (mounted) setState(() => _items = loaded);
+      }
+    } catch (_) {}
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -96,19 +78,525 @@ class _CollaboratorNotificationsScreenState
 
   int get _unreadCount => _items.where((e) => e['daDoc'] == false).length;
 
-  void _markAllRead() {
-    // TODO: gọi API đánh dấu tất cả đã đọc
+  Future<void> _markAllRead() async {
     setState(() {
       for (final e in _items) {
         e['daDoc'] = true;
       }
     });
+    try {
+      await _apiService.markAllCollaboratorNotificationsRead(_currentUserId);
+    } catch (_) {}
   }
 
-  void _markRead(Map<String, dynamic> item) {
+  Future<void> _markRead(Map<String, dynamic> item) async {
     if (item['daDoc'] == true) return;
-    // TODO: gọi API đánh dấu đã đọc
     setState(() => item['daDoc'] = true);
+    final id = item['id'];
+    if (id is int) {
+      try {
+        await _apiService.markCollaboratorNotificationRead(
+          id: id,
+          taiKhoanId: _currentUserId,
+        );
+      } catch (_) {}
+    }
+  }
+
+  void _showNotificationDetail(Map<String, dynamic> n) {
+    _markRead(n);
+    final String tieuDe = n['tieuDe']?.toString() ?? '';
+    final String noiDung = n['noiDung']?.toString() ?? '';
+    final style = _typeStyle(n['loai']?.toString() ?? '', tieuDe);
+    final DateTime thoiGian = n['thoiGian'] as DateTime? ?? DateTime.now();
+    final String formattedTime =
+        '${thoiGian.hour.toString().padLeft(2, '0')}:${thoiGian.minute.toString().padLeft(2, '0')} • ${thoiGian.day.toString().padLeft(2, '0')}/${thoiGian.month.toString().padLeft(2, '0')}/${thoiGian.year}';
+
+    // Parse thông minh thông tin đơn
+    final fullText = '$tieuDe $noiDung';
+    final orderMatch =
+        RegExp(r'(DON-[A-Za-z0-9\-]+|PC-[A-Za-z0-9\-]+)').firstMatch(fullText);
+    final String? orderCode = orderMatch?.group(0);
+
+    final moneyMatch = RegExp(
+            r'([0-9]{1,3}(?:\.[0-9]{3})+đ|[0-9]{1,3}(?:,[0-9]{3})+đ|[0-9]+(?:\.[0-9]+)?\s*đ)')
+        .firstMatch(noiDung);
+    final String? moneyStr = moneyMatch?.group(0);
+
+    String? reasonStr;
+    if (noiDung.toLowerCase().contains('lý do:')) {
+      final parts = noiDung.split(RegExp(r'[Ll]ý do:'));
+      if (parts.length > 1) {
+        reasonStr = parts[1].split('.')[0].trim().replaceAll('"', '');
+      }
+    }
+
+    final String nguoiGui = n['nguoiGui']?.toString() ?? 'Hệ thống Neatify';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 20,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            const SizedBox(height: 12),
+            Container(
+              width: 44,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Scrollable content
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Hero Card
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            style.lightBg,
+                            Colors.white,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: style.border, width: 1.2),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  style.color,
+                                  style.color.withValues(alpha: 0.8),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: style.color.withValues(alpha: 0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Icon(style.icon,
+                                size: 26, color: Colors.white),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: style.color.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    style.label.toUpperCase(),
+                                    style: TextStyle(
+                                      color: style.color,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11,
+                                      letterSpacing: 0.4,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Icon(Icons.schedule,
+                                        size: 13, color: Colors.grey.shade500),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      formattedTime,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () => Navigator.pop(ctx),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.grey.shade100,
+                              ),
+                              child: const Icon(Icons.close,
+                                  size: 18, color: Colors.grey),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // Tiêu đề thông báo
+                    Text(
+                      tieuDe,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: _ink,
+                        height: 1.35,
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Thẻ thông tin nổi bật: Mã đơn & Số tiền (nếu có)
+                    if (orderCode != null ||
+                        moneyStr != null ||
+                        reasonStr != null) ...[
+                      Row(
+                        children: [
+                          if (orderCode != null)
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                      color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'MÃ ĐƠN HÀNG',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.grey.shade500,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      orderCode,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: _headerTop,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          if (orderCode != null && moneyStr != null)
+                            const SizedBox(width: 10),
+                          if (moneyStr != null)
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFECFDF5),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                      color: const Color(0xFFA7F3D0)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'TIỀN NHẬN ĐƯỢC',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF059669),
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      '+$moneyStr',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFF047857),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // Thẻ Lý do từ chối (nếu có)
+                    if (reasonStr != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: const Color(0xFFFECACA)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.info_outline,
+                                size: 18, color: Color(0xFFDC2626)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'LÝ DO TỪ CHỐI ĐƠN',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFDC2626),
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    reasonStr,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF991B1B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    // Khung nội dung chi tiết
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                            color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.notes_rounded,
+                                  size: 16, color: Colors.grey.shade600),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Nội dung chi tiết',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            noiDung,
+                            style: const TextStyle(
+                              fontSize: 14.5,
+                              height: 1.55,
+                              color: Color(0xFF334155),
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Người gửi / Nguồn thông báo
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: _headerTop.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.verified_user_rounded,
+                              size: 14, color: _headerTop),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Nguồn: $nguoiGui',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+
+            // Nút bấm hành động ở đáy
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: (orderCode != null || n['loai'] == 'donMoi')
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(46),
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text(
+                              'Đóng',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.arrow_forward_rounded,
+                                size: 18),
+                            label: const Text(
+                              'Xem danh sách đơn',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(46),
+                              backgroundColor: _headerTop,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const CollaboratorMainScreen(initialIndex: 0),
+                                ),
+                                (route) => false,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    )
+                  : SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.check_rounded, size: 18),
+                        label: const Text(
+                          'Đã hiểu & Đóng',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _headerTop,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          elevation: 0,
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _toggleNotif(bool val) async {
@@ -318,7 +806,7 @@ class _CollaboratorNotificationsScreenState
         setState(() => _items.removeWhere((e) => e['id'] == n['id']));
       },
       child: GestureDetector(
-        onTap: () => _markRead(n),
+        onTap: () => _showNotificationDetail(n),
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           padding: const EdgeInsets.all(14),
@@ -412,19 +900,50 @@ class _CollaboratorNotificationsScreenState
 
   // ===================== HÀM HỖ TRỢ =====================
 
-  _TypeStyle _typeStyle(String loai) {
+  _TypeStyle _typeStyle(String loai, [String tieuDe = '']) {
+    final lower = tieuDe.toLowerCase();
+    if (lower.contains('từ chối') || loai == 'huy') {
+      return const _TypeStyle(
+        icon: Icons.cancel_rounded,
+        color: Color(0xFFDC2626),
+        lightBg: Color(0xFFFEF2F2),
+        border: Color(0xFFFECACA),
+        label: 'Đã từ chối',
+      );
+    }
     switch (loai) {
       case 'donMoi':
-        return const _TypeStyle(Icons.assignment_outlined, Color(0xFFC77700));
+        return const _TypeStyle(
+          icon: Icons.assignment_rounded,
+          color: Color(0xFFD97706),
+          lightBg: Color(0xFFFFFBEB),
+          border: Color(0xFFFDE68A),
+          label: 'Đơn mới',
+        );
       case 'nhacLich':
-        return const _TypeStyle(Icons.access_time, Color(0xFF2F80ED));
+        return const _TypeStyle(
+          icon: Icons.schedule_rounded,
+          color: Color(0xFF2563EB),
+          lightBg: Color(0xFFEFF6FF),
+          border: Color(0xFFBFDBFE),
+          label: 'Nhắc lịch ca làm',
+        );
       case 'hoanThanh':
         return const _TypeStyle(
-            Icons.check_circle_outline, Color(0xFF2E9E6B));
-      case 'huy':
-        return const _TypeStyle(Icons.cancel_outlined, _coral);
+          icon: Icons.check_circle_rounded,
+          color: Color(0xFF059669),
+          lightBg: Color(0xFFECFDF5),
+          border: Color(0xFFA7F3D0),
+          label: 'Hoàn thành',
+        );
       default:
-        return const _TypeStyle(Icons.campaign_outlined, _headerTop);
+        return const _TypeStyle(
+          icon: Icons.campaign_rounded,
+          color: Color(0xFF4F46E5),
+          lightBg: Color(0xFFEEF2FF),
+          border: Color(0xFFC7D2FE),
+          label: 'Thông báo',
+        );
     }
   }
 
@@ -454,5 +973,15 @@ class _CollaboratorNotificationsScreenState
 class _TypeStyle {
   final IconData icon;
   final Color color;
-  const _TypeStyle(this.icon, this.color);
+  final Color lightBg;
+  final Color border;
+  final String label;
+
+  const _TypeStyle({
+    required this.icon,
+    required this.color,
+    required this.lightBg,
+    required this.border,
+    required this.label,
+  });
 }

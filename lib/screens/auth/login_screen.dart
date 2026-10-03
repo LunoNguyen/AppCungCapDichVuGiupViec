@@ -82,6 +82,14 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         await prefs.setInt('userId', userId);
+        if (data['taiKhoanId'] != null) {
+          await prefs.setInt('taiKhoanId', int.tryParse(data['taiKhoanId'].toString()) ?? userId);
+        } else {
+          await prefs.setInt('taiKhoanId', userId);
+        }
+        if (data['congTacVienId'] != null) {
+          await prefs.setInt('congTacVienId', int.tryParse(data['congTacVienId'].toString()) ?? userId);
+        }
         await prefs.setString('userRole', roleStr);
 
         if (data['token'] != null) {

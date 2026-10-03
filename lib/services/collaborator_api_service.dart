@@ -37,9 +37,16 @@ class CollaboratorApiService {
     required int id,
     String? lyDo,
   }) async {
+    final cleanReason = lyDo?.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final reasonToSend = (cleanReason != null && cleanReason.isNotEmpty)
+        ? cleanReason
+        : 'Bận lịch cá nhân';
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/collaborators/assignments/$id/reject',
-      body: {'lyDo': lyDo ?? 'Bận lịch cá nhân'},
+      body: {
+        'lyDoTuChoi': reasonToSend,
+        'lyDo': reasonToSend,
+      },
     );
   }
 
@@ -48,9 +55,13 @@ class CollaboratorApiService {
     required int id,
     String? ghiChu,
   }) async {
+    final cleanGhiChu = ghiChu?.trim().replaceAll(RegExp(r'\s+'), ' ');
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/collaborators/assignments/$id/complete',
-      body: {'ghiChu': ghiChu},
+      body: {
+        'ketQuaThucHien': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
+        'ghiChu': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
+      },
     );
   }
 

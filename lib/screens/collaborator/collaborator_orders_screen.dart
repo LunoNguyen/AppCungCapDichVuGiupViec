@@ -550,7 +550,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => _handleAction(o, 'reject'),
+                    onPressed: () => _showRejectDialog(o),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.error,
                       backgroundColor: Colors.white,
@@ -635,9 +635,280 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     );
   }
 
+  // ===================== HỘP THOẠI TỪ CHỐI ĐƠN =====================
+
+  Future<void> _showRejectDialog(Map<String, dynamic> o) async {
+    final TextEditingController reasonController = TextEditingController();
+    String? errorMessage;
+    String selectedChip = '';
+
+    final List<String> reasonPresets = [
+      'Bận việc cá nhân',
+      'Trùng lịch làm',
+      'Khoảng cách quá xa',
+      'Lý do sức khỏe',
+    ];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.assignment_return_outlined,
+                            color: Color(0xFFDC2626),
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Từ chối nhận việc',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: _ink,
+                                ),
+                              ),
+                              Text(
+                                'Mã đơn: ${o['maDonDat'] ?? 'N/A'}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Color(0xFF94A3B8)),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Lý do gợi ý nhanh:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: reasonPresets.map((preset) {
+                        final isSelected = selectedChip == preset;
+                        return ChoiceChip(
+                          label: Text(preset),
+                          selected: isSelected,
+                          selectedColor: const Color(0xFFFEE2E2),
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          labelStyle: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? const Color(0xFFDC2626) : const Color(0xFF334155),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: isSelected ? const Color(0xFFEF4444) : Colors.transparent,
+                            ),
+                          ),
+                          onSelected: (selected) {
+                            setModalState(() {
+                              if (selected) {
+                                selectedChip = preset;
+                                reasonController.text = preset;
+                                reasonController.selection = TextSelection.collapsed(offset: preset.length);
+                                errorMessage = null;
+                              } else {
+                                selectedChip = '';
+                                if (reasonController.text == preset) {
+                                  reasonController.clear();
+                                }
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Chi tiết lý do từ chối *',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: reasonController,
+                      maxLines: 3,
+                      maxLength: 150,
+                      inputFormatters: [
+                        _NoMultipleSpacesFormatter(),
+                      ],
+                      onChanged: (val) {
+                        setModalState(() {
+                          if (selectedChip.isNotEmpty && val != selectedChip) {
+                            selectedChip = '';
+                          }
+                          if (errorMessage != null) {
+                            errorMessage = null;
+                          }
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Nhập lý do cụ thể gửi CSKH điều phối lại...',
+                        hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        errorText: errorMessage,
+                        contentPadding: const EdgeInsets.all(12),
+                        suffixIcon: reasonController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18, color: Color(0xFF94A3B8)),
+                                onPressed: () {
+                                  setModalState(() {
+                                    reasonController.clear();
+                                    selectedChip = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            ),
+                            child: const Text(
+                              'Bỏ qua',
+                              style: TextStyle(color: Color(0xFF475569), fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              final raw = reasonController.text;
+                              // Chuẩn hóa văn bản: xóa khoảng trắng đầu cuối và gộp các khoảng trắng liên tiếp
+                              final cleanReason = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+
+                              if (cleanReason.isEmpty) {
+                                setModalState(() {
+                                  errorMessage = 'Vui lòng nhập lý do từ chối (không được để trống)';
+                                });
+                                return;
+                              }
+                              if (cleanReason.length < 5) {
+                                setModalState(() {
+                                  errorMessage = 'Lý do từ chối phải có ít nhất 5 ký tự';
+                                });
+                                return;
+                              }
+
+                              Navigator.pop(context);
+                              _handleAction(o, 'reject', lyDo: cleanReason);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFDC2626),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Xác nhận từ chối',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // ===================== THAO TÁC =====================
 
-  Future<void> _handleAction(Map<String, dynamic> o, String action) async {
+  Future<void> _handleAction(Map<String, dynamic> o, String action, {String? lyDo}) async {
     final int phanCongId = o['phanCongId'] ?? 0;
     if (phanCongId == 0) {
       _showError('Lỗi: Không tìm thấy ID phân công');
@@ -650,7 +921,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
       if (action == 'accept') {
         res = await _apiService.acceptAssignment(phanCongId);
       } else if (action == 'reject') {
-        res = await _apiService.rejectAssignment(id: phanCongId);
+        res = await _apiService.rejectAssignment(id: phanCongId, lyDo: lyDo);
       } else if (action == 'complete') {
         res = await _apiService.completeAssignment(
             id: phanCongId, ghiChu: "Hoàn thành qua ứng dụng");
@@ -662,8 +933,8 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
           SnackBar(
             content: Text(action == 'accept'
                 ? 'Đã nhận việc thành công!'
-                : 'Thao tác thành công!'),
-            backgroundColor: AppColors.success,
+                : (action == 'reject' ? 'Đã từ chối đơn thành công!' : 'Đã hoàn thành công việc!')),
+            backgroundColor: action == 'reject' ? AppColors.warning : AppColors.success,
           ),
         );
         // Tải lại danh sách để cập nhật trạng thái mới nhất
@@ -680,5 +951,34 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+}
+
+/// Formatter ngăn người dùng nhập nhiều dấu cách liên tiếp hoặc bắt đầu bằng dấu cách
+class _NoMultipleSpacesFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Không cho phép khoảng trắng ở đầu dòng
+    if (newValue.text.startsWith(' ') || newValue.text.startsWith('\n')) {
+      final trimmed = newValue.text.trimLeft();
+      return newValue.copyWith(
+        text: trimmed,
+        selection: TextSelection.collapsed(offset: trimmed.length),
+      );
+    }
+    // Gộp 2 khoảng trắng liên tiếp trở lên thành 1
+    final replaced = newValue.text.replaceAll(RegExp(r' {2,}'), ' ');
+    if (replaced != newValue.text) {
+      final diff = newValue.text.length - replaced.length;
+      final newOffset = (newValue.selection.baseOffset - diff).clamp(0, replaced.length);
+      return newValue.copyWith(
+        text: replaced,
+        selection: TextSelection.collapsed(offset: newOffset),
+      );
+    }
+    return newValue;
   }
 }
