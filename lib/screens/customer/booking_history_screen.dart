@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../auth/login_screen.dart';
+import '../../services/session_service.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   final ValueChanged<int>? onSwitchTab;
@@ -13,11 +14,15 @@ class BookingHistoryScreen extends StatefulWidget {
 class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _loggedIn = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    SessionService.load().then((s) {
+      if (mounted) setState(() => _loggedIn = s?.isCustomer == true);
+    });
   }
 
   @override
@@ -31,70 +36,45 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
         automaticallyImplyLeading: false,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Screen Title: "Hoạt động" (Matching screenshot)
-            const Text(
-              'Hoạt động',
+        title: const Text('Hoạt động'),
+        actions: [
+          TextButton(
+            onPressed: () => _loggedIn
+                ? ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Bạn chưa có công việc nào đã hoàn thành.')))
+                : _promptLogin(context),
+            child: const Text(
+              'Lịch sử',
               style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
+                color: AppColors.brand500,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            // Right Button: "Lịch sử" (Matching screenshot)
-            InkWell(
-              onTap: () {
-                _promptLogin(context);
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Text(
-                  'Lịch sử',
-                  style: TextStyle(
-                    color: AppColors.brand500,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: Column(
-            children: [
-              TabBar(
-                controller: _tabController,
-                indicatorColor: AppColors.brand500,
-                indicatorWeight: 2.5,
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: AppColors.brand500,
-                unselectedLabelColor: AppColors.textSecondary,
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14.5,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14.5,
-                ),
-                tabs: const [
-                  Tab(text: 'Chờ làm'),
-                  Tab(text: 'Lặp lại'),
-                  Tab(text: 'Gói tháng'),
-                ],
-              ),
-              const Divider(height: 1, color: AppColors.divider),
-            ],
           ),
+          const SizedBox(width: 4),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: AppColors.brand500,
+          indicatorWeight: 2.5,
+          indicatorSize: TabBarIndicatorSize.tab,
+          labelColor: AppColors.brand500,
+          unselectedLabelColor: AppColors.textSecondary,
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14.5,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: 14.5,
+          ),
+          tabs: const [
+            Tab(text: 'Chờ làm'),
+            Tab(text: 'Lặp lại'),
+            Tab(text: 'Gói tháng'),
+          ],
         ),
       ),
       body: TabBarView(
@@ -137,12 +117,16 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
 
           const SizedBox(height: 28),
 
-          // "Đăng nhập ngay" button (Matching screenshot)
+          // Khách chưa đăng nhập -> "Đăng nhập ngay"; đã đăng nhập -> về Trang chủ đặt dịch vụ
           SizedBox(
             width: 170,
             height: 46,
             child: ElevatedButton(
               onPressed: () {
+                if (_loggedIn) {
+                  widget.onSwitchTab?.call(0);
+                  return;
+                }
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -153,12 +137,12 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text(
-                'Đăng nhập ngay',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700),
+              child: Text(
+                _loggedIn ? 'Đặt dịch vụ' : 'Đăng nhập ngay',
+                style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700),
               ),
             ),
           ),
@@ -184,7 +168,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
               width: 150,
               height: 130,
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF7ED),
+                color: AppColors.brandSurface,
                 borderRadius: BorderRadius.circular(50),
               ),
             ),
@@ -225,10 +209,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFFF97316), width: 3.2),
+                border: Border.all(color: AppColors.brand500, width: 3.2),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.orange.withValues(alpha: 0.1),
+                    color: AppColors.brand500.withValues(alpha: 0.1),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -252,12 +236,12 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                     width: 32,
                     height: 32,
                     decoration: const BoxDecoration(
-                      color: Color(0xFFFFF7ED),
+                      color: AppColors.brandSurface,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.shield_outlined,
-                      color: Color(0xFFF97316),
+                      color: AppColors.brand500,
                       size: 20,
                     ),
                   ),
@@ -349,7 +333,7 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                       width: 16,
                       height: 24,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF97316),
+                        color: AppColors.brand500,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -392,8 +376,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
   void _promptLogin(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 30),

@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import 'collaborator_orders_screen.dart';
 import 'collaborator_schedule_screen.dart';
+import 'collaborator_notifications_screen.dart';
 import 'collaborator_account_screen.dart';
 
+/// Khung chính app Cộng tác viên - bố cục tab giống bTaskee Partner:
+/// Công việc / Lịch làm / Thông báo / Tài khoản
 class CollaboratorMainScreen extends StatefulWidget {
   final int initialIndex;
   const CollaboratorMainScreen({super.key, this.initialIndex = 0});
@@ -18,6 +21,7 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen> {
   final List<Widget> _screens = const [
     CollaboratorOrdersScreen(),
     CollaboratorScheduleScreen(),
+    CollaboratorNotificationsScreen(),
     CollaboratorAccountScreen(),
   ];
 
@@ -35,14 +39,9 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen> {
         children: _screens,
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: AppColors.divider)),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
@@ -51,33 +50,39 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen> {
               _currentIndex = index;
             });
           },
-          selectedItemColor: AppColors.ctvYellowDark,
-          unselectedItemColor: AppColors.textSecondary,
+          selectedItemColor: AppColors.partner500,
+          unselectedItemColor: AppColors.textMuted,
           selectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w700,
-            fontSize: 12,
+            fontSize: 11.5,
           ),
           unselectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.normal,
-            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            fontSize: 11.5,
           ),
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
+          elevation: 0,
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.assignment_outlined),
-              activeIcon: Icon(Icons.assignment),
-              label: 'Đơn hàng',
+              icon: Icon(Icons.work_outline_rounded),
+              activeIcon: Icon(Icons.work_rounded),
+              label: 'Công việc',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.calendar_month_outlined),
-              activeIcon: Icon(Icons.calendar_month),
-              label: 'Lịch làm việc',
+              activeIcon: Icon(Icons.calendar_month_rounded),
+              label: 'Lịch làm',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Hồ sơ & Ví',
+              icon: Icon(Icons.notifications_none_rounded),
+              activeIcon: Icon(Icons.notifications_rounded),
+              label: 'Thông báo',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline_rounded),
+              activeIcon: Icon(Icons.person_rounded),
+              label: 'Tài khoản',
             ),
           ],
         ),

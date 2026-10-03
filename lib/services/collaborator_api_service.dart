@@ -89,6 +89,15 @@ class CollaboratorApiService {
     );
   }
 
+  /// Lấy hồ sơ CTV theo tài khoản; nếu chưa có backend tạo hồ sơ rỗng.
+  /// Trả về hồ sơ + cờ daTaoMoi.
+  Future<ApiResponse<Map<String, dynamic>>> ensureProfile(int taiKhoanId) async {
+    return _apiClient.post<Map<String, dynamic>>(
+      '/v1/collaborators/profile/ensure',
+      body: {'taiKhoanId': taiKhoanId},
+    );
+  }
+
   /// Cập nhật trạng thái hoạt động (Sẵn sàng/Tạm dừng)
   Future<ApiResponse<Map<String, dynamic>>> updateStatus(int id, String trangThai) async {
     return _apiClient.put<Map<String, dynamic>>(

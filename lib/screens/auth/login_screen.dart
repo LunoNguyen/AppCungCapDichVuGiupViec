@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_colors.dart';
 import '../../services/auth_api_service.dart';
+import '../../services/auth_flow.dart';
+import '../../services/session_service.dart';
 import '../collaborator/collaborator_main_screen.dart';
 import '../customer/customer_main_screen.dart';
 import 'register_screen.dart';
+import 'otp_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final int initialRoleTab; // 0: Khách hàng (Màu chủ đạo), 1: Cộng tác viên (Màu vàng)
@@ -54,97 +56,87 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-    });
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
 
     try {
-      final String roleStr = isCustomer ? 'KHACH_HANG' : 'CONG_TAC_VIEN';
+      final result = await AuthFlow.login(
+        phone: _phoneController.text,
+        password: _passwordController.text,
+        asCustomer: isCustomer,
+      );
+      if (!mounted) return;
 
-      final response = await _authApiService.login(
-        username: _phoneController.text.trim(),
-        matKhau: _passwordController.text,
-        vaiTro: roleStr,
+      if (!result.success) {
+        // Khách hàng đăng ký nhưng chưa xác thực OTP -> gửi lại OTP và chuyển sang bước xác thực
+        if (result.notActivated && isCustomer) {
+          await _goVerifyOtp();
+          return;
+        }
+        _showSnack(result.error!, AppColors.error);
+        return;
+      }
+
+      _showSnack(
+        result.profileCreated
+            ? 'Đăng nhập thành công! Hồ sơ của bạn đang trống, hãy bổ sung thông tin trong mục Tài khoản.'
+            : 'Xin chào ${result.session!.fullName.isNotEmpty ? result.session!.fullName : 'bạn'}!',
+        AppColors.success,
       );
 
-      if (response.success && response.data != null) {
-        final prefs = await SharedPreferences.getInstance();
-        final data = response.data!;
-
-        dynamic rawId = data['id'] ??
-            data['userId'] ??
-            data['collaboratorId'] ??
-            data['taiKhoanId'];
-        int userId = 0;
-        if (rawId != null) {
-          userId = int.tryParse(rawId.toString()) ?? 0;
-        }
-
-        await prefs.setInt('userId', userId);
-        if (data['taiKhoanId'] != null) {
-          await prefs.setInt('taiKhoanId', int.tryParse(data['taiKhoanId'].toString()) ?? userId);
-        } else {
-          await prefs.setInt('taiKhoanId', userId);
-        }
-        if (data['congTacVienId'] != null) {
-          await prefs.setInt('congTacVienId', int.tryParse(data['congTacVienId'].toString()) ?? userId);
-        }
-        await prefs.setString('userRole', roleStr);
-
-        if (data['token'] != null) {
-          await prefs.setString('token', data['token']);
-        }
-
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isCustomer
-                  ? 'Đăng nhập Khách hàng thành công!'
-                  : 'Đăng nhập Cộng tác viên thành công!',
-            ),
-            backgroundColor: isCustomer ? AppColors.brand500 : AppColors.ctvYellowDark,
-          ),
-        );
-
-        if (isCustomer) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const CustomerMainScreen()),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const CollaboratorMainScreen()),
-          );
-        }
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              response.message ?? 'Đăng nhập thất bại. Vui lòng kiểm tra lại!',
-            ),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+      // Xoá toàn bộ màn trước để các màn chính tải lại theo phiên mới
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => isCustomer
+              ? const CustomerMainScreen()
+              : const CollaboratorMainScreen(),
+        ),
+        (route) => false,
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi kết nối máy chủ: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showSnack('Lỗi kết nối máy chủ: $e', AppColors.error);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _goVerifyOtp() async {
+    final phone = SessionService.normalizePhone(_phoneController.text);
+    final res = await _authApiService.sendOtp(identifier: phone);
+    if (!mounted) return;
+    if (!res.success) {
+      _showSnack(res.message ?? 'Không gửi được mã OTP', AppColors.error);
+      return;
+    }
+    _showSnack('Tài khoản chưa được kích hoạt. Vui lòng nhập mã OTP.', AppColors.warning);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OtpVerificationScreen(
+          destination: phone,
+          password: _passwordController.text,
+          demoOtp: res.data?['otpCode']?.toString(),
+        ),
+      ),
+    );
+  }
+
+  void _showSnack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
+  }
+
+  void _goBack() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const CustomerMainScreen()),
+      );
     }
   }
 
@@ -224,7 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _goBack,
         ),
         title: Text(
           isCustomer ? 'Đăng nhập Khách hàng' : 'Đăng nhập Cộng tác viên',

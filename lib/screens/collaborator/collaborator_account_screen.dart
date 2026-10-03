@@ -6,6 +6,8 @@ import '../../core/app_colors.dart';
 import '../../models/cong_tac_vien.dart';
 import '../../services/collaborator_api_service.dart';
 import '../auth/login_screen.dart';
+import '../customer/customer_main_screen.dart';
+import '../../services/session_service.dart';
 import '../collaborator/collaborator_notifications_screen.dart';
 
 class CollaboratorAccountScreen extends StatefulWidget {
@@ -29,11 +31,11 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   final NumberFormat _currencyFormat =
   NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
 
-  // Màu đồng bộ với trang Đơn / Lịch
-  static const _headerTop = Color(0xFF3F4A8A);
-  static const _headerBottom = Color(0xFF5B62B3);
-  static const _coral = Color(0xFFE8646A);
-  static const _ink = Color(0xFF1F2544);
+  // Màu theo phong cách bTaskee Partner (xanh lá chủ đạo, cam cho tiền)
+  static const _headerTop = AppColors.partner500;
+  static const _headerBottom = AppColors.partner500;
+  static const _coral = AppColors.brand500;
+  static const _ink = AppColors.textPrimary;
 
   @override
   void initState() {
@@ -101,7 +103,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
       return const Scaffold(
         backgroundColor: AppColors.scaffoldBg,
         body: Center(
-            child: CircularProgressIndicator(color: AppColors.brand500)),
+            child: CircularProgressIndicator(color: _headerTop)),
       );
     }
 
@@ -113,7 +115,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.cloud_off_outlined,
-                  size: 60, color: AppColors.brand300),
+                  size: 60, color: AppColors.ctvYellowBorder),
               const SizedBox(height: 12),
               const Text('Không thể tải thông tin tài khoản',
                   style: TextStyle(
@@ -161,15 +163,19 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                   child: Column(
                     children: [
+                      if (_isProfileIncomplete) ...[
+                        _buildIncompleteBanner(),
+                        const SizedBox(height: 16),
+                      ],
                       _buildWalletCard(),
                       const SizedBox(height: 16),
                       _buildAvailabilityCard(),
                       const SizedBox(height: 20),
                       _buildMenuSection('CÔNG VIỆC & DỊCH VỤ', [
                         _MenuItem(Icons.handyman_outlined, 'Dịch vụ đã đăng ký',
-                            '5 dịch vụ', const Color(0xFF5B62B3), () {}),
+                            '5 dịch vụ', AppColors.partner500, () {}),
                         _MenuItem(Icons.map_outlined, 'Khu vực nhận việc',
-                            _profile!.noiCuTru, const Color(0xFF2F80ED), () {}),
+                            _profile!.noiCuTru.isNotEmpty ? _profile!.noiCuTru : 'Chưa cập nhật', const Color(0xFF2F80ED), () {}),
                       ]),
                       const SizedBox(height: 16),
                       _buildMenuSection('TÀI CHÍNH', [
@@ -177,7 +183,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                             Icons.credit_card_outlined,
                             'Tài khoản ngân hàng',
                             'Vietcombank',
-                            const Color(0xFF2E9E6B),
+                            AppColors.partner500,
                                 () {}),
                         _MenuItem(Icons.receipt_long_outlined,
                             'Lịch sử thu nhập', '', const Color(0xFFC77700), () {}),
@@ -198,7 +204,9 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                         _MenuItem(
                             Icons.badge_outlined,
                             'Thông tin cá nhân & CCCD',
-                            'Đã xác thực',
+                            _profile!.trangThai == TrangThaiCTV.ChoDuyet
+                                ? 'Chờ duyệt'
+                                : 'Đã xác thực',
                             _headerTop,
                                 () {}),
                         _MenuItem(
@@ -237,14 +245,47 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     );
   }
 
+  // Hồ sơ rỗng (tạo tự động khi CTV đăng nhập lần đầu mà chưa có hồ sơ)
+  bool get _isProfileIncomplete =>
+      _profile!.hoTen.trim().isEmpty || _profile!.noiCuTru.trim().isEmpty;
+
+  Widget _buildIncompleteBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.partnerLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.ctvYellowBorder),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, color: AppColors.partner600),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Hồ sơ của bạn chưa hoàn thiện. Vui lòng bổ sung họ tên, ngày sinh, '
+              'nơi cư trú và giấy tờ để được duyệt và nhận việc.',
+              style: TextStyle(
+                  fontSize: 13, color: AppColors.textPrimary, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ===================== HEADER =====================
 
   Widget _buildHeader() {
-    final name = _profile!.hoTen;
+    final name = _profile!.hoTen.trim().isNotEmpty
+        ? _profile!.hoTen
+        : 'Cộng tác viên mới';
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(
-          16, MediaQuery.of(context).padding.top + 8, 16, 52),
+          16, MediaQuery.of(context).padding.top + 4, 16, 52),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -285,13 +326,13 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
             ),
             child: CircleAvatar(
               radius: 38,
-              backgroundColor: const Color(0xFFCECBF6),
+              backgroundColor: Colors.white,
               child: Text(
                 name.isNotEmpty ? name[0].toUpperCase() : 'C',
                 style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF3C3489),
+                  color: AppColors.partner600,
                 ),
               ),
             ),
@@ -322,8 +363,11 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
               _headerChip(Icons.star_rounded,
                   _profile!.diemDanhGia.toStringAsFixed(1), const Color(0xFFFFD166)),
               const SizedBox(width: 8),
-              _headerChip(
-                  Icons.verified_outlined, 'Đã xác thực', const Color(0xFF9FE1CB)),
+              _profile!.trangThai == TrangThaiCTV.ChoDuyet
+                  ? _headerChip(Icons.hourglass_top_rounded, 'Chờ duyệt',
+                      Colors.white)
+                  : _headerChip(Icons.verified_outlined, 'Đã xác thực',
+                      const Color(0xFF9FE1CB)),
             ],
           ),
         ],
@@ -336,7 +380,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -366,7 +410,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
         children: [
           Expanded(
             child: _statItem('$_completedCount', 'Đơn hoàn thành',
-                Icons.done_all_rounded, const Color(0xFF2E9E6B)),
+                Icons.done_all_rounded, AppColors.success),
           ),
           Container(width: 1, height: 36, color: Colors.black.withValues(alpha: 0.08)),
           Expanded(
@@ -423,11 +467,11 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFE8646A), Color(0xFFF08A7E)],
+          colors: [AppColors.brand500, AppColors.brand400],
         ),
         boxShadow: [
           BoxShadow(
@@ -499,7 +543,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
 
   Widget _buildAvailabilityCard() {
     final bool isAvailable = _profile!.trangThai == TrangThaiCTV.HoatDong;
-    final Color c = isAvailable ? const Color(0xFF2E9E6B) : Colors.grey;
+    final Color c = isAvailable ? AppColors.success : Colors.grey;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -543,7 +587,6 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
           ),
           Switch(
             value: isAvailable,
-            activeTrackColor: const Color(0xFF2E9E6B),
             onChanged: (val) async {
               final status = val ? 'HoatDong' : 'TamDung';
               final res =
@@ -613,7 +656,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
 
   Widget _menuRow(_MenuItem item) {
     return InkWell(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(12),
       onTap: item.onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -684,7 +727,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Text('Đăng xuất?',
             style: TextStyle(fontWeight: FontWeight.w800)),
         content: const Text('Bạn có chắc muốn đăng xuất khỏi tài khoản này?'),
@@ -709,14 +752,17 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     );
 
     if (ok != true) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await SessionService.clear();
     if (!mounted) return;
+    // Về Trang chủ (gốc của app) rồi mở màn đăng nhập CTV
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(
-          builder: (_) => const LoginScreen(initialRoleTab: 1)),
-          (route) => false,
+      MaterialPageRoute(builder: (_) => const CustomerMainScreen()),
+      (route) => false,
+    );
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen(initialRoleTab: 1)),
     );
   }
 
@@ -724,7 +770,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
 
   BoxDecoration _cardDecoration() => BoxDecoration(
     color: Colors.white,
-    borderRadius: BorderRadius.circular(20),
+    borderRadius: BorderRadius.circular(12),
     boxShadow: [
       BoxShadow(
         color: Colors.black.withValues(alpha: 0.06),
