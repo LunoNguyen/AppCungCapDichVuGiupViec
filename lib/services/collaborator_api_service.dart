@@ -105,4 +105,55 @@ class CollaboratorApiService {
       body: {'trangThai': trangThai},
     );
   }
+
+  // ====================================================
+  // POOL ORDERS — Đơn hàng chung cho tất cả CTV
+  // ====================================================
+
+  /// Lấy danh sách đơn đang tìm CTV (pool chung — tất cả CTV đều thấy)
+  Future<ApiResponse<List<Map<String, dynamic>>>> getAvailableOrders({
+    required int congTacVienId,
+  }) async {
+    return _apiClient.get<List<Map<String, dynamic>>>(
+      '/v1/collaborators/available-orders',
+      queryParams: {'congTacVienId': congTacVienId},
+      fromJsonT: (json) {
+        if (json is List) {
+          return json.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+        return [];
+      },
+    );
+  }
+
+  /// CTV nhận đơn từ pool (atomic — first-come-first-served)
+  /// Trả về 409 nếu đơn đã có người nhận trước
+  Future<ApiResponse<Map<String, dynamic>>> acceptOrderFromPool({
+    required int donDatId,
+    required int congTacVienId,
+  }) async {
+    return _apiClient.post<Map<String, dynamic>>(
+      '/v1/collaborators/orders/$donDatId/accept',
+      body: {'congTacVienId': congTacVienId},
+    );
+  }
+
+  /// CTV từ chối đơn từ pool (đơn vẫn ở pool cho người khác)
+  Future<ApiResponse<Map<String, dynamic>>> rejectOrderFromPool({
+    required int donDatId,
+    required int congTacVienId,
+    String? lyDo,
+  }) async {
+    final cleanReason = lyDo?.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final reasonToSend = (cleanReason != null && cleanReason.isNotEmpty)
+        ? cleanReason
+        : 'Bận lịch cá nhân';
+    return _apiClient.post<Map<String, dynamic>>(
+      '/v1/collaborators/orders/$donDatId/reject',
+      body: {
+        'congTacVienId': congTacVienId,
+        'lyDo': reasonToSend,
+      },
+    );
+  }
 }

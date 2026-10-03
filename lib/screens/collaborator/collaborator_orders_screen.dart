@@ -19,7 +19,12 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
 
   bool _isLoading = true;
   int _currentUserId = 0;
+  // Pool: đơn đang tìm CTV (tất cả CTV thấy)
+  List<Map<String, dynamic>> _poolOrders = [];
+  // Assignments: đơn CTV đã nhận (DaXacNhan/DangThucHien/HoanThanh)
   List<Map<String, dynamic>> _allAssignments = [];
+  // Các đơn CTV đã bấm bỏ qua/từ chối (lưu local)
+  Set<int> _hiddenOrderIds = {};
 
   // Màu theo phong cách bTaskee Partner
   static const _primary = AppColors.partner500;
@@ -63,27 +68,54 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
       setState(() => _isLoading = false);
       return;
     }
-    await _fetchAssignments();
+    final hiddenList = prefs.getStringList('hidden_orders_$_currentUserId') ?? [];
+    _hiddenOrderIds = hiddenList.map((e) => int.tryParse(e) ?? 0).toSet();
+    await _fetchAllData();
   }
 
-  Future<void> _fetchAssignments() async {
+  /// Tải cả 2 nguồn dữ liệu:
+  /// 1. Pool đơn chung (DangTimCTV) — tab "Việc mới"
+  /// 2. Đơn CTV đã nhận (PhanCongCTV của CTV này) — tab "Đã nhận" và "Hoàn thành"
+  Future<void> _fetchAllData() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final response =
-      await _apiService.getAssignments(congTacVienId: _currentUserId);
-      if (response.success && response.data != null) {
-        setState(() {
-          _allAssignments = List<Map<String, dynamic>>.from(response.data!);
-        });
-      } else {
-        _showError(response.message ?? 'Không thể tải danh sách đơn');
+      // Gọi song song
+      final results = await Future.wait([
+        _apiService.getAvailableOrders(congTacVienId: _currentUserId),
+        _apiService.getAssignments(congTacVienId: _currentUserId),
+      ]);
+
+      final poolRes = results[0] as dynamic;
+      final assignRes = results[1] as dynamic;
+
+      setState(() {
+        _poolOrders = poolRes.success && poolRes.data != null
+            ? List<Map<String, dynamic>>.from(poolRes.data!)
+            : [];
+        _allAssignments = assignRes.success && assignRes.data != null
+            ? List<Map<String, dynamic>>.from(assignRes.data!)
+            : [];
+      });
+
+      if (!poolRes.success) {
+        _showError(poolRes.message ?? 'Không thể tải đơn mới');
       }
     } catch (e) {
       _showError('Lỗi kết nối: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Chỉ refresh pool (sau khi nhận/từ chối đơn)
+  Future<void> _refreshPool() async {
+    try {
+      final res = await _apiService.getAvailableOrders(congTacVienId: _currentUserId);
+      if (mounted && res.success && res.data != null) {
+        setState(() => _poolOrders = List<Map<String, dynamic>>.from(res.data!));
+      }
+    } catch (_) {}
   }
 
   void _showError(String msg) {
@@ -95,12 +127,10 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
 
   List<Map<String, dynamic>> _getFilteredList(String tabType) {
     if (tabType == 'new') {
-      return _allAssignments.where((item) {
-        final status =
-        (item['trangThaiPhanCong']?.toString() ?? '').toLowerCase();
-        return status == 'chophancong' ||
-            status == 'cho_xac_nhan' ||
-            status == 'new';
+      // Tab "Việc mới" = pool đơn DangTimCTV (lọc bỏ đơn CTV này đã ẩn local)
+      return _poolOrders.where((item) {
+        final donId = item['donDatId'] ?? 0;
+        return !_hiddenOrderIds.contains(donId);
       }).toList();
     } else if (tabType == 'confirmed') {
       return _allAssignments.where((item) {
@@ -179,7 +209,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                 ),
                 IconButton(
                   icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                  onPressed: _fetchAssignments,
+                  onPressed: _fetchAllData,
                 ),
               ],
             ),
@@ -212,7 +242,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
 
     if (filtered.isEmpty) {
       return RefreshIndicator(
-        onRefresh: _fetchAssignments,
+        onRefresh: _fetchAllData,
         color: _primary,
         child: ListView(
           children: [
@@ -254,7 +284,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     }
 
     return RefreshIndicator(
-      onRefresh: _fetchAssignments,
+      onRefresh: _fetchAllData,
       color: _primary,
       child: ListView.builder(
         padding: const EdgeInsets.only(top: 10, bottom: 20),
@@ -842,22 +872,46 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
   // ===================== THAO TÁC =====================
 
   Future<void> _handleAction(Map<String, dynamic> o, String action, {String? lyDo}) async {
-    final int phanCongId = o['phanCongId'] ?? 0;
-    if (phanCongId == 0) {
-      _showError('Lỗi: Không tìm thấy ID phân công');
-      return;
-    }
-
     setState(() => _isLoading = true);
     try {
       dynamic res;
+
       if (action == 'accept') {
-        res = await _apiService.acceptAssignment(phanCongId);
+        // Pool: dùng donDatId (không phải phanCongId)
+        final int donDatId = o['donDatId'] ?? 0;
+        if (donDatId == 0) {
+          _showError('Lỗi: Không tìm thấy ID đơn hàng');
+          return;
+        }
+        res = await _apiService.acceptOrderFromPool(
+          donDatId: donDatId,
+          congTacVienId: _currentUserId,
+        );
       } else if (action == 'reject') {
-        res = await _apiService.rejectAssignment(id: phanCongId, lyDo: lyDo);
+        // Pool: dùng donDatId (ẩn local trên máy CTV này)
+        final int donDatId = o['donDatId'] ?? 0;
+        if (donDatId == 0) {
+          _showError('Lỗi: Không tìm thấy ID đơn hàng');
+          return;
+        }
+        _hiddenOrderIds.add(donDatId);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList('hidden_orders_$_currentUserId', _hiddenOrderIds.map((e) => e.toString()).toList());
+
+        res = await _apiService.rejectOrderFromPool(
+          donDatId: donDatId,
+          congTacVienId: _currentUserId,
+          lyDo: lyDo,
+        );
       } else if (action == 'complete') {
+        // Đơn đã nhận: dùng phanCongId như cũ
+        final int phanCongId = o['phanCongId'] ?? 0;
+        if (phanCongId == 0) {
+          _showError('Lỗi: Không tìm thấy ID phân công');
+          return;
+        }
         res = await _apiService.completeAssignment(
-            id: phanCongId, ghiChu: "Hoàn thành qua ứng dụng");
+            id: phanCongId, ghiChu: 'Hoàn thành qua ứng dụng');
       }
 
       if (res != null && res.success) {
@@ -866,18 +920,45 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
           SnackBar(
             content: Text(action == 'accept'
                 ? 'Đã nhận việc thành công!'
-                : (action == 'reject' ? 'Đã từ chối đơn thành công!' : 'Đã hoàn thành công việc!')),
-            backgroundColor: action == 'reject' ? AppColors.warning : AppColors.success,
+                : (action == 'reject'
+                    ? 'Đã bỏ qua. Đơn vẫn hiện cho CTV khác.'
+                    : 'Đã hoàn thành công việc!')),
+            backgroundColor:
+                action == 'reject' ? AppColors.warning : AppColors.success,
           ),
         );
-        // Tải lại danh sách để cập nhật trạng thái mới nhất
-        await _fetchAssignments();
 
-        // Chuyển tab tương ứng
-        if (action == 'accept') _tabController.animateTo(1);
-        if (action == 'complete') _tabController.animateTo(2);
+        if (action == 'accept') {
+          // Tải lại cả 2 để pool bớt đơn, tab đã nhận thêm đơn mới
+          await _fetchAllData();
+          _tabController.animateTo(1);
+        } else if (action == 'reject') {
+          // Chỉ cần tải lại pool (đơn mới này biến mất, tab khác không đổi)
+          await _refreshPool();
+        } else if (action == 'complete') {
+          await _fetchAllData();
+          _tabController.animateTo(2);
+        }
       } else {
-        _showError(res?.message ?? 'Thao tác thất bại');
+        // 409: đơn đã có người nhận trước
+        final msg = res?.message ?? 'Thao tác thất bại';
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Đơn đã có người nhận'),
+            content: Text(msg),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _refreshPool(); // Tải lại để xóa đơn đã bị lấy khỏi list
+                },
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
       }
     } catch (e) {
       _showError('Lỗi hệ thống: $e');
