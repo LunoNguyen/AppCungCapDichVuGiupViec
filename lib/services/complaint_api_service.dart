@@ -4,25 +4,23 @@ import 'api_response.dart';
 class ComplaintApiService {
   final ApiClient _apiClient = ApiClient();
 
-  /// Khách hàng gửi khiếu nại kèm link file/ảnh bằng chứng (lưu trên MinIO) (UC-KH08)
-  /// POST /v1/complaints
+  /// Khách hàng gửi khiếu nại kèm file bằng chứng đã upload MinIO (UC-KH08)
+  /// POST /v1/complaints — khớp ComplaintCreateRequest
   Future<ApiResponse<Map<String, dynamic>>> createComplaint({
     required int khachHangId,
     required int donDatId,
-    required String tieuDe,
+    required String loaiVanDe,
     required String noiDung,
-    required String mucDoUuTien, // THAP, TRUNG_BINH, CAO, KHAN_CAP
-    List<String>? hinhAnhBangChungUrls, // URLs ảnh đã upload lên MinIO qua StorageController
+    List<String>? danhSachFileDinhKem, // object key/URL từ /api/storage/upload/khieu-nai
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/complaints',
       body: {
         'khachHangId': khachHangId,
         'donDatId': donDatId,
-        'tieuDe': tieuDe,
+        'loaiVanDe': loaiVanDe,
         'noiDung': noiDung,
-        'mucDoUuTien': mucDoUuTien,
-        'hinhAnhBangChungUrls': hinhAnhBangChungUrls ?? [],
+        'danhSachFileDinhKem': danhSachFileDinhKem ?? [],
       },
     );
   }

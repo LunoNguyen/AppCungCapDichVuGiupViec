@@ -39,7 +39,7 @@ class CollaboratorApiService {
   }) async {
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/collaborators/assignments/$id/reject',
-      body: {'lyDo': lyDo ?? 'Bận lịch cá nhân'},
+      body: {'lyDoTuChoi': lyDo ?? 'Bận lịch cá nhân'},
     );
   }
 
@@ -50,7 +50,7 @@ class CollaboratorApiService {
   }) async {
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/collaborators/assignments/$id/complete',
-      body: {'ghiChu': ghiChu},
+      body: {'ketQuaThucHien': ghiChu},
     );
   }
 
