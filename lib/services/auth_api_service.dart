@@ -114,7 +114,7 @@ class AuthApiService {
     );
   }
 
-  /// Gửi lại mã OTP
+  /// Gửi (lại) mã OTP qua tin nhắn SMS tới SĐT của tài khoản
   /// POST /v1/auth/otp/send
   Future<ApiResponse<Map<String, dynamic>>> sendOtp({
     required String identifier,
@@ -129,6 +129,23 @@ class AuthApiService {
     );
   }
 
+  /// Quên mật khẩu: OTP (mucDich DatLaiMatKhau, nhận qua SMS từ [sendOtp]) + mật khẩu mới
+  /// POST /v1/auth/password/reset
+  Future<ApiResponse<Map<String, dynamic>>> resetPassword({
+    required String identifier,
+    required String maCode,
+    required String matKhauMoi,
+  }) async {
+    return _apiClient.post<Map<String, dynamic>>(
+      '/v1/auth/password/reset',
+      body: {
+        'identifier': identifier,
+        'maCode': maCode,
+        'matKhauMoi': matKhauMoi,
+      },
+    );
+  }
+
   /// Đăng nhập Mobile (Khách hàng / Cộng tác viên)
   /// POST /v1/auth/login
   /// Trả về: taiKhoanId, tenDangNhap, loaiTaiKhoan (KhachHang | CongTacVien), fullName,
@@ -136,12 +153,14 @@ class AuthApiService {
   Future<ApiResponse<Map<String, dynamic>>> login({
     required String username, // tên đăng nhập (mặc định là SĐT)
     required String matKhau,
+    String? vaiTro, // KhachHang | CongTacVien: một SĐT có thể có cả hai vai trò
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/auth/login',
       body: {
         'tenDangNhap': username,
         'matKhau': matKhau,
+        if (vaiTro != null) 'vaiTro': vaiTro,
       },
     );
   }

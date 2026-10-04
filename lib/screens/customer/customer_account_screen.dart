@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
+import '../auth/change_password_screen.dart';
 import '../auth/login_screen.dart';
 import '../auth/register_screen.dart';
 import '../../services/session_service.dart';
+import 'address_book_screen.dart';
 import 'customer_main_screen.dart';
 
 class CustomerAccountScreen extends StatefulWidget {
@@ -62,6 +64,31 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
               ),
               const SizedBox(height: 10),
 
+              if (_loggedIn) ...[
+                _buildMenuGroup([
+                  _OptionItem(
+                    icon: Icons.location_on_outlined,
+                    title: 'Sổ địa chỉ',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            AddressBookScreen(khachHangId: _session!.userId),
+                      ),
+                    ),
+                  ),
+                  _OptionItem(
+                    icon: Icons.lock_outline_rounded,
+                    title: 'Đổi mật khẩu',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ChangePasswordScreen()),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+              ],
               _buildMenuGroup([
                 _OptionItem(
                   icon: Icons.help_outline_rounded,

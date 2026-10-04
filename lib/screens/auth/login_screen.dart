@@ -6,6 +6,7 @@ import '../../services/session_service.dart';
 import '../collaborator/collaborator_main_screen.dart';
 import '../customer/customer_main_screen.dart';
 import 'register_screen.dart';
+import 'forgot_password_screen.dart';
 import 'otp_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -106,11 +107,13 @@ class _LoginScreenState extends State<LoginScreen> {
     final phone = SessionService.normalizePhone(_phoneController.text);
     final res = await _authApiService.sendOtp(identifier: phone);
     if (!mounted) return;
-    if (!res.success) {
+    // "Vui lòng chờ ..." nghĩa là mã gửi trước đó vẫn còn hiệu lực -> vẫn cho nhập mã
+    final dangCho = res.message?.startsWith('Vui lòng chờ') ?? false;
+    if (!res.success && !dangCho) {
       _showSnack(res.message ?? 'Không gửi được mã OTP', AppColors.error);
       return;
     }
-    _showSnack('Tài khoản chưa được kích hoạt. Vui lòng nhập mã OTP.', AppColors.warning);
+    _showSnack('Tài khoản chưa được kích hoạt. Vui lòng nhập mã OTP trong tin nhắn SMS.', AppColors.warning);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -140,69 +143,21 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showForgotPasswordDialog() {
-    final emailPhoneCtrl = TextEditingController(text: _phoneController.text);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Quên mật khẩu?',
-          style: TextStyle(
-            color: isCustomer ? AppColors.brand500 : AppColors.ctvYellowDark,
-            fontWeight: FontWeight.bold,
-          ),
+  Future<void> _showForgotPasswordDialog() async {
+    final phone = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ForgotPasswordScreen(
+          initialPhone: _phoneController.text,
+          roleColor: isCustomer ? AppColors.brand500 : AppColors.ctvYellow,
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Nhập số điện thoại đã đăng ký để nhận mã khôi phục mật khẩu qua SMS.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: emailPhoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: 'Số điện thoại',
-                prefixIcon: const Icon(Icons.phone_outlined),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: isCustomer ? AppColors.brand500 : AppColors.ctvYellow,
-                    width: 2,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Mã khôi phục đã được gửi tới số điện thoại của bạn!'),
-                  backgroundColor: isCustomer ? AppColors.brand500 : AppColors.ctvYellowDark,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isCustomer ? AppColors.brand500 : AppColors.ctvYellow,
-              foregroundColor: isCustomer ? Colors.white : AppColors.neutral800,
-            ),
-            child: const Text('Gửi mã'),
-          ),
-        ],
       ),
     );
+    // Đặt lại thành công -> điền sẵn SĐT, người dùng nhập mật khẩu mới để đăng nhập
+    if (phone != null && mounted) {
+      _phoneController.text = phone;
+      _passwordController.clear();
+    }
   }
 
   @override

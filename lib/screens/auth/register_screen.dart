@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/auth_api_service.dart';
+import '../../services/auth_flow.dart';
 import '../../services/session_service.dart';
+import '../customer/customer_main_screen.dart';
 import 'login_screen.dart';
 import 'otp_verification_screen.dart';
 
@@ -170,6 +172,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (!response.success) {
           _showSnack(response.message ?? 'Đăng ký thất bại. Vui lòng thử lại!',
               AppColors.error);
+          return;
+        }
+
+        // SĐT đã là cộng tác viên: dùng chung tài khoản (đã nhập đúng mật khẩu), không cần OTP
+        if (response.data?['canXacThucOtp'] == false) {
+          final login = await AuthFlow.login(
+            phone: phone,
+            password: _passwordController.text,
+            asCustomer: true,
+          );
+          if (!mounted) return;
+          _showSnack(
+              response.message ?? 'Đã thêm vai trò khách hàng cho tài khoản của bạn.',
+              AppColors.success);
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (_) => login.success
+                  ? const CustomerMainScreen()
+                  : const LoginScreen(initialRoleTab: 0),
+            ),
+            (route) => false,
+          );
           return;
         }
 
@@ -596,6 +621,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _buildFieldLabel('Mật khẩu', isRequired: true),
         const SizedBox(height: 6),
         _buildPasswordField(),
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Text(
+            'Nếu số điện thoại đã đăng ký vai trò khác (khách hàng / cộng tác viên), hãy nhập đúng mật khẩu đó để dùng chung tài khoản.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+        ),
 
         const SizedBox(height: 18),
 

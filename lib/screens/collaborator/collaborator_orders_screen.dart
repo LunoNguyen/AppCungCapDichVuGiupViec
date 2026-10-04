@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_colors.dart';
 import '../../services/collaborator_api_service.dart';
+import '../../services/location_service.dart';
 
 class CollaboratorOrdersScreen extends StatefulWidget {
   const CollaboratorOrdersScreen({super.key});
@@ -20,6 +21,8 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
   bool _isLoading = true;
   int _currentUserId = 0;
   List<Map<String, dynamic>> _allAssignments = [];
+  double? _myLat; // vị trí GPS hiện tại của CTV, để tính khoảng cách tới nơi làm
+  double? _myLng;
 
   // Màu theo phong cách bTaskee Partner
   static const _primary = AppColors.partner500;
@@ -63,7 +66,17 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
       setState(() => _isLoading = false);
       return;
     }
+    _layViTri();
     await _fetchAssignments();
+  }
+
+  Future<void> _layViTri() async {
+    final r = await LocationService.getCurrentPosition();
+    if (!mounted || !r.ok) return;
+    setState(() {
+      _myLat = r.position!.latitude;
+      _myLng = r.position!.longitude;
+    });
   }
 
   Future<void> _fetchAssignments() async {
@@ -335,6 +348,58 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
 
   // ===================== THẺ CÔNG VIỆC =====================
 
+  /// Toạ độ nhà khách tra từ địa chỉ dạng chữ (CSDL không lưu toạ độ), theo địa chỉ.
+  final Map<String, List<double>?> _toaDoDiaChi = {};
+
+  Future<void> _traToaDo(String address) async {
+    if (_toaDoDiaChi.containsKey(address)) return;
+    _toaDoDiaChi[address] = null;
+    final td = await LocationService.forwardGeocode(address);
+    if (mounted && td != null) setState(() => _toaDoDiaChi[address] = td);
+  }
+
+  /// Khoảng cách tới nhà khách (khi tra được toạ độ) và nút mở Google Maps chỉ đường.
+  Widget _directionsRow(Map<String, dynamic> o) {
+    final address = o['diaChi']?.toString().trim() ?? '';
+    if (address.isEmpty) return const SizedBox.shrink();
+    String? khoangCach;
+    if (_myLat != null && _myLng != null) {
+      final td = _toaDoDiaChi[address];
+      if (td == null) {
+        _traToaDo(address);
+      } else {
+        khoangCach = 'Cách bạn khoảng ${LocationService.formatKm(LocationService.distanceKm(_myLat!, _myLng!, td[0], td[1]))}';
+      }
+    }
+    return Padding(
+      padding: const EdgeInsets.only(left: 26, bottom: 6),
+      child: Row(
+        children: [
+          if (khoangCach != null)
+            Expanded(
+              child: Text(khoangCach,
+                  style: const TextStyle(
+                      fontSize: 12.5, color: AppColors.textSecondary)),
+            )
+          else
+            const Spacer(),
+          TextButton.icon(
+            onPressed: () async {
+              final ok = await LocationService.openDirections(address: address);
+              if (!ok && mounted) _showError('Không mở được ứng dụng bản đồ');
+            },
+            icon: const Icon(Icons.directions, size: 18),
+            label: const Text('Chỉ đường'),
+            style: TextButton.styleFrom(
+              foregroundColor: _primary,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOrderCard(Map<String, dynamic> o, String currentTab) {
     final String serviceName = o['tenDichVu'] ?? 'Dịch vụ giúp việc';
     final String customerName = o['khachHangTen'] ?? 'Khách hàng';
@@ -441,6 +506,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                 ),
                 _infoRow(Icons.access_time_rounded, timeStr),
                 _infoRow(Icons.location_on_outlined, address, maxLines: 2),
+                _directionsRow(o),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Row(

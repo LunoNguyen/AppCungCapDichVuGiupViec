@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../services/ctv_location_tracker.dart';
+import '../../services/session_service.dart';
 import 'collaborator_orders_screen.dart';
 import 'collaborator_schedule_screen.dart';
 import 'collaborator_notifications_screen.dart';
@@ -15,7 +17,8 @@ class CollaboratorMainScreen extends StatefulWidget {
   State<CollaboratorMainScreen> createState() => _CollaboratorMainScreenState();
 }
 
-class _CollaboratorMainScreenState extends State<CollaboratorMainScreen> {
+class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
+    with WidgetsBindingObserver {
   late int _currentIndex;
 
   final List<Widget> _screens = const [
@@ -29,6 +32,37 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    WidgetsBinding.instance.addObserver(this);
+    _batDauGuiViTri();
+  }
+
+  /// Gửi vị trí GPS lên máy chủ mỗi 5 giây khi app đang mở (CSKH theo dõi đơn đang thực hiện).
+  Future<void> _batDauGuiViTri() async {
+    final s = await SessionService.load();
+    if (s == null || !s.isCollaborator) return;
+    final loi = await CtvLocationTracker.instance.start(s.userId);
+    if (loi != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Chưa chia sẻ được vị trí: $loi'),
+        backgroundColor: AppColors.warning,
+      ));
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _batDauGuiViTri();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      CtvLocationTracker.instance.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    CtvLocationTracker.instance.stop(); // đăng xuất / rời màn CTV
+    super.dispose();
   }
 
   @override

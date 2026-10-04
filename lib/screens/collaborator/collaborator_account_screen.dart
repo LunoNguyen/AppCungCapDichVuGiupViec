@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_colors.dart';
 import '../../models/cong_tac_vien.dart';
 import '../../services/collaborator_api_service.dart';
+import '../../services/ctv_location_tracker.dart';
+import '../auth/change_password_screen.dart';
 import '../auth/login_screen.dart';
 import '../customer/customer_main_screen.dart';
 import '../../services/session_service.dart';
@@ -41,6 +43,22 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   void initState() {
     super.initState();
     _loadProfile();
+  }
+
+  bool _dangGuiViTri = false;
+
+  /// Bật lại việc gửi vị trí GPS mỗi 5 giây (vd. sau khi vừa cấp quyền vị trí).
+  Future<void> _guiViTri() async {
+    if (_dangGuiViTri) return;
+    setState(() => _dangGuiViTri = true);
+    CtvLocationTracker.instance.stop();
+    final loi = await CtvLocationTracker.instance.start(_currentUserId);
+    if (!mounted) return;
+    setState(() => _dangGuiViTri = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(loi ?? 'Đang chia sẻ vị trí của bạn (cập nhật mỗi 5 giây).'),
+      backgroundColor: loi == null ? AppColors.success : AppColors.error,
+    ));
   }
 
   // ===================== DỮ LIỆU =====================
@@ -215,8 +233,16 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                             '${_profile!.diemDanhGia.toStringAsFixed(1)} ★',
                             const Color(0xFFF2A100),
                                 () {}),
+                        _MenuItem(Icons.my_location, 'Cập nhật vị trí (GPS)',
+                            _dangGuiViTri ? 'Đang gửi...' : '', _coral,
+                            _guiViTri),
                         _MenuItem(Icons.lock_outline, 'Đổi mật khẩu', '',
-                            _coral, () {}),
+                            _coral, () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const ChangePasswordScreen(
+                                      roleColor: AppColors.partner500)),
+                            )),
                       ]),
                       const SizedBox(height: 16),
                       _buildMenuSection('HỖ TRỢ', [
