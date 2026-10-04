@@ -154,13 +154,7 @@ class _GuestHomeScreenState extends State<GuestHomeScreen> {
       backgroundColor: AppColors.brand500,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColors.brand700, AppColors.brand500],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
+          decoration: const BoxDecoration(gradient: AppColors.brandGradient),
           padding: const EdgeInsets.fromLTRB(16, 55, 16, 12),
           child: Row(
             children: [

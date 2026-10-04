@@ -73,4 +73,18 @@ class ServiceCatalogApiService {
       },
     );
   }
+
+  /// Khuyến mãi đang chạy kèm mã (banner trang chủ)
+  /// GET /v1/promotions
+  Future<ApiResponse<List<Map<String, dynamic>>>> getPromotions() async {
+    return _apiClient.get<List<Map<String, dynamic>>>(
+      '/v1/promotions',
+      fromJsonT: (json) {
+        if (json is List) {
+          return json.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+        return [];
+      },
+    );
+  }
 }

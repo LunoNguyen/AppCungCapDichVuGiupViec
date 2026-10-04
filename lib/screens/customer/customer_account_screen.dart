@@ -57,7 +57,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
                         'Người làm\nyêu thích', const Color(0xFFEF4444),
                         () => _promptLogin(context, 'Người làm yêu thích')),
                     _quickAction(Icons.card_giftcard_rounded,
-                        'Giới thiệu\nbạn bè', const Color(0xFF1BB55C),
+                        'Giới thiệu\nbạn bè', AppColors.brand500,
                         () => _showReferralDialog(context)),
                   ],
                 ),
@@ -148,7 +148,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
     final name = s.fullName.isNotEmpty ? s.fullName : 'Khách hàng';
     return Container(
       width: double.infinity,
-      color: AppColors.brand500,
+      decoration: const BoxDecoration(gradient: AppColors.brandGradient),
       padding: EdgeInsets.fromLTRB(
           16, MediaQuery.of(context).padding.top + 16, 16, 20),
       child: Row(
@@ -236,7 +236,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
   Widget _buildGuestHeader(BuildContext context) {
     return Container(
       width: double.infinity,
-      color: AppColors.brand500,
+      decoration: const BoxDecoration(gradient: AppColors.brandGradient),
       padding: EdgeInsets.fromLTRB(
           16, MediaQuery.of(context).padding.top + 16, 16, 20),
       child: Column(

@@ -11,14 +11,21 @@ class AppColors {
   static const Color green600 = Color(0xFF149A4C);
   static const Color greenLight = Color(0xFFE6F7EE);
 
-  // Brand colors - Xanh lá (app Khách hàng)
-  static const Color brand700 = Color(0xFF0E7A3B); // xanh sẫm
-  static const Color brand600 = green600; // xanh đậm (text giá, pressed)
-  static const Color brand500 = green500; // xanh chủ đạo
-  static const Color brand400 = Color(0xFF3FC678); // xanh sáng
-  static const Color brand300 = Color(0xFF8FDCB0); // xanh nhạt
-  static const Color brandLight = greenLight; // nền icon / badge
-  static const Color brandSurface = Color(0xFFF2FBF6); // nền rất nhạt
+  // Brand colors - Xanh ngọc #1D969F (app Khách hàng)
+  static const Color brand700 = Color(0xFF13616B); // ngọc sẫm (đầu gradient)
+  static const Color brand600 = Color(0xFF187F87); // ngọc đậm (text giá, pressed)
+  static const Color brand500 = Color(0xFF1D969F); // màu chủ đạo
+  static const Color brand400 = Color(0xFF4FB2B9); // ngọc sáng
+  static const Color brand300 = Color(0xFF97D3D7); // ngọc nhạt
+  static const Color brandLight = Color(0xFFE0F2F3); // nền icon / badge
+  static const Color brandSurface = Color(0xFFF0F9FA); // nền rất nhạt
+
+  /// Gradient chủ đạo cho header / thẻ nổi bật phía khách hàng: ngọc sẫm → #1D969F
+  static const LinearGradient brandGradient = LinearGradient(
+    colors: [brand700, brand500],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 
   // Partner colors - Cam (app Cộng tác viên, thu nhập hiển thị bằng màu brand xanh lá)
   static const Color partner500 = orange500;

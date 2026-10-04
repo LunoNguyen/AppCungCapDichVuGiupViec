@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/address_api_service.dart';
+import '../../services/booking_api_service.dart';
+import '../../services/catalog_ui.dart';
+import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
 import 'address_book_screen.dart';
 
@@ -25,16 +28,24 @@ class _BookingScreenState extends State<BookingScreen> {
   bool _loadingAddress = true;
   final _noteController = TextEditingController();
   final _promoController = TextEditingController();
-  bool _promoApplied = false;
+  final BookingApiService _bookingApi = BookingApiService();
+
+  // Gói giá lấy từ bảng giá đang áp dụng của dịch vụ (GET /v1/services/{id})
+  List<Map<String, dynamic>> _plans = [];
+  bool _loadingPlans = true;
+  String? _planError;
+
+  // Giá do máy chủ tính (POST /v1/bookings/calculate-price), gồm cả khuyến mãi
+  Map<String, dynamic>? _price;
+  bool _calculating = false;
+  String? _appliedCode; // mã đã được máy chủ chấp nhận
+  bool _checkingPromo = false;
+  bool _submitting = false;
+
+  bool get _promoApplied => _appliedCode != null;
 
   static const _stepTitles = ['Chọn gói', 'Chọn thời gian', 'Xác nhận'];
   static const _weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-
-  final List<Map<String, dynamic>> _plans = [
-    {'label': 'Theo buổi', 'price': 150000, 'display': '150.000đ/h', 'desc': '2–4 giờ'},
-    {'label': 'Gói 8 buổi', 'price': 1100000, 'display': '1.100.000đ', 'desc': 'Tiết kiệm 8%'},
-    {'label': 'Gói tháng', 'price': 3800000, 'display': '3.800.000đ', 'desc': 'Tiết kiệm 15%'},
-  ];
 
   final List<Map<String, dynamic>> _payments = [
     {'icon': Icons.payments_outlined, 'label': 'Tiền mặt'},
@@ -50,10 +61,21 @@ class _BookingScreenState extends State<BookingScreen> {
     return DateTime(now.year, now.month, now.day + i + 1);
   });
 
-  int get _total {
-    final base = _plans[_selectedPlan]['price'] as int;
-    return _promoApplied ? (base * 0.8).toInt() : base;
-  }
+  int get _dichVuId =>
+      CatalogUi.toInt(widget.service['dichVuId'] ?? widget.service['id']);
+
+  Map<String, dynamic>? get _plan =>
+      _plans.isEmpty ? null : _plans[_selectedPlan.clamp(0, _plans.length - 1)];
+
+  int _toMoney(dynamic v) => (num.tryParse(v?.toString() ?? '') ?? 0).round();
+
+  /// Tạm tính / giảm / tổng: ưu tiên số máy chủ tính, chưa có thì lấy đơn giá của gói.
+  int get _base => _price != null
+      ? _toMoney(_price!['chiPhiGoc'])
+      : _toMoney(_plan?['price']);
+  int get _discount => _price != null ? _toMoney(_price!['soTienGiam']) : 0;
+  int get _total =>
+      _price != null ? _toMoney(_price!['thanhTien']) : _base;
 
   String _formatPrice(int p) =>
       '${p.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}đ';
@@ -71,6 +93,91 @@ class _BookingScreenState extends State<BookingScreen> {
   void initState() {
     super.initState();
     _loadDefaultAddress();
+    _loadPlans();
+  }
+
+  Future<void> _loadPlans() async {
+    setState(() {
+      _loadingPlans = true;
+      _planError = null;
+    });
+    try {
+      List<dynamic>? bangGias = widget.service['bangGias'] as List<dynamic>?;
+      Map<String, dynamic> dv = widget.service;
+      if (bangGias == null) {
+        final res = await ServiceCatalogApiService().getServiceDetail(_dichVuId);
+        if (!res.success || res.data == null) {
+          throw Exception(res.message ?? 'Không tải được bảng giá');
+        }
+        dv = res.data!;
+        bangGias = dv['bangGias'] as List<dynamic>? ?? [];
+      }
+      final plans = <Map<String, dynamic>>[
+        for (final raw in bangGias)
+          () {
+            final bg = Map<String, dynamic>.from(raw as Map);
+            final donVi = bg['donViTinh']?.toString() ?? '';
+            return {
+              'bangGiaId': CatalogUi.toInt(bg['id']),
+              'loaiHinhDat': bg['loaiHinhDat']?.toString() ?? 'TheoLan',
+              'label': CatalogUi.loaiHinhLabel(bg['loaiHinhDat']?.toString()),
+              'desc': bg['khuVuc']?.toString() ?? 'Áp dụng toàn quốc',
+              'price': bg['donGia'],
+              'display':
+                  '${CatalogUi.money(bg['donGia'])}${donVi.isNotEmpty ? '/${donVi.toLowerCase()}' : ''}',
+            };
+          }(),
+      ];
+      // Dịch vụ chưa có bảng giá: dùng giá hiện tại của dịch vụ
+      if (plans.isEmpty) {
+        final gia = dv['giaHienTai'] ?? dv['donGia'] ?? dv['donGiaThamKhao'];
+        plans.add({
+          'bangGiaId': null,
+          'loaiHinhDat': dv['loaiHinhDat']?.toString() ?? 'TheoLan',
+          'label': CatalogUi.loaiHinhLabel(dv['loaiHinhDat']?.toString()),
+          'desc': 'Giá tham khảo',
+          'price': gia,
+          'display': CatalogUi.money(gia),
+        });
+      }
+      if (!mounted) return;
+      setState(() {
+        _plans = plans;
+        _selectedPlan = 0;
+      });
+      _recalc();
+    } catch (e) {
+      if (mounted) setState(() => _planError = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _loadingPlans = false);
+    }
+  }
+
+  /// Máy chủ tính giá theo gói đã chọn và mã khuyến mãi đã áp dụng.
+  Future<void> _recalc() async {
+    final plan = _plan;
+    if (plan == null) return;
+    setState(() => _calculating = true);
+    try {
+      final res = await _bookingApi.calculatePrice(
+        dichVuId: _dichVuId,
+        bangGiaId: plan['bangGiaId'] as int?,
+        loaiHinhDat: plan['loaiHinhDat'] as String,
+        codeKhuyenMai: _appliedCode,
+      );
+      if (!mounted) return;
+      setState(() => _price = res.success ? res.data : null);
+    } catch (_) {
+      if (mounted) setState(() => _price = null);
+    } finally {
+      if (mounted) setState(() => _calculating = false);
+    }
+  }
+
+  void _selectPlan(int i) {
+    if (i == _selectedPlan) return;
+    setState(() => _selectedPlan = i);
+    _recalc();
   }
 
   Future<void> _loadDefaultAddress() async {
@@ -214,12 +321,27 @@ class _BookingScreenState extends State<BookingScreen> {
         const SizedBox(height: 10),
         _block(
           'Gói dịch vụ',
-          Column(
+          _loadingPlans
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                      child: CircularProgressIndicator(color: AppColors.brand500)),
+                )
+              : _planError != null
+                  ? Column(
+                      children: [
+                        Text(_planError!,
+                            style: const TextStyle(color: AppColors.error)),
+                        TextButton(
+                            onPressed: _loadPlans, child: const Text('Thử lại')),
+                      ],
+                    )
+                  : Column(
             children: List.generate(_plans.length, (i) {
               final p = _plans[i];
               final selected = i == _selectedPlan;
               return GestureDetector(
-                onTap: () => setState(() => _selectedPlan = i),
+                onTap: () => _selectPlan(i),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   margin: const EdgeInsets.only(bottom: 10),
@@ -294,7 +416,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   controller: _promoController,
                   textCapitalization: TextCapitalization.characters,
                   decoration: const InputDecoration(
-                    hintText: 'Nhập mã (VD: GIAM20)',
+                    hintText: 'Nhập mã khuyến mãi',
                     prefixIcon: Icon(Icons.local_offer_outlined,
                         color: AppColors.brand500),
                     isDense: true,
@@ -308,8 +430,13 @@ class _BookingScreenState extends State<BookingScreen> {
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
-                  onPressed: _applyPromo,
-                  child: Text(_promoApplied ? 'Đã áp dụng' : 'Áp dụng'),
+                  onPressed: _checkingPromo ? null : _applyPromo,
+                  child: _checkingPromo
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(_promoApplied ? 'Bỏ mã' : 'Áp dụng'),
                 ),
               ),
             ],
@@ -319,17 +446,48 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  void _applyPromo() {
-    final ok = _promoController.text.trim().toUpperCase() == 'GIAM20';
-    if (ok) setState(() => _promoApplied = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok
-            ? 'Áp dụng mã thành công! Giảm 20%'
-            : 'Mã không hợp lệ hoặc đã hết hạn'),
-        backgroundColor: ok ? AppColors.success : AppColors.error,
-      ),
-    );
+  /// Kiểm tra mã với máy chủ (POST /v1/promotions/validate) rồi tính lại giá.
+  /// Bấm lại khi đã áp dụng = bỏ mã.
+  Future<void> _applyPromo() async {
+    if (_promoApplied) {
+      setState(() => _appliedCode = null);
+      _promoController.clear();
+      _recalc();
+      return;
+    }
+    final code = _promoController.text.trim();
+    if (code.isEmpty) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _checkingPromo = true);
+    try {
+      final res = await _bookingApi.validatePromotion(
+        codeKhuyenMai: code,
+        tongTienDonHang: _base.toDouble(),
+      );
+      if (!mounted) return;
+      if (res.success) {
+        setState(() => _appliedCode = code);
+        await _recalc();
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res.success
+              ? 'Đã áp dụng mã ${res.data?['tenChuongTrinh'] ?? code}'
+              : (res.message ?? 'Mã không hợp lệ hoặc đã hết hạn')),
+          backgroundColor: res.success ? AppColors.success : AppColors.error,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Lỗi kết nối máy chủ'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _checkingPromo = false);
+    }
   }
 
   // ===================== BƯỚC 2: THỜI GIAN & ĐỊA ĐIỂM =====================
@@ -490,9 +648,7 @@ class _BookingScreenState extends State<BookingScreen> {
   // ===================== BƯỚC 3: XÁC NHẬN =====================
 
   Widget _buildStep3() {
-    final plan = _plans[_selectedPlan];
-    final base = plan['price'] as int;
-    final discount = _promoApplied ? (base * 0.2).toInt() : 0;
+    final plan = _plan ?? const {'label': '—'};
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 16),
@@ -578,9 +734,9 @@ class _BookingScreenState extends State<BookingScreen> {
           'Chi tiết thanh toán',
           Column(
             children: [
-              _summaryRow('Tạm tính', _formatPrice(base)),
-              if (_promoApplied)
-                _summaryRow('Khuyến mãi (20%)', '-${_formatPrice(discount)}',
+              _summaryRow('Tạm tính', _formatPrice(_base)),
+              if (_discount > 0)
+                _summaryRow('Khuyến mãi ($_appliedCode)', '-${_formatPrice(_discount)}',
                     valueColor: AppColors.green500),
               const Divider(height: 16),
               Row(
@@ -677,7 +833,7 @@ class _BookingScreenState extends State<BookingScreen> {
       child: SizedBox(
         height: 50,
         child: ElevatedButton(
-          onPressed: _onNext,
+          onPressed: _submitting || _calculating || _plan == null ? null : _onNext,
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 18),
           ),
@@ -692,7 +848,11 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
               const Spacer(),
               Text(
-                _step < 2 ? 'Tiếp theo' : 'Đặt lịch',
+                _submitting
+                    ? 'Đang đặt...'
+                    : _step < 2
+                        ? 'Tiếp theo'
+                        : 'Đặt lịch',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -731,8 +891,52 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
-  void _confirmBooking() {
+  /// Tạo đơn: POST /v1/bookings (giá và khuyến mãi được máy chủ tính lại khi lưu).
+  Future<void> _confirmBooking() async {
+    final plan = _plan;
+    if (plan == null || _session == null || !_session!.isCustomer) return;
+    setState(() => _submitting = true);
+    try {
+      final d = _selectedDate!;
+      final res = await _bookingApi.createBooking(
+        khachHangId: _session!.userId,
+        dichVuId: _dichVuId,
+        bangGiaId: plan['bangGiaId'] as int?,
+        ngayThucHien:
+            '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}',
+        gioBatDau: _fmtTime(_selectedTime!),
+        diaChiId: _diaChi!.id,
+        loaiHinhDat: plan['loaiHinhDat'] as String,
+        yeuCauDacBiet: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
+        ghiChu: 'Thanh toán: ${_payments[_selectedPayment]['label']}',
+        codeKhuyenMai: _appliedCode,
+      );
+      if (!mounted) return;
+      if (!res.success) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res.message ?? 'Không đặt được lịch, vui lòng thử lại'),
+          backgroundColor: AppColors.error,
+        ));
+        return;
+      }
+      _showBookedDialog(res.data?['maDonDat']?.toString());
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Lỗi kết nối máy chủ'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  void _showBookedDialog(String? maDon) {
     showDialog(
+      barrierDismissible: false,
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Colors.white,
@@ -761,8 +965,8 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Đơn của bạn đã được ghi nhận. Chúng tôi sẽ tìm người làm phù hợp sớm nhất!',
+            Text(
+              '${maDon != null ? 'Mã đơn $maDon. ' : ''}Đơn của bạn đã được ghi nhận. Chúng tôi sẽ tìm người làm phù hợp sớm nhất!',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),

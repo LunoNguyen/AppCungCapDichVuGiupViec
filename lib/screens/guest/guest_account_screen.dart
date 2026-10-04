@@ -31,13 +31,7 @@ class GuestAccountScreen extends StatelessWidget {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.brand700, AppColors.brand500],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
+      decoration: const BoxDecoration(gradient: AppColors.brandGradient),
       padding: const EdgeInsets.fromLTRB(20, 30, 20, 40),
       child: Column(
         children: [
