@@ -11,14 +11,31 @@ class AppColors {
   static const Color green600 = Color(0xFF149A4C);
   static const Color greenLight = Color(0xFFE6F7EE);
 
-  // Brand colors - Xanh lá (app Khách hàng)
-  static const Color brand700 = Color(0xFF0E7A3B); // xanh sẫm
-  static const Color brand600 = green600; // xanh đậm (text giá, pressed)
-  static const Color brand500 = green500; // xanh chủ đạo
-  static const Color brand400 = Color(0xFF3FC678); // xanh sáng
-  static const Color brand300 = Color(0xFF8FDCB0); // xanh nhạt
-  static const Color brandLight = greenLight; // nền icon / badge
-  static const Color brandSurface = Color(0xFFF2FBF6); // nền rất nhạt
+  // Brand colors - Teal #1D969F (màu thương hiệu chính)
+  static const Color brand700 = Color(0xFF13666D); // teal sẫm
+  static const Color brand600 = Color(0xFF177F87); // teal đậm
+  static const Color brand500 = Color(0xFF1D969F); // teal chủ đạo #1D969F
+  static const Color brand400 = Color(0xFF28B5BF); // teal sáng
+  static const Color brand300 = Color(0xFF6ED3DB); // teal nhạt
+  static const Color brandLight = Color(0xFFE4F6F7); // nền icon / badge nhạt
+  static const Color brandSurface = Color(0xFFF0FAF9); // nền rất nhạt
+
+  // Gradient thương hiệu chuẩn #1D969F
+  static const LinearGradient brandGradient = LinearGradient(
+    colors: [Color(0xFF167E86), Color(0xFF1D969F), Color(0xFF28B5BF)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  static const LinearGradient brandGradientHorizontal = LinearGradient(
+    colors: [Color(0xFF1D969F), Color(0xFF28B5BF)],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
+  static const LinearGradient brandIconGradient = LinearGradient(
+    colors: [Color(0xFF167E86), Color(0xFF1D969F)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
 
   // Partner colors - Cam (app Cộng tác viên, thu nhập hiển thị bằng màu brand xanh lá)
   static const Color partner500 = orange500;

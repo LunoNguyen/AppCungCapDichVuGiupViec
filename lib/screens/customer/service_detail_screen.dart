@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import 'booking_screen.dart';
 import '../auth/login_screen.dart';
+import '../../services/session_service.dart';
 
 class ServiceDetailScreen extends StatelessWidget {
   final Map<String, dynamic> service;
@@ -113,8 +114,8 @@ class ServiceDetailScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: const [
+                const Row(
+                  children: [
                     Icon(Icons.star_rounded, color: AppColors.star, size: 18),
                     SizedBox(width: 4),
                     Text(
@@ -252,85 +253,84 @@ class ServiceDetailScreen extends StatelessWidget {
     );
   }
 
-  void _handleBooking(BuildContext context) {
-    // Cho phép đặt tiếp với tư cách khách hoặc đăng nhập
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(2),
+  Future<void> _handleBooking(BuildContext context) async {
+    final session = await SessionService.load();
+    if (session == null || !session.isCustomer) {
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          contentPadding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: const BoxDecoration(
+                  color: AppColors.brandLight,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock_rounded, color: AppColors.brand500, size: 30),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Yêu cầu đăng nhập',
+                style: TextStyle(
+                  fontSize: 17.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
                 ),
               ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Bắt đầu đặt lịch',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Bạn có thể tiếp tục đặt lịch ngay hoặc đăng nhập để lưu thông tin và nhận ưu đãi thành viên.',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => BookingScreen(service: service),
-                    ),
-                  );
-                },
-                child: const Text('Tiếp tục đặt lịch'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  );
-                },
-                child: const Text(
-                  'Đăng nhập để nhận ưu đãi',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+              const SizedBox(height: 8),
+              const Text(
+                'Vui lòng đăng nhập tài khoản khách hàng để đặt dịch vụ và đồng bộ đơn hàng với hệ thống.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: AppColors.textSecondary,
+                  height: 1.45,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen(initialRoleTab: 0)),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand500,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Đăng nhập ngay', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Để sau', style: TextStyle(color: AppColors.textSecondary)),
+              ),
+            ],
+          ),
         ),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BookingScreen(service: service),
       ),
     );
   }

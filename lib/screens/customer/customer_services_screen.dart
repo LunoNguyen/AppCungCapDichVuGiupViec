@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import 'service_detail_screen.dart';
+import '../auth/login_screen.dart';
+import '../../services/session_service.dart';
 
 class CustomerServicesScreen extends StatelessWidget {
   final ValueChanged<int>? onSwitchTab;
@@ -8,13 +10,11 @@ class CustomerServicesScreen extends StatelessWidget {
 
   static final List<Map<String, dynamic>> popularServices = [
     {
-      'id': 'hourly_cleaning',
+      'id': 1,
       'title': 'Giúp việc định kỳ & Theo giờ',
       'subtitle': 'Dọn dẹp bụi bẩn phòng khách, phòng bếp, phòng ngủ',
       'price': 'Chỉ từ 60.000đ/giờ',
-      'icon': Icons.auto_awesome,
-      'iconBg': Color(0xFFE0F5F6),
-      'iconColor': AppColors.brand500,
+      'icon': Icons.cleaning_services_rounded,
       'badge': 'HOT',
       'description':
           'Giải pháp hoàn hảo cho gia đình bận rộn. Cộng tác viên đã được đào tạo bài bản, lý lịch rõ ràng, tận tâm dọn dẹp.',
@@ -30,13 +30,11 @@ class CustomerServicesScreen extends StatelessWidget {
       ],
     },
     {
-      'id': 'ac_cleaning',
+      'id': 51,
       'title': 'Vệ sinh Máy lạnh / Điều hoà',
       'subtitle': 'Rửa lưới lọc, nạp ga, khử khuẩn chuẩn kỹ thuật',
       'price': 'Từ 150.000đ/máy',
-      'icon': Icons.ac_unit,
-      'iconBg': Color(0xFFE4F7F2),
-      'iconColor': Color(0xFF1EA884),
+      'icon': Icons.ac_unit_rounded,
       'badge': 'NEW',
       'description':
           'Bảo dưỡng và vệ sinh máy lạnh gia đình, văn phòng. Kỹ thuật viên lành nghề, kiểm tra áp suất ga, khử mùi nấm mốc chuyên sâu.',
@@ -52,13 +50,11 @@ class CustomerServicesScreen extends StatelessWidget {
       ],
     },
     {
-      'id': 'laundry_sofa',
+      'id': 98,
       'title': 'Giặt ủi quần áo & Sofa',
       'subtitle': 'Giặt ủi sấy lấy ngay, giặt sofa hơi nước nóng',
       'price': 'Giá tính theo kg hoặc chiếc',
-      'icon': Icons.local_laundry_service,
-      'iconBg': Color(0xFFFFF4E6),
-      'iconColor': Color(0xFFF59E0B),
+      'icon': Icons.local_laundry_service_rounded,
       'description':
           'Công nghệ giặt sấy hiện đại, phân loại vải cẩn thận và giao nhận tận cửa. Vệ sinh ghế sofa, rèm cửa, nệm với công nghệ hơi nước nóng diệt khuẩn 99%.',
       'benefits': [
@@ -73,13 +69,11 @@ class CustomerServicesScreen extends StatelessWidget {
       ],
     },
     {
-      'id': 'deep_cleaning',
+      'id': 8,
       'title': 'Tổng vệ sinh nhà ở',
       'subtitle': 'Vệ sinh chuyên sâu sau xây dựng hoặc dọn nhà đón Tết',
       'price': 'Từ 500.000đ/nhà',
-      'icon': Icons.cleaning_services,
-      'iconBg': Color(0xFFEDE9FE),
-      'iconColor': Color(0xFF7C3AED),
+      'icon': Icons.home_work_rounded,
       'description':
           'Dịch vụ tổng vệ sinh chuyên nghiệp với máy chà sàn, máy hút bụi công nghiệp và đội ngũ từ 2-4 nhân sự lành nghề.',
       'benefits': [
@@ -94,13 +88,11 @@ class CustomerServicesScreen extends StatelessWidget {
       ],
     },
     {
-      'id': 'home_cooking',
+      'id': 123,
       'title': 'Nấu ăn gia đình',
       'subtitle': 'Nấu ăn dinh dưỡng, hợp khẩu vị, vệ sinh an toàn',
       'price': 'Từ 180.000đ/buổi',
-      'icon': Icons.restaurant,
-      'iconBg': Color(0xFFFFECEB),
-      'iconColor': Color(0xFFEF4444),
+      'icon': Icons.restaurant_rounded,
       'description':
           'Đầu bếp gia đình chuẩn bị bữa cơm ấm cúng theo đúng khẩu vị vùng miền. Hỗ trợ đi chợ chọn lựa thực phẩm tươi ngon, rõ nguồn gốc.',
       'benefits': [
@@ -115,14 +107,12 @@ class CustomerServicesScreen extends StatelessWidget {
       ],
     },
     {
-      'id': 'child_care',
+      'id': 72,
       'title': 'Trông trẻ & Chăm sóc bé',
       'subtitle': 'Cộng tác viên yêu trẻ, có chứng chỉ kỹ năng sư phạm',
       'price': 'Từ 80.000đ/giờ',
-      'icon': Icons.child_care,
-      'iconBg': Color(0xFFFDF2F8),
-      'iconColor': Color(0xFFDB2777),
-      'badge': 'Yêu thích',
+      'icon': Icons.child_care_rounded,
+      'badge': 'bCare',
       'description':
           'Người giữ trẻ có kinh nghiệm, tận tâm, được xác minh nhân thân kỹ càng. Chăm sóc bé ăn ngủ, cùng chơi và rèn luyện kỹ năng phát triển.',
       'benefits': [
@@ -137,13 +127,12 @@ class CustomerServicesScreen extends StatelessWidget {
       ],
     },
     {
-      'id': 'elderly_care',
+      'id': 79,
       'title': 'Chăm sóc người cao tuổi',
       'subtitle': 'Tận tâm chu đáo, đo huyết áp, nhắc thuốc đúng giờ',
       'price': 'Từ 120.000đ/giờ',
-      'icon': Icons.elderly,
-      'iconBg': Color(0xFFF0FDF4),
-      'iconColor': Color(0xFF16A34A),
+      'icon': Icons.elderly_rounded,
+      'badge': 'bCare',
       'description':
           'Hỗ trợ sinh hoạt hàng ngày, trò chuyện tâm sự, theo dõi sức khỏe cơ bản và nhắc nhở uống thuốc đúng giờ cho ông bà cha mẹ.',
       'benefits': [
@@ -162,9 +151,7 @@ class CustomerServicesScreen extends StatelessWidget {
       'title': 'Dịch vụ chuyển nhà & Văn phòng',
       'subtitle': 'Đóng gói, khuân vác, xe tải vận chuyển chuyên nghiệp',
       'price': 'Báo giá theo khảo sát',
-      'icon': Icons.local_shipping,
-      'iconBg': Color(0xFFEFF6FF),
-      'iconColor': Color(0xFF2563EB),
+      'icon': Icons.local_shipping_rounded,
       'description':
           'Giải pháp dọn nhà trọn gói tiết kiệm thời gian và công sức. Đội ngũ bốc xếp cẩn thận, bao bọc màng PE chống xước cho đồ gỗ và đồ điện tử.',
       'benefits': [
@@ -225,9 +212,15 @@ class CustomerServicesScreen extends StatelessWidget {
   }
 
   Widget _buildServiceRow(BuildContext context, Map<String, dynamic> item) {
-    final Color c = item['iconColor'] as Color;
     return InkWell(
-      onTap: () {
+      onTap: () async {
+        final session = await SessionService.load();
+        if (session == null || !session.isCustomer) {
+          if (!context.mounted) return;
+          _showRequireLoginDialog(context, item);
+          return;
+        }
+        if (!context.mounted) return;
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -243,10 +236,31 @@ class CustomerServicesScreen extends StatelessWidget {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: c.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF0FAFA), Color(0xFFDFF3F5)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.brand300.withValues(alpha: 0.35),
+                  width: 1,
+                ),
               ),
-              child: Icon(item['icon'] as IconData, color: c, size: 26),
+              child: Center(
+                child: ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [Color(0xFF13666D), Color(0xFF1D969F)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ).createShader(bounds),
+                  child: Icon(
+                    item['icon'] as IconData,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -314,6 +328,75 @@ class CustomerServicesScreen extends StatelessWidget {
               ),
             ),
             const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRequireLoginDialog(BuildContext context, Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        contentPadding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: const BoxDecoration(
+                color: AppColors.brandLight,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.lock_rounded, color: AppColors.brand500, size: 30),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Yêu cầu đăng nhập',
+              style: TextStyle(
+                fontSize: 17.5,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Vui lòng đăng nhập tài khoản khách hàng để đặt dịch vụ "${(item['title'] as String).replaceAll('\n', ' ')}" và đồng bộ đơn hàng với hệ thống.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13.5,
+                color: AppColors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen(initialRoleTab: 0)),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brand500,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Đăng nhập ngay', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Để sau', style: TextStyle(color: AppColors.textSecondary)),
+            ),
           ],
         ),
       ),

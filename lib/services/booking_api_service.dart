@@ -55,27 +55,28 @@ class BookingApiService {
     String? ngayThucHienTrongTuan, // vd "2,4,6" khi đặt gói tháng
     String? yeuCauDacBiet,
     String? ghiChu,
-    String? codeKhuyenMai,
+    String? maKhuyenMai,
+    required String
+    phuongThucThanhToan, // TIEN_MAT, CHUYEN_KHOAN, VNPAY, VIETQR
   }) async {
+    String formattedTime = gioBatDau;
+    if (formattedTime.length == 5) {
+      formattedTime = '$formattedTime:00';
+    }
+
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/bookings',
       body: {
         'khachHangId': khachHangId,
         'dichVuId': dichVuId,
-        if (bangGiaId != null) 'bangGiaId': bangGiaId,
-        'ngayThucHien': ngayThucHien,
+        'congTacVienId': congTacVienId,
+        'ngayLamViec': ngayLamViec,
         'gioBatDau': gioBatDau,
-        if (gioKetThuc != null) 'gioKetThuc': gioKetThuc,
-        if (diaChiId != null) 'diaChiId': diaChiId,
-        if (diaChiChiTiet != null) 'diaChiChiTiet': diaChiChiTiet,
-        if (khuVucId != null) 'khuVucId': khuVucId,
-        'loaiHinhDat': loaiHinhDat,
-        if (ngayThucHienTrongTuan != null)
-          'ngayThucHienTrongTuan': ngayThucHienTrongTuan,
-        if (yeuCauDacBiet != null) 'yeuCauDacBiet': yeuCauDacBiet,
-        if (ghiChu != null) 'ghiChu': ghiChu,
-        if (codeKhuyenMai != null && codeKhuyenMai.isNotEmpty)
-          'codeKhuyenMai': codeKhuyenMai,
+        'soGio': soGio,
+        'diaChi': diaChi,
+        'ghiChu': ghiChu,
+        'maKhuyenMai': maKhuyenMai,
+        'phuongThucThanhToan': phuongThucThanhToan,
       },
     );
   }
@@ -119,9 +120,7 @@ class BookingApiService {
     required int khachHangId,
     String? lyDo,
   }) async {
-    final queryParams = <String, dynamic>{
-      'khachHangId': khachHangId,
-    };
+    final queryParams = <String, dynamic>{'khachHangId': khachHangId};
     if (lyDo != null && lyDo.isNotEmpty) {
       queryParams['lyDo'] = lyDo;
     }

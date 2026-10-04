@@ -6,6 +6,7 @@ import 'customer_services_screen.dart';
 import 'customer_notification_screen.dart';
 import '../auth/login_screen.dart';
 import '../../services/session_service.dart';
+import '../../services/service_catalog_api_service.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   final ValueChanged<int>? onSwitchTab;
@@ -21,13 +22,47 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
   bool get _loggedIn => _session?.isCustomer == true;
 
+  List<Map<String, dynamic>> _apiServices = [];
+
   @override
   void initState() {
     super.initState();
     SessionService.load().then((s) {
       if (mounted) setState(() => _session = s);
     });
+    _fetchServicesFromApi();
   }
+
+  Future<void> _fetchServicesFromApi() async {
+    try {
+      final res = await ServiceCatalogApiService().getServices();
+      if (res.success && res.data != null && mounted) {
+        setState(() {
+          _apiServices = res.data!;
+        });
+      }
+    } catch (_) {}
+  }
+
+  IconData _getServiceIcon(String name) {
+    final title = name.toLowerCase();
+    if (title.contains('dọn dẹp')) return Icons.cleaning_services_rounded;
+    if (title.contains('máy lạnh') || title.contains('điều hoà'))
+      return Icons.ac_unit_rounded;
+    if (title.contains('giặt') || title.contains('ủi'))
+      return Icons.local_laundry_service_rounded;
+    if (title.contains('nấu ăn')) return Icons.restaurant_rounded;
+    if (title.contains('tổng vệ sinh')) return Icons.home_work_rounded;
+    if (title.contains('trông trẻ')) return Icons.child_care_rounded;
+    if (title.contains('người già') || title.contains('người cao tuổi'))
+      return Icons.elderly_rounded;
+    if (title.contains('văn phòng')) return Icons.apartment_rounded;
+    if (title.contains('sofa') || title.contains('rèm'))
+      return Icons.weekend_rounded;
+    if (title.contains('chuyển nhà')) return Icons.local_shipping_rounded;
+    return Icons.cleaning_services_rounded;
+  }
+
   final PageController _pageController = PageController(viewportFraction: 0.9);
 
   final List<Map<String, dynamic>> _promoBanners = [
@@ -36,7 +71,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       'subtitle': 'Thanh toán qua thẻ hoặc VNPAY',
       'badge': 'ƯU ĐÃI ĐỘC QUYỀN',
       'code': 'NEATIFY50',
-      'colors': [Color(0xFF1BB55C), Color(0xFF4CCB80)],
+      'colors': const [Color(0xFF13666D), Color(0xFF1D969F)],
       'icon': Icons.credit_card_rounded,
     },
     {
@@ -44,7 +79,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       'subtitle': 'Đặt trước 7 ngày nhận ưu đãi giảm 20%',
       'badge': 'HOT DEAL',
       'code': 'XUANMOI20',
-      'colors': [Color(0xFFFF8228), Color(0xFFFFA25E)],
+      'colors': const [Color(0xFF1D969F), Color(0xFF28B5BF)],
       'icon': Icons.cleaning_services_rounded,
     },
     {
@@ -52,124 +87,92 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       'subtitle': 'Người làm cố định, linh hoạt đổi lịch',
       'badge': 'TIẾT KIỆM',
       'code': 'TIETKIEM30',
-      'colors': [Color(0xFF2F80ED), Color(0xFF5A9CF2)],
+      'colors': const [Color(0xFF167E86), Color(0xFF38C5CF)],
       'icon': Icons.calendar_month_rounded,
     },
   ];
 
-  // Lưới dịch vụ 4 cột như bTaskee
-  final List<Map<String, dynamic>> _bTaskeeServices = [
+  List<Map<String, dynamic>> get _displayServices {
+    if (_apiServices.isNotEmpty) {
+      final List<Map<String, dynamic>> list = [];
+      for (var s in _apiServices) {
+        final String ten = (s['tenDichVu'] ?? '').toString();
+        final double gia = double.tryParse(s['giaTien']?.toString() ?? '') ?? 0;
+        final String priceStr = gia > 0
+            ? 'Từ ${(gia / 1000).toStringAsFixed(0)}.000đ'
+            : 'Báo giá';
+
+        list.add({
+          'id': s['id'],
+          'title': ten,
+          'subtitle': s['moTa'] ?? '',
+          'icon': _getServiceIcon(ten),
+          'price': priceStr,
+          'description': s['moTa'] ?? '',
+        });
+      }
+      list.add({
+        'title': 'Khám phá',
+        'subtitle': 'Xem tất cả',
+        'icon': Icons.grid_view_rounded,
+        'isExplore': true,
+        'price': '',
+        'description': 'Khám phá toàn bộ hệ sinh thái dịch vụ.',
+      });
+      return list;
+    }
+    return _fallbackServices;
+  }
+
+  // Danh sách dự phòng khi offline
+  final List<Map<String, dynamic>> _fallbackServices = [
     {
+      'id': 1,
       'title': 'Dọn dẹp nhà',
       'subtitle': 'Dọn dẹp theo giờ 2–4 tiếng',
       'icon': Icons.cleaning_services_rounded,
-      'iconColor': Color(0xFFFF8228),
       'price': 'Chỉ từ 60.000đ/giờ',
-      'description':
-          'Dọn dẹp nhà theo giờ linh hoạt 2–4 tiếng. Phù hợp nhu cầu phát sinh đột xuất.',
+      'description': 'Dọn dẹp nhà theo giờ linh hoạt 2–4 tiếng.',
     },
     {
-      'title': 'Dọn dẹp\ngói tháng',
-      'subtitle': 'Đặt lịch định kỳ 2–5 buổi/tuần',
-      'icon': Icons.event_repeat_rounded,
-      'iconColor': Color(0xFF1BB55C),
-      'price': 'Từ 1.200.000đ/tháng',
-      'description':
-          'Đặt lịch định kỳ 2-5 buổi/tuần. Giữ người làm cố định, an tâm tuyệt đối.',
-    },
-    {
+      'id': 8,
       'title': 'Tổng vệ sinh',
       'subtitle': 'Vệ sinh chuyên sâu toàn diện',
       'icon': Icons.home_work_rounded,
-      'iconColor': Color(0xFF7C3AED),
       'price': 'Từ 500.000đ/nhà',
-      'description':
-          'Vệ sinh chuyên sâu toàn diện sau xây dựng, chuẩn bị tân gia hoặc dọn dẹp cuối năm.',
+      'description': 'Vệ sinh chuyên sâu toàn diện.',
     },
     {
-      'title': 'Vệ sinh\nmáy lạnh',
+      'id': 51,
+      'title': 'Vệ sinh máy lạnh',
       'subtitle': 'Rửa lưới lọc, nạp ga, khử khuẩn',
       'icon': Icons.ac_unit_rounded,
-      'iconColor': Color(0xFF2F80ED),
       'price': 'Từ 150.000đ/máy',
-      'description':
-          'Rửa lưới lọc, xịt dàn nóng lạnh, nạp ga và khử khuẩn chống nấm mốc.',
+      'description': 'Bảo dưỡng và vệ sinh máy lạnh.',
     },
     {
-      'title': 'Nấu ăn\ngia đình',
+      'id': 123,
+      'title': 'Nấu ăn gia đình',
       'subtitle': 'Đi chợ và nấu bữa cơm gia đình',
       'icon': Icons.restaurant_rounded,
-      'iconColor': Color(0xFFEF4444),
       'price': 'Từ 180.000đ/buổi',
-      'description':
-          'Đầu bếp gia đình chuẩn bị bữa cơm ấm cúng theo đúng khẩu vị, hỗ trợ đi chợ.',
+      'description': 'Đầu bếp gia đình chuẩn bị bữa cơm ấm cúng.',
     },
     {
-      'title': 'Giặt ủi',
-      'subtitle': 'Giặt sấy, giao nhận tận nơi',
-      'icon': Icons.local_laundry_service_rounded,
-      'iconColor': Color(0xFF0EA5E9),
-      'price': 'Từ 25.000đ/kg',
-      'description':
-          'Giặt sấy quần áo, giặt hấp đồ cao cấp. Giao nhận tận cửa trong 24 giờ.',
-    },
-    {
-      'title': 'Vệ sinh\nSofa - Rèm',
-      'subtitle': 'Giặt hơi nước nóng diệt khuẩn',
-      'icon': Icons.weekend_rounded,
-      'iconColor': Color(0xFFD97706),
-      'price': 'Từ 350.000đ/bộ',
-      'description':
-          'Công nghệ giặt hơi nước nóng diệt khuẩn nệm, ghế sofa và giặt rèm cửa tận nhà.',
-    },
-    {
-      'title': 'Chăm sóc\nngười già',
-      'subtitle': 'Hỗ trợ sinh hoạt, nhắc uống thuốc',
-      'badge': 'bCare',
-      'icon': Icons.elderly_rounded,
-      'iconColor': Color(0xFF16A34A),
-      'price': 'Từ 120.000đ/giờ',
-      'description':
-          'Hỗ trợ sinh hoạt hàng ngày, trò chuyện tâm sự, nhắc uống thuốc và theo dõi sức khỏe cơ bản.',
-    },
-    {
+      'id': 72,
       'title': 'Trông trẻ',
       'subtitle': 'Người giữ trẻ có kinh nghiệm',
-      'badge': 'bCare',
       'icon': Icons.child_care_rounded,
-      'iconColor': Color(0xFFDB2777),
       'price': 'Từ 80.000đ/giờ',
-      'description':
-          'Cộng tác viên giữ trẻ yêu trẻ, có nghiệp vụ chăm sóc dinh dưỡng và vui chơi an toàn.',
+      'description': 'Cộng tác viên giữ trẻ yêu trẻ.',
     },
     {
-      'title': 'Dọn\nvăn phòng',
-      'subtitle': 'Dọn dẹp văn phòng, phòng họp',
-      'badge': 'MỚI',
-      'icon': Icons.apartment_rounded,
-      'iconColor': Color(0xFF475569),
-      'price': 'Từ 80.000đ/giờ',
-      'description':
-          'Dọn dẹp môi trường làm việc văn phòng, phòng họp, lau kính và khử khuẩn thiết bị.',
-    },
-    {
-      'title': 'Chuyển nhà',
-      'subtitle': 'Đóng gói, bốc xếp, vận chuyển',
-      'icon': Icons.local_shipping_rounded,
-      'iconColor': Color(0xFF2563EB),
-      'price': 'Báo giá khảo sát',
-      'description':
-          'Trọn gói đóng gói đồ đạc, bốc xếp và xe tải vận chuyển tận nhà mới an toàn.',
-    },
-    {
-      'title': 'Tháo lắp\nmáy lạnh',
-      'subtitle': 'Tháo dỡ, di dời, lắp đặt',
-      'badge': 'MỚI',
-      'icon': Icons.build_rounded,
-      'iconColor': Color(0xFF0D9488),
-      'price': 'Từ 200.000đ',
-      'description':
-          'Kỹ thuật viên chuyên nghiệp hỗ trợ tháo dỡ, di dời và lắp đặt máy lạnh dân dụng.',
+      'title': 'Khám phá',
+      'subtitle': 'Xem tất cả các dịch vụ khác',
+      'icon': Icons.grid_view_rounded,
+      'isExplore': true,
+      'price': '',
+      'description': 'Khám phá toàn bộ hệ sinh thái dịch vụ.',
     },
   ];
 
@@ -179,21 +182,21 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       'subtitle': 'Áp dụng cho đơn từ 150K',
       'points': '200',
       'icon': Icons.confirmation_number_rounded,
-      'color': Color(0xFFFF8228),
+      'color': const Color(0xFF1D969F),
     },
     {
       'title': 'Giặt sấy giảm 30%',
       'subtitle': 'Giao nhận tận nơi',
       'points': '150',
       'icon': Icons.local_laundry_service_rounded,
-      'color': Color(0xFF0EA5E9),
+      'color': const Color(0xFF1D969F),
     },
     {
       'title': 'Bình nước Neatify',
       'subtitle': 'Quà tặng tri ân khách hàng',
       'points': '500',
       'icon': Icons.card_giftcard_rounded,
-      'color': Color(0xFF1BB55C),
+      'color': const Color(0xFF1D969F),
     },
   ];
 
@@ -207,6 +210,110 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const CustomerServicesScreen()),
+    );
+  }
+
+  Future<void> _handleServiceClick(Map<String, dynamic> item) async {
+    final isExplore = item['isExplore'] == true;
+    if (isExplore) {
+      _openServices();
+      return;
+    }
+
+    final session = await SessionService.load();
+    if (session == null || !session.isCustomer) {
+      if (!mounted) return;
+      _showRequireLoginDialog(item);
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ServiceDetailScreen(service: item)),
+    );
+  }
+
+  void _showRequireLoginDialog(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        contentPadding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: const BoxDecoration(
+                color: AppColors.brandLight,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.lock_rounded,
+                color: AppColors.brand500,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Yêu cầu đăng nhập',
+              style: TextStyle(
+                fontSize: 17.5,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Vui lòng đăng nhập tài khoản khách hàng để đặt dịch vụ "${(item['title'] as String).replaceAll('\n', ' ')}" và đồng bộ đơn hàng với hệ thống.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13.5,
+                color: AppColors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginScreen(initialRoleTab: 0),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brand500,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Đăng nhập ngay',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'Để sau',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -266,7 +373,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     return Container(
       width: double.infinity,
       height: MediaQuery.of(context).padding.top + 160,
-      color: AppColors.brand500,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF13666D), Color(0xFF1D969F), Color(0xFF28B5BF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -296,8 +409,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             child: Text(
                               _loggedIn
                                   ? (_session!.fullName.isNotEmpty
-                                      ? _session!.fullName
-                                      : 'Khách hàng')
+                                        ? _session!.fullName
+                                        : 'Khách hàng')
                                   : 'Đăng nhập / Tạo tài khoản',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -309,8 +422,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             ),
                           ),
                           const SizedBox(width: 2),
-                          const Icon(Icons.chevron_right_rounded,
-                              color: Colors.white, size: 22),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ],
                       ),
                     ),
@@ -325,7 +441,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const CustomerNotificationScreen()),
+                      builder: (_) => const CustomerNotificationScreen(),
+                    ),
                   );
                 }
               }),
@@ -344,76 +461,117 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  // Dải "điểm thưởng" nằm đè lên header như bTaskee (bPoints)
+  // Dải số dư và điểm thưởng kiểu 2 ô như bTaskee
   Widget _buildRewardStrip() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
+            blurRadius: 14,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(
-              color: AppColors.brandLight,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.stars_rounded,
-                color: AppColors.brand500, size: 22),
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '0 điểm thưởng',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            // Ô 1: Số dư ví
+            Expanded(
+              child: InkWell(
+                onTap: _openLogin,
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFFF3DC),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'đ',
+                          style: TextStyle(
+                            color: Color(0xFFF59E0B),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        '0 đ',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.textMuted,
+                      size: 18,
+                    ),
+                  ],
                 ),
-                SizedBox(height: 2),
-                Text(
-                  'Tích điểm mỗi đơn để đổi quà',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
-              ],
+              ),
             ),
-          ),
-          Container(width: 1, height: 30, color: AppColors.divider),
-          const SizedBox(width: 12),
-          InkWell(
-            onTap: _openLogin,
-            child: const Row(
-              children: [
-                Icon(Icons.workspace_premium_rounded,
-                    color: Color(0xFFB0B0B0), size: 20),
-                SizedBox(width: 4),
-                Text(
-                  'Thành viên',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
+            const VerticalDivider(
+              width: 20,
+              thickness: 1,
+              color: AppColors.divider,
             ),
-          ),
-        ],
+            // Ô 2: Điểm thưởng bPoints
+            Expanded(
+              child: InkWell(
+                onTap: _openLogin,
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: const BoxDecoration(
+                        color: AppColors.brandLight,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.military_tech_rounded,
+                        color: AppColors.brand500,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        '0 bPoints',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.textMuted,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -433,15 +591,15 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             shrinkWrap: true,
             padding: EdgeInsets.zero,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _bTaskeeServices.length,
+            itemCount: _displayServices.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 4,
-              childAspectRatio: 0.78,
+              childAspectRatio: 0.74,
               crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
+              mainAxisSpacing: 10,
             ),
             itemBuilder: (context, index) =>
-                _buildGridServiceItem(_bTaskeeServices[index]),
+                _buildGridServiceItem(_displayServices[index]),
           ),
         ],
       ),
@@ -478,50 +636,90 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   Widget _buildGridServiceItem(Map<String, dynamic> item) {
-    final Color c = item['iconColor'] as Color? ?? AppColors.brand500;
+    final String title = item['title'] as String;
+    final String? subTag = item['subTag'] as String?;
+    final String? badge = item['badge'] as String?;
+
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => ServiceDetailScreen(service: item)),
-        );
-      },
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => _handleServiceClick(item),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: 58,
+                height: 58,
                 decoration: BoxDecoration(
-                  color: c.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF0FAFA), Color(0xFFDFF3F5)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.brand500.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: AppColors.brand300.withValues(alpha: 0.4),
+                    width: 1,
+                  ),
                 ),
-                child: Icon(item['icon'] as IconData, color: c, size: 28),
+                child: Center(
+                  child: ShaderMask(
+                    shaderCallback: (bounds) => const LinearGradient(
+                      colors: [Color(0xFF13666D), Color(0xFF1D969F)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ).createShader(bounds),
+                    child: Icon(
+                      item['icon'] as IconData,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                ),
               ),
-              if (item['badge'] != null)
+              if (badge != null)
                 Positioned(
-                  top: -4,
-                  right: -10,
+                  top: -5,
+                  right: -8,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1.5,
+                    ),
                     decoration: BoxDecoration(
-                      color: item['badge'] == 'bCare'
-                          ? AppColors.green500
-                          : AppColors.error,
+                      gradient: badge == 'bCare'
+                          ? const LinearGradient(
+                              colors: [Color(0xFFEA580C), Color(0xFFF97316)],
+                            )
+                          : const LinearGradient(
+                              colors: [Color(0xFFDC2626), Color(0xFFEF4444)],
+                            ),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.white, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
                     child: Text(
-                      item['badge'] as String,
+                      badge,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 8.5,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ),
@@ -530,7 +728,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            item['title'] as String,
+            title,
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -538,9 +736,21 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
-              height: 1.25,
+              height: 1.15,
             ),
           ),
+          if (subTag != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              subTag,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.brand500,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -639,8 +849,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(6),
@@ -690,7 +902,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: _rewards.length,
               separatorBuilder: (context, index) => const SizedBox(width: 12),
-              itemBuilder: (context, index) => _buildRewardCard(_rewards[index]),
+              itemBuilder: (context, index) =>
+                  _buildRewardCard(_rewards[index]),
             ),
           ),
         ],
@@ -699,12 +912,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   Widget _buildRewardCard(Map<String, dynamic> r) {
-    final Color c = r['color'] as Color;
     return Container(
       width: 150,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
       child: Column(
@@ -713,12 +925,28 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           Container(
             height: 72,
             width: double.infinity,
-            decoration: BoxDecoration(
-              color: c.withValues(alpha: 0.12),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFF0FAFA), Color(0xFFDFF3F5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
             ),
-            child: Icon(r['icon'] as IconData, color: c, size: 34),
+            child: Center(
+              child: ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [Color(0xFF13666D), Color(0xFF1D969F)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ).createShader(bounds),
+                child: Icon(
+                  r['icon'] as IconData,
+                  color: Colors.white,
+                  size: 34,
+                ),
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
@@ -738,8 +966,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.stars_rounded,
-                        color: AppColors.brand500, size: 16),
+                    const Icon(
+                      Icons.stars_rounded,
+                      color: AppColors.brand500,
+                      size: 16,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '${r['points']} điểm',
@@ -793,8 +1024,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               return Expanded(
                 child: Column(
                   children: [
-                    Icon(item['icon'] as IconData,
-                        color: AppColors.green500, size: 28),
+                    Icon(
+                      item['icon'] as IconData,
+                      color: AppColors.brand500,
+                      size: 28,
+                    ),
                     const SizedBox(height: 6),
                     Text(
                       item['title'] as String,

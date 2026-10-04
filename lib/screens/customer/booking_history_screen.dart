@@ -5,6 +5,7 @@ import '../auth/login_screen.dart';
 import '../../services/session_service.dart';
 import '../../services/booking_api_service.dart';
 import 'order_detail_screen.dart';
+import '../../services/order_storage_service.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   final ValueChanged<int>? onSwitchTab;
@@ -28,12 +29,28 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
   List<Map<String, dynamic>> _historyOrders = [];
   List<Map<String, dynamic>> _recurringOrders = [];
   List<Map<String, dynamic>> _packageOrders = [];
+  List<CustomerOrder> _orders = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _checkSessionAndLoad();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    final session = await SessionService.load();
+    final orders = await OrderStorageService.getOrders();
+    if (mounted) {
+      setState(() {
+        _loggedIn = session?.isCustomer == true;
+        _orders = orders;
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -241,9 +258,15 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
       ),
     );
   }
+  String _formatPrice(int p) =>
+      '${p.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}đ';
 
   @override
   Widget build(BuildContext context) {
+    final activeOrders = _orders
+        .where((o) => o.trangThai != 'HOAN_THANH' && o.trangThai != 'DA_HUY')
+        .toList();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
@@ -262,6 +285,14 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
           TextButton.icon(
             onPressed: _openHistoryScreen,
             icon: const Icon(Icons.history_rounded, color: AppColors.brand500, size: 18),
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Hoạt động', style: TextStyle(fontWeight: FontWeight.w700)),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.history_rounded, size: 18, color: AppColors.brand500),
+            onPressed: () => _openHistorySheet(context),
             label: const Text(
               'Lịch sử',
               style: TextStyle(
@@ -282,11 +313,11 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
           unselectedLabelColor: AppColors.textSecondary,
           labelStyle: const TextStyle(
             fontWeight: FontWeight.w700,
-            fontSize: 14.5,
+            fontSize: 14,
           ),
           unselectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w500,
-            fontSize: 14.5,
+            fontSize: 14,
           ),
           tabs: [
             Tab(
@@ -305,6 +336,17 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                       child: Text(
                         '${_pendingOrders.length}',
                         style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  if (activeOrders.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: AppColors.brand500,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${activeOrders.length}',
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ],
@@ -419,6 +461,32 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Tab 1: Chờ làm (Hiển thị các đơn đang chờ hoặc đang tìm người)
+          _isLoading
+              ? const Center(child: CircularProgressIndicator(color: AppColors.brand500))
+              : activeOrders.isEmpty
+                  ? _buildEmptyGuestView(context)
+                  : RefreshIndicator(
+                      color: AppColors.brand500,
+                      onRefresh: _loadData,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: activeOrders.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 14),
+                        itemBuilder: (context, index) {
+                          return _buildOrderCard(activeOrders[index]);
+                        },
+                      ),
+                    ),
+
+          // Tab 2: Lặp lại
+          _buildEmptyGuestView(context, title: 'Chưa có lịch đặt lặp lại nào'),
+
+          // Tab 3: Gói tháng
+          _buildEmptyGuestView(context, title: 'Chưa có gói dịch vụ tháng nào'),
         ],
       ),
       child: Material(
@@ -626,7 +694,515 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     );
   }
 
-  Widget _buildEmptyGuestView(BuildContext context) {
+  // Thẻ đơn hàng phong cách bTaskee
+  Widget _buildOrderCard(CustomerOrder order) {
+    Color badgeBg;
+    Color badgeText;
+    String badgeLabel;
+    IconData badgeIcon;
+
+    switch (order.trangThai) {
+      case 'DANG_TIM_NGUOI':
+        badgeBg = const Color(0xFFFEF3C7);
+        badgeText = const Color(0xFFB45309);
+        badgeLabel = 'Đang tìm người làm';
+        badgeIcon = Icons.radar_rounded;
+        break;
+      case 'DA_NHAN_VIEC':
+        badgeBg = const Color(0xFFDBEAFE);
+        badgeText = const Color(0xFF1E40AF);
+        badgeLabel = 'Đã có người nhận việc';
+        badgeIcon = Icons.person_pin_rounded;
+        break;
+      case 'DANG_LAM':
+        badgeBg = const Color(0xFFE4F6F7);
+        badgeText = AppColors.brand700;
+        badgeLabel = 'Đang thực hiện';
+        badgeIcon = Icons.cleaning_services_rounded;
+        break;
+      default:
+        badgeBg = const Color(0xFFF1F5F9);
+        badgeText = const Color(0xFF475569);
+        badgeLabel = 'Chờ xác nhận';
+        badgeIcon = Icons.access_time_rounded;
+        break;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: Mã đơn + Trạng thái
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        order.id,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(badgeIcon, size: 14, color: badgeText),
+                      const SizedBox(width: 4),
+                      Text(
+                        badgeLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: badgeText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+          // Body: Tên dịch vụ, thời gian, địa điểm
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.brandGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.cleaning_services_rounded, color: Colors.white, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            order.dichVuTitle,
+                            style: const TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            order.planLabel,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Ngày giờ làm việc
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today_rounded, size: 15, color: AppColors.brand500),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${order.gioBatDau} • ${order.ngayLamViec}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+
+                // Địa chỉ
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 16, color: Color(0xFF64748B)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        order.diaChi,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Badges cho dịch vụ thêm
+                if (order.bringTools || order.hasPets || order.cooking || order.ironing) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      if (order.bringTools) _miniChip('Mang dụng cụ'),
+                      if (order.hasPets) _miniChip('Có thú cưng'),
+                      if (order.cooking) _miniChip('Nấu ăn'),
+                      if (order.ironing) _miniChip('Ủi đồ'),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+          // Footer: Giá tiền & Nút tác vụ
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Tổng tiền', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+                    Text(
+                      _formatPrice(order.tongTien),
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.brand700,
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => _confirmCancelOrder(order),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFEF4444),
+                        side: const BorderSide(color: Color(0xFFFCA5A5)),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text('Hủy việc', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => _showOrderDetailSheet(order),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brand500,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text('Chi tiết', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.brandLight,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 11, color: AppColors.brand700, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  void _confirmCancelOrder(CustomerOrder order) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Xác nhận hủy đơn?'),
+        content: Text('Bạn có chắc chắn muốn hủy công việc "${order.dichVuTitle}" (Mã ${order.id}) không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Giữ lại', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await OrderStorageService.updateOrderStatus(order.id, 'DA_HUY');
+              _loadData();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Đã hủy công việc thành công')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Hủy đơn'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOrderDetailSheet(CustomerOrder order) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (_, scrollController) => ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(20),
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Chi tiết đơn ${order.id}',
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const Divider(),
+            _infoRow('Dịch vụ', order.dichVuTitle),
+            _infoRow('Quy mô', order.planLabel),
+            _infoRow('Thời gian', '${order.gioBatDau} • ${order.ngayLamViec}'),
+            _infoRow('Địa chỉ', order.diaChi),
+            _infoRow('Khách hàng', '${order.tenKhachHang} (${order.soDienThoai})'),
+            _infoRow('Thanh toán', order.phuongThucThanhToan == 'TIEN_MAT' ? 'Tiền mặt' : 'Chuyển khoản VietQR'),
+            if (order.ghiChu != null && order.ghiChu!.isNotEmpty)
+              _infoRow('Ghi chú', order.ghiChu!),
+            const Divider(height: 24),
+            _infoRow('Tạm tính', _formatPrice(order.basePrice)),
+            if (order.extraPrice > 0)
+              _infoRow('Dịch vụ thêm', '+${_formatPrice(order.extraPrice)}'),
+            if (order.discount > 0)
+              _infoRow('Khuyến mại', '-${_formatPrice(order.discount)}'),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Tổng thanh toán', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                Text(
+                  _formatPrice(order.tongTien),
+                  style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.brand700),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13.5)),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openHistorySheet(BuildContext context) {
+    final finishedOrders = _orders
+        .where((o) => o.trangThai == 'HOAN_THANH' || o.trangThai == 'DA_HUY')
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        maxChildSize: 0.85,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (_, scrollController) => ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(20),
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Lịch sử công việc đã xong / đã hủy',
+              style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 14),
+            if (finishedOrders.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(
+                  child: Text(
+                    'Chưa có công việc nào trong lịch sử',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+              )
+            else
+              ...finishedOrders.map((o) {
+                final isCancelled = o.trangThai == 'DA_HUY';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isCancelled ? Icons.cancel_outlined : Icons.check_circle_outline_rounded,
+                        color: isCancelled ? const Color(0xFFEF4444) : AppColors.green500,
+                        size: 26,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              o.dichVuTitle,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${o.ngayLamViec} • ${o.gioBatDau}',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            _formatPrice(o.tongTien),
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                          ),
+                          Text(
+                            isCancelled ? 'Đã hủy' : 'Hoàn thành',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: isCancelled ? const Color(0xFFEF4444) : AppColors.green600,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyGuestView(BuildContext context, {String? title}) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
@@ -639,8 +1215,11 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
           const SizedBox(height: 32),
           const Text(
             'Công việc bạn đăng lên sẽ được hiển thị ở đây để bạn dễ dàng thao tác và quản lý. Bạn có thể xem lại lịch sử những công việc đã được hoàn thành ở mục Lịch sử nằm ở góc trên bên phải.',
+          Text(
+            title ??
+                'Công việc bạn đăng lên sẽ được hiển thị ở đây để bạn dễ dàng thao tác và quản lý. Bạn có thể xem lại lịch sử những công việc đã được hoàn thành ở mục Lịch sử nằm ở góc trên bên phải',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 13.5,
               color: AppColors.textSecondary,
               height: 1.5,
