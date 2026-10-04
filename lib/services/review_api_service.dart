@@ -4,23 +4,23 @@ import 'api_response.dart';
 class ReviewApiService {
   final ApiClient _apiClient = ApiClient();
 
-  /// Khách hàng gửi đánh giá sao và nhận xét cho đơn hoàn thành (UC-KH07)
-  /// POST /v1/reviews
+  /// Khách hàng gửi đánh giá cho đơn hoàn thành (UC-KH07)
+  /// POST /v1/reviews — khớp ReviewCreateRequest
   Future<ApiResponse<Map<String, dynamic>>> createReview({
     required int donDatId,
     required int khachHangId,
-    required int soSao, // 1 -> 5
-    required String noiDung,
-    List<String>? hinhAnhUrls,
+    required int diemChatLuong, // 1 -> 5
+    required int diemThaiDo, // 1 -> 5
+    String? nhanXet,
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/reviews',
       body: {
         'donDatId': donDatId,
         'khachHangId': khachHangId,
-        'soSao': soSao,
-        'noiDung': noiDung,
-        'hinhAnhUrls': hinhAnhUrls ?? [],
+        'diemChatLuong': diemChatLuong,
+        'diemThaiDo': diemThaiDo,
+        if (nhanXet != null) 'nhanXet': nhanXet,
       },
     );
   }

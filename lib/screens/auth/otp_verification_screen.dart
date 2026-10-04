@@ -13,7 +13,7 @@ class OtpVerificationScreen extends StatefulWidget {
   final bool isPhone;
   final int targetRoleTab; // 0: Khách hàng, 1: Cộng tác viên
   final String? password;
-  final String? demoOtp; // Backend trả mã OTP ở môi trường demo (chưa có SMS)
+  final String? demoOtp; // Chỉ có khi backend dùng SMS mô phỏng (app.sms.provider=mock)
 
   const OtpVerificationScreen({
     super.key,
@@ -235,7 +235,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Mã gồm 6 chữ số đã được gửi tới ${widget.isPhone ? "số điện thoại" : "email"}',
+                widget.isPhone
+                    ? 'Mã gồm 6 chữ số đã được gửi qua tin nhắn SMS tới số điện thoại'
+                    : 'Mã gồm 6 chữ số đã được gửi tới email',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     fontSize: 14, color: AppColors.textSecondary),
@@ -260,7 +262,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     border: Border.all(color: AppColors.brandLight),
                   ),
                   child: Text(
-                    'Môi trường demo – mã OTP: $_demoOtp',
+                    'Môi trường demo (SMS mô phỏng) – mã OTP: $_demoOtp',
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

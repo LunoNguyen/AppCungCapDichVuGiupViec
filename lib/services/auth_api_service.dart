@@ -44,6 +44,11 @@ class AuthApiService {
     required String ngaySinh, // yyyy-MM-dd
     String? gioiTinh,
     required String noiCuTru,
+    String? tinhThanh, // dùng để xếp khu vực hoạt động (giống form web)
+    String? phuongXa,
+    List<int>? danhSachDichVuId,
+    List<Map<String, dynamic>>? danhSachHoSo, // [{loaiTaiLieu, duongDanFile}]
+    List<Map<String, dynamic>>? danhSachChungChi, // [{loaiChungChi, tenChungChi, noiCap, ngayCap, duongDanFile}]
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/collaborators/register',
@@ -55,6 +60,39 @@ class AuthApiService {
         'ngaySinh': ngaySinh,
         if (gioiTinh != null) 'gioiTinh': gioiTinh,
         'noiCuTru': noiCuTru,
+        if (tinhThanh != null && tinhThanh.isNotEmpty) 'tinhThanh': tinhThanh,
+        if (phuongXa != null && phuongXa.isNotEmpty) 'phuongXa': phuongXa,
+        if (danhSachDichVuId != null) 'danhSachDichVuId': danhSachDichVuId,
+        if (danhSachHoSo != null) 'danhSachHoSo': danhSachHoSo,
+        if (danhSachChungChi != null) 'danhSachChungChi': danhSachChungChi,
+      },
+    );
+  }
+
+  /// Tra cứu kết quả xét duyệt hồ sơ CTV theo số điện thoại
+  /// GET /v1/collaborators/application-status?soDienThoai=...
+  Future<ApiResponse<Map<String, dynamic>>> getCollaboratorApplicationStatus(
+      String soDienThoai) async {
+    return _apiClient.get<Map<String, dynamic>>(
+      '/v1/collaborators/application-status',
+      queryParams: {'soDienThoai': soDienThoai},
+      fromJsonT: (json) => Map<String, dynamic>.from(json as Map),
+    );
+  }
+
+  /// Đổi mật khẩu sau khi đăng nhập
+  /// POST /v1/auth/change-password
+  Future<ApiResponse<Map<String, dynamic>>> changePassword({
+    required int taiKhoanId,
+    required String matKhauHienTai,
+    required String matKhauMoi,
+  }) async {
+    return _apiClient.post<Map<String, dynamic>>(
+      '/v1/auth/change-password',
+      body: {
+        'taiKhoanId': taiKhoanId,
+        'matKhauHienTai': matKhauHienTai,
+        'matKhauMoi': matKhauMoi,
       },
     );
   }
@@ -76,7 +114,7 @@ class AuthApiService {
     );
   }
 
-  /// Gửi lại mã OTP
+  /// Gửi (lại) mã OTP qua tin nhắn SMS tới SĐT của tài khoản
   /// POST /v1/auth/otp/send
   Future<ApiResponse<Map<String, dynamic>>> sendOtp({
     required String identifier,
@@ -91,6 +129,23 @@ class AuthApiService {
     );
   }
 
+  /// Quên mật khẩu: OTP (mucDich DatLaiMatKhau, nhận qua SMS từ [sendOtp]) + mật khẩu mới
+  /// POST /v1/auth/password/reset
+  Future<ApiResponse<Map<String, dynamic>>> resetPassword({
+    required String identifier,
+    required String maCode,
+    required String matKhauMoi,
+  }) async {
+    return _apiClient.post<Map<String, dynamic>>(
+      '/v1/auth/password/reset',
+      body: {
+        'identifier': identifier,
+        'maCode': maCode,
+        'matKhauMoi': matKhauMoi,
+      },
+    );
+  }
+
   /// Đăng nhập Mobile (Khách hàng / Cộng tác viên)
   /// POST /v1/auth/login
   /// Trả về: taiKhoanId, tenDangNhap, loaiTaiKhoan (KhachHang | CongTacVien), fullName,
@@ -98,12 +153,14 @@ class AuthApiService {
   Future<ApiResponse<Map<String, dynamic>>> login({
     required String username, // tên đăng nhập (mặc định là SĐT)
     required String matKhau,
+    String? vaiTro, // KhachHang | CongTacVien: một SĐT có thể có cả hai vai trò
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/auth/login',
       body: {
         'tenDangNhap': username,
         'matKhau': matKhau,
+        if (vaiTro != null) 'vaiTro': vaiTro,
       },
     );
   }
@@ -111,18 +168,22 @@ class AuthApiService {
   /// Đăng nhập mạng xã hội (Google / Facebook)
   /// POST /v1/auth/social-login
   Future<ApiResponse<Map<String, dynamic>>> socialLogin({
-    required String provider, // GOOGLE, FACEBOOK
-    required String token,
+    required String provider, // Google | Facebook
+    required String providerId, // user ID từ Google/Facebook
     String? email,
     String? hoTen,
+    String? soDienThoai,
+    String? avatarUrl,
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/auth/social-login',
       body: {
         'provider': provider,
-        'token': token,
-        'email': email,
-        'hoTen': hoTen,
+        'providerId': providerId,
+        if (email != null) 'email': email,
+        if (hoTen != null) 'hoTen': hoTen,
+        if (soDienThoai != null) 'soDienThoai': soDienThoai,
+        if (avatarUrl != null) 'avatarUrl': avatarUrl,
       },
     );
   }

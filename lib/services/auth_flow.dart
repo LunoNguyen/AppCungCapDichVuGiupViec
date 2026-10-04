@@ -40,7 +40,11 @@ class AuthFlow {
     required bool asCustomer,
   }) async {
     final username = SessionService.normalizePhone(phone);
-    final res = await _auth.login(username: username, matKhau: password);
+    final res = await _auth.login(
+      username: username,
+      matKhau: password,
+      vaiTro: asCustomer ? 'KhachHang' : 'CongTacVien',
+    );
 
     if (!res.success || res.data == null) {
       final msg = res.message ?? 'Đăng nhập thất bại. Vui lòng kiểm tra lại!';
@@ -56,7 +60,8 @@ class AuthFlow {
     final fullName = d['fullName']?.toString() ?? '';
 
     if (asCustomer) {
-      if (loai != 'KhachHang') {
+      // Một SĐT có thể vừa là khách hàng vừa là CTV: hợp lệ khi có hồ sơ khách hàng
+      if (loai != 'KhachHang' && d['khachHangId'] == null) {
         return LoginResult.fail(
             'Tài khoản này không phải tài khoản Khách hàng. Vui lòng chọn đúng vai trò.');
       }
@@ -79,7 +84,7 @@ class AuthFlow {
     }
 
     // ---- Cộng tác viên ----
-    if (loai != 'CongTacVien') {
+    if (loai != 'CongTacVien' && d['congTacVienId'] == null) {
       return LoginResult.fail(
           'Tài khoản này không phải tài khoản Cộng tác viên. Vui lòng chọn đúng vai trò.');
     }

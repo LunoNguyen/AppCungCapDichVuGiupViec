@@ -106,6 +106,16 @@ class CollaboratorApiService {
     );
   }
 
+  /// GPS: gửi vị trí hiện tại của CTV
+  /// PUT /v1/collaborators/{id}/location
+  Future<ApiResponse<Map<String, dynamic>>> updateLocation(
+      int id, double viDo, double kinhDo) async {
+    return _apiClient.put<Map<String, dynamic>>(
+      '/v1/collaborators/$id/location',
+      body: {'viDo': viDo, 'kinhDo': kinhDo},
+    );
+  }
+
   // ====================================================
   // POOL ORDERS — Đơn hàng chung cho tất cả CTV
   // ====================================================

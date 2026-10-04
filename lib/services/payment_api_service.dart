@@ -14,22 +14,24 @@ class PaymentApiService {
   }
 
   /// Xác nhận giao dịch / lập biên lai thanh toán (UC-KH06)
-  /// POST /v1/payments/create-receipt
+  /// POST /v1/payments/create-receipt — khớp PaymentReceiptRequest
   Future<ApiResponse<Map<String, dynamic>>> createReceipt({
     required int donDatId,
-    required double soTien,
-    required String phuongThuc, // TIEN_MAT, CHUYEN_KHOAN, VNPAY, VIETQR
-    String? maGiaoDichNganHang,
-    String? ghiChu,
+    int? hoaDonId,
+    double? soTienNhan,
+    String hinhThucThanhToan = 'ChuyenKhoan', // TienMat | ChuyenKhoan
+    String? nguoiNopTien,
+    String? nguoiThuTien,
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/payments/create-receipt',
       body: {
         'donDatId': donDatId,
-        'soTien': soTien,
-        'phuongThuc': phuongThuc,
-        'maGiaoDichNganHang': maGiaoDichNganHang,
-        'ghiChu': ghiChu,
+        if (hoaDonId != null) 'hoaDonId': hoaDonId,
+        if (soTienNhan != null) 'soTienNhan': soTienNhan,
+        'hinhThucThanhToan': hinhThucThanhToan,
+        if (nguoiNopTien != null) 'nguoiNopTien': nguoiNopTien,
+        if (nguoiThuTien != null) 'nguoiThuTien': nguoiThuTien,
       },
     );
   }

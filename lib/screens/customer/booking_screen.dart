@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../services/address_api_service.dart';
+import '../../services/session_service.dart';
+import 'address_book_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   final Map<String, dynamic> service;
@@ -16,8 +19,10 @@ class _BookingScreenState extends State<BookingScreen> {
   int _selectedPayment = 0;
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
-  final _addressController = TextEditingController(
-      text: '123 Nguyễn Trãi, Q.1, TP.HCM');
+  // Địa chỉ làm việc chọn từ sổ địa chỉ của khách (mặc định: địa chỉ mặc định)
+  UserSession? _session;
+  DiaChi? _diaChi;
+  bool _loadingAddress = true;
   final _noteController = TextEditingController();
   final _promoController = TextEditingController();
   bool _promoApplied = false;
@@ -63,8 +68,54 @@ class _BookingScreenState extends State<BookingScreen> {
       ((widget.service['title'] as String?) ?? 'Dịch vụ').replaceAll('\n', ' ');
 
   @override
+  void initState() {
+    super.initState();
+    _loadDefaultAddress();
+  }
+
+  Future<void> _loadDefaultAddress() async {
+    final session = await SessionService.load();
+    DiaChi? macDinh;
+    if (session != null && session.isCustomer) {
+      try {
+        final res = await AddressApiService().getAddresses(session.userId);
+        final list = res.data ?? const <DiaChi>[];
+        if (list.isNotEmpty) {
+          macDinh = list.firstWhere((d) => d.laMacDinh, orElse: () => list.first);
+        }
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _session = session;
+      _diaChi = macDinh;
+      _loadingAddress = false;
+    });
+  }
+
+  Future<void> _pickAddress() async {
+    if (_session == null || !_session!.isCustomer) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Vui lòng đăng nhập để chọn địa chỉ làm việc'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+    final picked = await Navigator.push<DiaChi>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddressBookScreen(
+          khachHangId: _session!.userId,
+          selectMode: true,
+          selectedId: _diaChi?.id,
+        ),
+      ),
+    );
+    if (picked != null && mounted) setState(() => _diaChi = picked);
+  }
+
+  @override
   void dispose() {
-    _addressController.dispose();
     _noteController.dispose();
     _promoController.dispose();
     super.dispose();
@@ -380,12 +431,44 @@ class _BookingScreenState extends State<BookingScreen> {
         const SizedBox(height: 10),
         _block(
           'Địa điểm làm việc',
-          TextField(
-            controller: _addressController,
-            decoration: const InputDecoration(
-              prefixIcon:
-                  Icon(Icons.location_on_outlined, color: AppColors.brand500),
-              hintText: 'Địa chỉ thực hiện dịch vụ',
+          InkWell(
+            onTap: _pickAddress,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on_outlined,
+                      color: AppColors.brand500),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _loadingAddress
+                        ? const Text('Đang tải địa chỉ...',
+                            style: TextStyle(color: AppColors.textSecondary))
+                        : _diaChi == null
+                            ? const Text('Chọn hoặc thêm địa chỉ làm việc',
+                                style: TextStyle(color: AppColors.textSecondary))
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_diaChi!.tieuDe,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700)),
+                                  Text(_diaChi!.diaChiChiTiet,
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          color: AppColors.textSecondary)),
+                                ],
+                              ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded,
+                      color: AppColors.textMuted),
+                ],
+              ),
             ),
           ),
         ),
@@ -424,7 +507,7 @@ class _BookingScreenState extends State<BookingScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  _addressController.text,
+                  _diaChi?.diaChiChiTiet ?? '—',
                   style: const TextStyle(
                     fontSize: 14,
                     color: AppColors.textPrimary,
@@ -623,6 +706,15 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   void _onNext() {
+    if (_step == 1 && _diaChi == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn địa chỉ làm việc'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
     if (_step == 1 && (_selectedDate == null || _selectedTime == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
