@@ -5,14 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="16518615-c9a4-4cd1-a52a-7676614e02af" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app_cung_cap_dich_vu_giup_viec.iml" beforeDir="false" afterPath="$PROJECT_DIR$/app_cung_cap_dich_vu_giup_viec.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/auth/login_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/auth/login_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/collaborator/collaborator_notifications_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/collaborator/collaborator_notifications_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/screens/collaborator/collaborator_orders_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/collaborator/collaborator_orders_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/services/api_config.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/services/api_config.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/services/collaborator_api_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/services/collaborator_api_service.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/screens/customer/booking_history_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/screens/customer/booking_history_screen.dart" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -99,6 +93,11 @@
           <url>file://$PROJECT_DIR$/lib/screens/collaborator/collaborator_account_screen.dart</url>
           <line>736</line>
           <option name="timeStamp" value="1" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="Dart">
+          <url>file://$PROJECT_DIR$/lib/screens/collaborator/collaborator_notifications_screen.dart</url>
+          <line>955</line>
+          <option name="timeStamp" value="2" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
