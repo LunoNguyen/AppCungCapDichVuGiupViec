@@ -5,8 +5,10 @@ import 'service_detail_screen.dart';
 import 'customer_services_screen.dart';
 import 'customer_notification_screen.dart';
 import '../auth/login_screen.dart';
-import '../../services/session_service.dart';
+import '../../services/booking_api_service.dart';
+import '../../services/catalog_ui.dart';
 import '../../services/service_catalog_api_service.dart';
+import '../../services/session_service.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   final ValueChanged<int>? onSwitchTab;
@@ -22,183 +24,84 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
   bool get _loggedIn => _session?.isCustomer == true;
 
-  List<Map<String, dynamic>> _apiServices = [];
+  final ServiceCatalogApiService _catalogApi = ServiceCatalogApiService();
+
+  // Dữ liệu lấy từ API (không còn dữ liệu cứng)
+  bool _loading = true;
+  String? _loadError;
+  List<Map<String, dynamic>> _serviceTypes = []; // GET /v1/service-types
+  List<Map<String, dynamic>> _featuredServices = []; // GET /v1/services
+  List<Map<String, dynamic>> _promoBanners = []; // GET /v1/promotions
+  int? _soDon; // tổng đơn của khách (GET /v1/customer/bookings)
+  int _soDonDangLam = 0;
 
   @override
   void initState() {
     super.initState();
     SessionService.load().then((s) {
-      if (mounted) setState(() => _session = s);
+      if (!mounted) return;
+      setState(() => _session = s);
+      _loadBookingStats();
     });
-    _fetchServicesFromApi();
-  }
-
-  Future<void> _fetchServicesFromApi() async {
-    try {
-      final res = await ServiceCatalogApiService().getServices();
-      if (res.success && res.data != null && mounted) {
-        setState(() {
-          _apiServices = res.data!;
-        });
-      }
-    } catch (_) {}
-  }
-
-  IconData _getServiceIcon(String name) {
-    final title = name.toLowerCase();
-    if (title.contains('dọn dẹp')) return Icons.cleaning_services_rounded;
-    if (title.contains('máy lạnh') || title.contains('điều hoà'))
-      return Icons.ac_unit_rounded;
-    if (title.contains('giặt') || title.contains('ủi'))
-      return Icons.local_laundry_service_rounded;
-    if (title.contains('nấu ăn')) return Icons.restaurant_rounded;
-    if (title.contains('tổng vệ sinh')) return Icons.home_work_rounded;
-    if (title.contains('trông trẻ')) return Icons.child_care_rounded;
-    if (title.contains('người già') || title.contains('người cao tuổi'))
-      return Icons.elderly_rounded;
-    if (title.contains('văn phòng')) return Icons.apartment_rounded;
-    if (title.contains('sofa') || title.contains('rèm'))
-      return Icons.weekend_rounded;
-    if (title.contains('chuyển nhà')) return Icons.local_shipping_rounded;
-    return Icons.cleaning_services_rounded;
+    _loadData();
   }
 
   final PageController _pageController = PageController(viewportFraction: 0.9);
 
-  final List<Map<String, dynamic>> _promoBanners = [
-    {
-      'title': 'Giảm 50.000đ cho đơn đầu tiên',
-      'subtitle': 'Thanh toán qua thẻ hoặc VNPAY',
-      'badge': 'ƯU ĐÃI ĐỘC QUYỀN',
-      'code': 'NEATIFY50',
-      'colors': const [Color(0xFF13666D), Color(0xFF1D969F)],
-      'icon': Icons.credit_card_rounded,
-    },
-    {
-      'title': 'Thảnh thơi đón Tết • Tổng vệ sinh',
-      'subtitle': 'Đặt trước 7 ngày nhận ưu đãi giảm 20%',
-      'badge': 'HOT DEAL',
-      'code': 'XUANMOI20',
-      'colors': const [Color(0xFF1D969F), Color(0xFF28B5BF)],
-      'icon': Icons.cleaning_services_rounded,
-    },
-    {
-      'title': 'Gói tháng • Tiết kiệm đến 30%',
-      'subtitle': 'Người làm cố định, linh hoạt đổi lịch',
-      'badge': 'TIẾT KIỆM',
-      'code': 'TIETKIEM30',
-      'colors': const [Color(0xFF167E86), Color(0xFF38C5CF)],
-      'icon': Icons.calendar_month_rounded,
-    },
-  ];
-
-  List<Map<String, dynamic>> get _displayServices {
-    if (_apiServices.isNotEmpty) {
-      final List<Map<String, dynamic>> list = [];
-      for (var s in _apiServices) {
-        final String ten = (s['tenDichVu'] ?? '').toString();
-        final double gia = double.tryParse(s['giaTien']?.toString() ?? '') ?? 0;
-        final String priceStr = gia > 0
-            ? 'Từ ${(gia / 1000).toStringAsFixed(0)}.000đ'
-            : 'Báo giá';
-
-        list.add({
-          'id': s['id'],
-          'title': ten,
-          'subtitle': s['moTa'] ?? '',
-          'icon': _getServiceIcon(ten),
-          'price': priceStr,
-          'description': s['moTa'] ?? '',
-        });
-      }
-      list.add({
-        'title': 'Khám phá',
-        'subtitle': 'Xem tất cả',
-        'icon': Icons.grid_view_rounded,
-        'isExplore': true,
-        'price': '',
-        'description': 'Khám phá toàn bộ hệ sinh thái dịch vụ.',
+  Future<void> _loadData() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      final results = await Future.wait([
+        _catalogApi.getServiceTypes(),
+        _catalogApi.getServices(),
+        _catalogApi.getPromotions(),
+      ]);
+      if (!mounted) return;
+      final types = results[0];
+      final services = results[1];
+      final promos = results[2];
+      setState(() {
+        _serviceTypes = (types.data ?? [])
+            .where((t) => t['trangThai'] == null || t['trangThai'] == 'HienThi')
+            .map(CatalogUi.fromServiceType)
+            .toList();
+        _featuredServices =
+            (services.data ?? []).map(CatalogUi.fromService).take(8).toList();
+        _promoBanners = [
+          for (int i = 0; i < (promos.data ?? []).length; i++)
+            CatalogUi.fromPromotion(promos.data![i], i),
+        ];
+        if (!types.success && !services.success) {
+          _loadError = types.message ?? 'Không tải được danh sách dịch vụ';
+        }
       });
-      return list;
+    } catch (e) {
+      if (mounted) setState(() => _loadError = 'Lỗi kết nối máy chủ');
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    return _fallbackServices;
   }
 
-  // Danh sách dự phòng khi offline
-  final List<Map<String, dynamic>> _fallbackServices = [
-    {
-      'id': 1,
-      'title': 'Dọn dẹp nhà',
-      'subtitle': 'Dọn dẹp theo giờ 2–4 tiếng',
-      'icon': Icons.cleaning_services_rounded,
-      'price': 'Chỉ từ 60.000đ/giờ',
-      'description': 'Dọn dẹp nhà theo giờ linh hoạt 2–4 tiếng.',
-    },
-    {
-      'id': 8,
-      'title': 'Tổng vệ sinh',
-      'subtitle': 'Vệ sinh chuyên sâu toàn diện',
-      'icon': Icons.home_work_rounded,
-      'price': 'Từ 500.000đ/nhà',
-      'description': 'Vệ sinh chuyên sâu toàn diện.',
-    },
-    {
-      'id': 51,
-      'title': 'Vệ sinh máy lạnh',
-      'subtitle': 'Rửa lưới lọc, nạp ga, khử khuẩn',
-      'icon': Icons.ac_unit_rounded,
-      'price': 'Từ 150.000đ/máy',
-      'description': 'Bảo dưỡng và vệ sinh máy lạnh.',
-    },
-    {
-      'id': 123,
-      'title': 'Nấu ăn gia đình',
-      'subtitle': 'Đi chợ và nấu bữa cơm gia đình',
-      'icon': Icons.restaurant_rounded,
-      'price': 'Từ 180.000đ/buổi',
-      'description': 'Đầu bếp gia đình chuẩn bị bữa cơm ấm cúng.',
-    },
-    {
-      'id': 72,
-      'title': 'Trông trẻ',
-      'subtitle': 'Người giữ trẻ có kinh nghiệm',
-      'icon': Icons.child_care_rounded,
-      'price': 'Từ 80.000đ/giờ',
-      'description': 'Cộng tác viên giữ trẻ yêu trẻ.',
-    },
-    {
-      'title': 'Khám phá',
-      'subtitle': 'Xem tất cả các dịch vụ khác',
-      'icon': Icons.grid_view_rounded,
-      'isExplore': true,
-      'price': '',
-      'description': 'Khám phá toàn bộ hệ sinh thái dịch vụ.',
-    },
-  ];
-
-  final List<Map<String, dynamic>> _rewards = [
-    {
-      'title': 'Voucher giảm 50K',
-      'subtitle': 'Áp dụng cho đơn từ 150K',
-      'points': '200',
-      'icon': Icons.confirmation_number_rounded,
-      'color': const Color(0xFF1D969F),
-    },
-    {
-      'title': 'Giặt sấy giảm 30%',
-      'subtitle': 'Giao nhận tận nơi',
-      'points': '150',
-      'icon': Icons.local_laundry_service_rounded,
-      'color': const Color(0xFF1D969F),
-    },
-    {
-      'title': 'Bình nước Neatify',
-      'subtitle': 'Quà tặng tri ân khách hàng',
-      'points': '500',
-      'icon': Icons.card_giftcard_rounded,
-      'color': const Color(0xFF1D969F),
-    },
-  ];
+  /// Số đơn của khách đã đăng nhập, hiển thị ở dải dưới header.
+  Future<void> _loadBookingStats() async {
+    if (!_loggedIn) return;
+    try {
+      final res = await BookingApiService()
+          .getCustomerBookings(khachHangId: _session!.userId);
+      if (!mounted || !res.success) return;
+      final list = res.data ?? [];
+      setState(() {
+        _soDon = list.length;
+        _soDonDangLam = list
+            .where((o) => const ['ChoDuyet', 'DaXacNhan', 'DangThucHien']
+                .contains(o['trangThai']?.toString()))
+            .length;
+      });
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -206,112 +109,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     super.dispose();
   }
 
-  void _openServices() {
+  void _openServices([Map<String, dynamic>? loai]) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const CustomerServicesScreen()),
-    );
-  }
-
-  Future<void> _handleServiceClick(Map<String, dynamic> item) async {
-    final isExplore = item['isExplore'] == true;
-    if (isExplore) {
-      _openServices();
-      return;
-    }
-
-    final session = await SessionService.load();
-    if (session == null || !session.isCustomer) {
-      if (!mounted) return;
-      _showRequireLoginDialog(item);
-      return;
-    }
-
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ServiceDetailScreen(service: item)),
-    );
-  }
-
-  void _showRequireLoginDialog(Map<String, dynamic> item) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        contentPadding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 58,
-              height: 58,
-              decoration: const BoxDecoration(
-                color: AppColors.brandLight,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.lock_rounded,
-                color: AppColors.brand500,
-                size: 30,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Yêu cầu đăng nhập',
-              style: TextStyle(
-                fontSize: 17.5,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Vui lòng đăng nhập tài khoản khách hàng để đặt dịch vụ "${(item['title'] as String).replaceAll('\n', ' ')}" và đồng bộ đơn hàng với hệ thống.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13.5,
-                color: AppColors.textSecondary,
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 22),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const LoginScreen(initialRoleTab: 0),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.brand500,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  'Đăng nhập ngay',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text(
-                'Để sau',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-          ],
+      MaterialPageRoute(
+        builder: (_) => CustomerServicesScreen(
+          loaiDichVuId: loai?['id'] as int?,
+          tenLoai: loai?['title'] as String?,
         ),
       ),
     );
@@ -334,8 +138,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: AppColors.scaffoldBg,
-        body: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
+        body: RefreshIndicator(
+          color: AppColors.brand500,
+          onRefresh: () async {
+            await Future.wait([_loadData(), _loadBookingStats()]);
+          },
+          child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics()),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -354,14 +164,19 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               const SizedBox(height: 12),
               _buildServicesSection(),
               const SizedBox(height: 12),
-              _buildPromoCarousel(),
-              const SizedBox(height: 12),
-              _buildRewardsSection(),
-              const SizedBox(height: 12),
+              if (_promoBanners.isNotEmpty) ...[
+                _buildPromoCarousel(),
+                const SizedBox(height: 12),
+              ],
+              if (_featuredServices.isNotEmpty) ...[
+                _buildFeaturedSection(),
+                const SizedBox(height: 12),
+              ],
               _buildTrustBadges(),
               const SizedBox(height: 24),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -373,13 +188,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     return Container(
       width: double.infinity,
       height: MediaQuery.of(context).padding.top + 160,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF13666D), Color(0xFF1D969F), Color(0xFF28B5BF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
+      decoration: const BoxDecoration(gradient: AppColors.brandGradient),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -409,8 +218,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             child: Text(
                               _loggedIn
                                   ? (_session!.fullName.isNotEmpty
-                                        ? _session!.fullName
-                                        : 'Khách hàng')
+                                      ? _session!.fullName
+                                      : 'Khách hàng')
                                   : 'Đăng nhập / Tạo tài khoản',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -422,11 +231,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             ),
                           ),
                           const SizedBox(width: 2),
-                          const Icon(
-                            Icons.chevron_right_rounded,
-                            color: Colors.white,
-                            size: 22,
-                          ),
+                          const Icon(Icons.chevron_right_rounded,
+                              color: Colors.white, size: 22),
                         ],
                       ),
                     ),
@@ -441,8 +247,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const CustomerNotificationScreen(),
-                    ),
+                        builder: (_) => const CustomerNotificationScreen()),
                   );
                 }
               }),
@@ -461,117 +266,85 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  // Dải số dư và điểm thưởng kiểu 2 ô như bTaskee
+  // Dải "điểm thưởng" nằm đè lên header như bTaskee (bPoints)
   Widget _buildRewardStrip() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 14,
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            // Ô 1: Số dư ví
-            Expanded(
-              child: InkWell(
-                onTap: _openLogin,
-                borderRadius: BorderRadius.circular(8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFFFF3DC),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'đ',
-                          style: TextStyle(
-                            color: Color(0xFFF59E0B),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        '0 đ',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppColors.textMuted,
-                      size: 18,
-                    ),
-                  ],
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              color: AppColors.brandLight,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.receipt_long_rounded,
+                color: AppColors.brand500, size: 22),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  !_loggedIn
+                      ? 'Chưa đăng nhập'
+                      : _soDon == null
+                          ? 'Đang tải đơn...'
+                          : '$_soDon đơn đã đặt',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-              ),
-            ),
-            const VerticalDivider(
-              width: 20,
-              thickness: 1,
-              color: AppColors.divider,
-            ),
-            // Ô 2: Điểm thưởng bPoints
-            Expanded(
-              child: InkWell(
-                onTap: _openLogin,
-                borderRadius: BorderRadius.circular(8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        color: AppColors.brandLight,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.military_tech_rounded,
-                        color: AppColors.brand500,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        '0 bPoints',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppColors.textMuted,
-                      size: 18,
-                    ),
-                  ],
+                const SizedBox(height: 2),
+                Text(
+                  !_loggedIn
+                      ? 'Đăng nhập để đặt và theo dõi đơn'
+                      : _soDonDangLam > 0
+                          ? '$_soDonDangLam đơn đang xử lý'
+                          : 'Không có đơn đang xử lý',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+          Container(width: 1, height: 30, color: AppColors.divider),
+          const SizedBox(width: 12),
+          InkWell(
+            onTap: _openLogin,
+            child: const Row(
+              children: [
+                Icon(Icons.workspace_premium_rounded,
+                    color: Color(0xFFB0B0B0), size: 20),
+                SizedBox(width: 4),
+                Text(
+                  'Thành viên',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -587,19 +360,39 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         children: [
           _sectionTitle('Dịch vụ', 'Xem tất cả', _openServices),
           const SizedBox(height: 14),
+          if (_loading && _serviceTypes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                  child: CircularProgressIndicator(color: AppColors.brand500)),
+            )
+          else if (_serviceTypes.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Column(
+                  children: [
+                    Text(_loadError ?? 'Chưa có dịch vụ nào',
+                        style: const TextStyle(color: AppColors.textSecondary)),
+                    TextButton(onPressed: _loadData, child: const Text('Thử lại')),
+                  ],
+                ),
+              ),
+            )
+          else
           GridView.builder(
             shrinkWrap: true,
             padding: EdgeInsets.zero,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _displayServices.length,
+            itemCount: _serviceTypes.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 4,
-              childAspectRatio: 0.74,
+              childAspectRatio: 0.78,
               crossAxisSpacing: 8,
-              mainAxisSpacing: 10,
+              mainAxisSpacing: 8,
             ),
             itemBuilder: (context, index) =>
-                _buildGridServiceItem(_displayServices[index]),
+                _buildGridServiceItem(_serviceTypes[index]),
           ),
         ],
       ),
@@ -636,90 +429,53 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   Widget _buildGridServiceItem(Map<String, dynamic> item) {
-    final String title = item['title'] as String;
-    final String? subTag = item['subTag'] as String?;
-    final String? badge = item['badge'] as String?;
-
+    final Color c = item['iconColor'] as Color? ?? AppColors.brand500;
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => _handleServiceClick(item),
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _openServices(item),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
           Stack(
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 58,
-                height: 58,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFF0FAFA), Color(0xFFDFF3F5)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.brand500.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                  border: Border.all(
-                    color: AppColors.brand300.withValues(alpha: 0.4),
-                    width: 1,
-                  ),
+                  color: c.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
                 ),
-                child: Center(
-                  child: ShaderMask(
-                    shaderCallback: (bounds) => const LinearGradient(
-                      colors: [Color(0xFF13666D), Color(0xFF1D969F)],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ).createShader(bounds),
-                    child: Icon(
-                      item['icon'] as IconData,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                ),
+                clipBehavior: Clip.antiAlias,
+                child: item['imageUrl'] != null
+                    ? Image.network(
+                        item['imageUrl'] as String,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            Icon(item['icon'] as IconData, color: c, size: 28),
+                      )
+                    : Icon(item['icon'] as IconData, color: c, size: 28),
               ),
-              if (badge != null)
+              if (item['badge'] != null)
                 Positioned(
-                  top: -5,
-                  right: -8,
+                  top: -4,
+                  right: -10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1.5,
-                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                     decoration: BoxDecoration(
-                      gradient: badge == 'bCare'
-                          ? const LinearGradient(
-                              colors: [Color(0xFFEA580C), Color(0xFFF97316)],
-                            )
-                          : const LinearGradient(
-                              colors: [Color(0xFFDC2626), Color(0xFFEF4444)],
-                            ),
+                      color: item['badge'] == 'bCare'
+                          ? AppColors.green500
+                          : AppColors.error,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.white, width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
                     ),
                     child: Text(
-                      badge,
+                      item['badge'] as String,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 8.5,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
@@ -728,7 +484,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            title,
+            item['title'] as String,
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -736,21 +492,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
-              height: 1.15,
+              height: 1.25,
             ),
           ),
-          if (subTag != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              subTag,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.brand500,
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -838,7 +582,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 const SizedBox(height: 6),
                 Text(
                   banner['title'] as String,
-                  maxLines: 2,
+                  maxLines: (banner['subtitle'] as String).isEmpty ? 2 : 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
@@ -847,12 +591,21 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     height: 1.25,
                   ),
                 ),
+                if ((banner['subtitle'] as String).isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    banner['subtitle'] as String,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 12),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(6),
@@ -880,9 +633,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  // ===================== ĐỔI QUÀ =====================
+  // ===================== DỊCH VỤ NỔI BẬT =====================
 
-  Widget _buildRewardsSection() {
+  Widget _buildFeaturedSection() {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -891,19 +644,19 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _sectionTitle('Đổi quà', 'Xem thêm', _openLogin),
+            child: _sectionTitle('Dịch vụ nổi bật', 'Xem tất cả', _openServices),
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 150,
+            height: 168,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _rewards.length,
+              itemCount: _featuredServices.length,
               separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemBuilder: (context, index) =>
-                  _buildRewardCard(_rewards[index]),
+                  _buildFeaturedCard(_featuredServices[index]),
             ),
           ),
         ],
@@ -911,81 +664,66 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  Widget _buildRewardCard(Map<String, dynamic> r) {
-    return Container(
-      width: 150,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder),
+  Widget _buildFeaturedCard(Map<String, dynamic> s) {
+    final Color c = s['iconColor'] as Color;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ServiceDetailScreen(service: s)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 72,
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFF0FAFA), Color(0xFFDFF3F5)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+      child: Container(
+        width: 160,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 64,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: c.withValues(alpha: 0.12),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
               ),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+              child: Icon(s['icon'] as IconData, color: c, size: 32),
             ),
-            child: Center(
-              child: ShaderMask(
-                shaderCallback: (bounds) => const LinearGradient(
-                  colors: [Color(0xFF13666D), Color(0xFF1D969F)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ).createShader(bounds),
-                child: Icon(
-                  r['icon'] as IconData,
-                  color: Colors.white,
-                  size: 34,
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  r['title'] as String,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s['title'] as String,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                      height: 1.25,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.stars_rounded,
-                      color: AppColors.brand500,
-                      size: 16,
+                  const SizedBox(height: 6),
+                  Text(
+                    s['price'] as String,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.brand600,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${r['points']} điểm',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.brand500,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1024,11 +762,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               return Expanded(
                 child: Column(
                   children: [
-                    Icon(
-                      item['icon'] as IconData,
-                      color: AppColors.brand500,
-                      size: 28,
-                    ),
+                    Icon(item['icon'] as IconData,
+                        color: AppColors.green500, size: 28),
                     const SizedBox(height: 6),
                     Text(
                       item['title'] as String,

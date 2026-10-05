@@ -11,30 +11,20 @@ class AppColors {
   static const Color green600 = Color(0xFF149A4C);
   static const Color greenLight = Color(0xFFE6F7EE);
 
-  // Brand colors - Teal #1D969F (màu thương hiệu chính)
-  static const Color brand700 = Color(0xFF13666D); // teal sẫm
-  static const Color brand600 = Color(0xFF177F87); // teal đậm
-  static const Color brand500 = Color(0xFF1D969F); // teal chủ đạo #1D969F
-  static const Color brand400 = Color(0xFF28B5BF); // teal sáng
-  static const Color brand300 = Color(0xFF6ED3DB); // teal nhạt
-  static const Color brandLight = Color(0xFFE4F6F7); // nền icon / badge nhạt
-  static const Color brandSurface = Color(0xFFF0FAF9); // nền rất nhạt
+  // Brand colors - Xanh ngọc #1D969F (app Khách hàng)
+  static const Color brand700 = Color(0xFF13616B); // ngọc sẫm (đầu gradient)
+  static const Color brand600 = Color(0xFF187F87); // ngọc đậm (text giá, pressed)
+  static const Color brand500 = Color(0xFF1D969F); // màu chủ đạo
+  static const Color brand400 = Color(0xFF4FB2B9); // ngọc sáng
+  static const Color brand300 = Color(0xFF97D3D7); // ngọc nhạt
+  static const Color brandLight = Color(0xFFE0F2F3); // nền icon / badge
+  static const Color brandSurface = Color(0xFFF0F9FA); // nền rất nhạt
 
-  // Gradient thương hiệu chuẩn #1D969F
+  /// Gradient chủ đạo cho header / thẻ nổi bật phía khách hàng: ngọc sẫm → #1D969F
   static const LinearGradient brandGradient = LinearGradient(
-    colors: [Color(0xFF167E86), Color(0xFF1D969F), Color(0xFF28B5BF)],
+    colors: [brand700, brand500],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-  );
-  static const LinearGradient brandGradientHorizontal = LinearGradient(
-    colors: [Color(0xFF1D969F), Color(0xFF28B5BF)],
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
-  );
-  static const LinearGradient brandIconGradient = LinearGradient(
-    colors: [Color(0xFF167E86), Color(0xFF1D969F)],
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
   );
 
   // Partner colors - Cam (app Cộng tác viên, thu nhập hiển thị bằng màu brand xanh lá)

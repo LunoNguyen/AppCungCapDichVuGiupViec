@@ -123,28 +123,45 @@ class _CollaboratorScheduleScreenState
     setState(() => _isLoading = true);
     try {
       final res =
-      await _apiService.getSchedules(congTacVienId: _currentUserId);
+          await _apiService.getSchedules(congTacVienId: _currentUserId);
       final ass =
-      await _apiService.getAssignments(congTacVienId: _currentUserId);
+          await _apiService.getAssignments(congTacVienId: _currentUserId);
 
-      // donDatId -> thanhTien
-      final priceMap = <dynamic, dynamic>{};
-      if (ass.success && ass.data != null) {
-        for (final a in ass.data!) {
-          priceMap[a['donDatId']] = a['thanhTien'];
+      final combined = <Map<String, dynamic>>[];
+      final seenIds = <dynamic>{};
+
+      if (res.success && res.data != null) {
+        for (final item in res.data!) {
+          final id = item['id'] ?? item['donDatId'];
+          if (id != null) seenIds.add(id);
+          combined.add({
+            ...item,
+            'ngayLam': item['ngayLam'] ?? item['ngayThucHien'] ?? item['ngayLamViec'],
+          });
         }
       }
 
-      if (res.success && res.data != null) {
-        setState(() {
-          _allSchedules = List<Map<String, dynamic>>.from(res.data!)
-              .map((s) => {
-            ...s,
-            'thanhTien': s['thanhTien'] ?? priceMap[s['donDatId']],
-          })
-              .toList();
-        });
+      if (ass.success && ass.data != null) {
+        for (final a in ass.data!) {
+          final id = a['id'] ?? a['donDatId'];
+          if (!seenIds.contains(id)) {
+            if (id != null) seenIds.add(id);
+            combined.add({
+              ...a,
+              'ngayLam': a['ngayLam'] ?? a['ngayThucHien'] ?? a['ngayLamViec'],
+              'gioBatDau': a['gioBatDau'],
+              'gioKetThuc': a['gioKetThuc'],
+              'tenDichVu': a['tenDichVu'] ?? a['dichVuTitle'],
+              'diaChiChiTiet': a['diaChiChiTiet'] ?? a['diaChi'],
+              'thanhTien': a['thanhTien'] ?? a['tongTien'],
+            });
+          }
+        }
       }
+
+      setState(() {
+        _allSchedules = combined;
+      });
     } catch (e) {
       debugPrint('Lỗi tải lịch làm việc: $e');
     } finally {
@@ -155,10 +172,13 @@ class _CollaboratorScheduleScreenState
   List<Map<String, dynamic>> get _schedulesForSelectedDay {
     if (_weekDates.isEmpty || _selectedDayIndex >= _weekDates.length) return [];
     final selectedDateStr =
-    DateFormat('yyyy-MM-dd').format(_weekDates[_selectedDayIndex]);
+        DateFormat('yyyy-MM-dd').format(_weekDates[_selectedDayIndex]);
 
     return _allSchedules.where((s) {
-      final ngayLam = s['ngayLam']?.toString() ?? '';
+      final ngayLam = s['ngayLam']?.toString() ??
+          s['ngayThucHien']?.toString() ??
+          s['ngayLamViec']?.toString() ??
+          '';
       return ngayLam.startsWith(selectedDateStr);
     }).toList();
   }
@@ -166,8 +186,13 @@ class _CollaboratorScheduleScreenState
   bool _hasOrderOnDay(int index) {
     if (_weekDates.isEmpty || index >= _weekDates.length) return false;
     final dateStr = DateFormat('yyyy-MM-dd').format(_weekDates[index]);
-    return _allSchedules
-        .any((s) => (s['ngayLam']?.toString() ?? '').startsWith(dateStr));
+    return _allSchedules.any((s) {
+      final ngayLam = s['ngayLam']?.toString() ??
+          s['ngayThucHien']?.toString() ??
+          s['ngayLamViec']?.toString() ??
+          '';
+      return ngayLam.startsWith(dateStr);
+    });
   }
 
   // ===================== GIAO DIỆN CHÍNH =====================

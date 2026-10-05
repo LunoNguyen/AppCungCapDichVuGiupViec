@@ -58,24 +58,44 @@ class BookingApiService {
     String? maKhuyenMai,
     required String
     phuongThucThanhToan, // TIEN_MAT, CHUYEN_KHOAN, VNPAY, VIETQR
+    int? congTacVienId,
+    String? ngayLamViec,
+    int? soGio,
+    String? diaChi,
   }) async {
     String formattedTime = gioBatDau;
     if (formattedTime.length == 5) {
       formattedTime = '$formattedTime:00';
     }
 
+    String? formattedEndTime = gioKetThuc;
+    if (formattedEndTime != null && formattedEndTime.length == 5) {
+      formattedEndTime = '$formattedEndTime:00';
+    }
+
+    final String workingDate = ngayLamViec ?? ngayThucHien;
+
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/bookings',
       body: {
         'khachHangId': khachHangId,
         'dichVuId': dichVuId,
-        'congTacVienId': congTacVienId,
-        'ngayLamViec': ngayLamViec,
-        'gioBatDau': gioBatDau,
-        'soGio': soGio,
-        'diaChi': diaChi,
-        'ghiChu': ghiChu,
-        'maKhuyenMai': maKhuyenMai,
+        if (bangGiaId != null) 'bangGiaId': bangGiaId,
+        'ngayThucHien': workingDate,
+        'ngayLamViec': workingDate,
+        'gioBatDau': formattedTime,
+        if (formattedEndTime != null) 'gioKetThuc': formattedEndTime,
+        if (diaChiId != null) 'diaChiId': diaChiId,
+        if (diaChiChiTiet != null) 'diaChiChiTiet': diaChiChiTiet,
+        if (diaChi != null) 'diaChi': diaChi,
+        if (khuVucId != null) 'khuVucId': khuVucId,
+        'loaiHinhDat': loaiHinhDat,
+        if (ngayThucHienTrongTuan != null) 'ngayThucHienTrongTuan': ngayThucHienTrongTuan,
+        if (yeuCauDacBiet != null) 'yeuCauDacBiet': yeuCauDacBiet,
+        if (ghiChu != null) 'ghiChu': ghiChu,
+        if (maKhuyenMai != null) 'maKhuyenMai': maKhuyenMai,
+        if (congTacVienId != null) 'congTacVienId': congTacVienId,
+        if (soGio != null) 'soGio': soGio,
         'phuongThucThanhToan': phuongThucThanhToan,
       },
     );
@@ -128,6 +148,24 @@ class BookingApiService {
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/customer/bookings/$id/cancel',
       queryParams: queryParams,
+    );
+  }
+
+  /// Thanh toán đơn đặt dịch vụ (Chuyển khoản VietQR / VNPAY / Tiền mặt)
+  /// PUT /v1/customer/bookings/{id}/pay
+  Future<ApiResponse<Map<String, dynamic>>> payBooking({
+    required int id,
+    required int khachHangId,
+    required String phuongThucThanhToan, // TIEN_MAT, CHUYEN_KHOAN, VNPAY, VIETQR
+    String? maGiaoDich,
+  }) async {
+    return _apiClient.put<Map<String, dynamic>>(
+      '/v1/customer/bookings/$id/pay',
+      body: {
+        'khachHangId': khachHangId,
+        'phuongThucThanhToan': phuongThucThanhToan,
+        if (maGiaoDich != null) 'maGiaoDich': maGiaoDich,
+      },
     );
   }
 }

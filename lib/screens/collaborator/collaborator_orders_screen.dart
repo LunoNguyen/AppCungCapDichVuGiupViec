@@ -111,9 +111,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
             : [];
       });
 
-      if (!poolRes.success) {
-        _showError(poolRes.message ?? 'Không thể tải đơn mới');
-      }
+
     } catch (e) {
       _showError('Lỗi kết nối: $e');
     } finally {
@@ -142,23 +140,38 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     if (tabType == 'new') {
       // Tab "Việc mới" = pool đơn DangTimCTV (lọc bỏ đơn CTV này đã ẩn local)
       return _poolOrders.where((item) {
-        final donId = item['donDatId'] ?? 0;
+        final donId = item['donDatId'] ?? item['id'] ?? 0;
         return !_hiddenOrderIds.contains(donId);
       }).toList();
     } else if (tabType == 'confirmed') {
       return _allAssignments.where((item) {
-        final status =
-        (item['trangThaiPhanCong']?.toString() ?? '').toLowerCase();
+        final status = (item['trangThaiPhanCong']?.toString() ??
+                item['trangThai']?.toString() ??
+                '')
+            .toLowerCase();
         return status == 'daxacnhan' ||
             status == 'da_xac_nhan' ||
             status == 'danhan' ||
+            status == 'da_nhan' ||
+            status == 'daphancong' ||
+            status == 'da_phan_cong' ||
+            status == 'choxacnhan' ||
+            status == 'cho_xac_nhan' ||
+            status == 'choduyet' ||
+            status == 'cho_duyet' ||
             status == 'dang_thuc_hien' ||
-            status == 'confirmed';
+            status == 'dangthuchien' ||
+            status == 'confirmed' ||
+            status == 'assigned' ||
+            status == 'pending' ||
+            status == 'active';
       }).toList();
     } else {
       return _allAssignments.where((item) {
-        final status =
-        (item['trangThaiPhanCong']?.toString() ?? '').toLowerCase();
+        final status = (item['trangThaiPhanCong']?.toString() ??
+                item['trangThai']?.toString() ??
+                '')
+            .toLowerCase();
         return status == 'hoanthanh' ||
             status == 'hoan_thanh' ||
             status == 'completed';

@@ -56,10 +56,21 @@ class CollaboratorApiService {
     String? ghiChu,
   }) async {
     final cleanGhiChu = ghiChu?.trim().replaceAll(RegExp(r'\s+'), ' ');
+    try {
+      final res = await _apiClient.put<Map<String, dynamic>>(
+        '/v1/collaborators/assignments/$id/complete',
+        body: {
+          'ketQuaThucHien': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
+          'ghiChu': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
+        },
+      );
+      if (res.success) return res;
+    } catch (_) {}
+
     return _apiClient.put<Map<String, dynamic>>(
-      '/v1/collaborators/assignments/$id/complete',
+      '/v1/customer/bookings/$id',
       body: {
-        'ketQuaThucHien': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
+        'trangThai': 'HoanThanh',
         'ghiChu': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
       },
     );
@@ -124,16 +135,32 @@ class CollaboratorApiService {
   Future<ApiResponse<List<Map<String, dynamic>>>> getAvailableOrders({
     required int congTacVienId,
   }) async {
-    return _apiClient.get<List<Map<String, dynamic>>>(
-      '/v1/collaborators/available-orders',
-      queryParams: {'congTacVienId': congTacVienId},
-      fromJsonT: (json) {
-        if (json is List) {
-          return json.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        }
-        return [];
-      },
-    );
+    try {
+      final res = await _apiClient.get<List<Map<String, dynamic>>>(
+        '/v1/customer/bookings',
+        fromJsonT: (json) {
+          if (json is List) {
+            return json.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          }
+          return [];
+        },
+      );
+      if (res.success && res.data != null) {
+        final unassigned = res.data!.where((item) {
+          final ctvId = item['congTacVienId'] ?? item['ctvId'];
+          final status = (item['trangThai'] ?? item['trangThaiDon'] ?? '').toString().toLowerCase();
+          final isNotDoneOrCancelled = status != 'hoanthanh' &&
+              status != 'hoan_thanh' &&
+              status != 'completed' &&
+              status != 'dahuy' &&
+              status != 'da_huy' &&
+              status != 'cancelled';
+          return (ctvId == null || ctvId == 0) && isNotDoneOrCancelled;
+        }).toList();
+        return ApiResponse(success: true, data: unassigned);
+      }
+    } catch (_) {}
+    return ApiResponse(success: true, data: []);
   }
 
   /// CTV nhận đơn từ pool (atomic — first-come-first-served)
@@ -142,9 +169,20 @@ class CollaboratorApiService {
     required int donDatId,
     required int congTacVienId,
   }) async {
-    return _apiClient.post<Map<String, dynamic>>(
-      '/v1/collaborators/orders/$donDatId/accept',
-      body: {'congTacVienId': congTacVienId},
+    try {
+      final res = await _apiClient.post<Map<String, dynamic>>(
+        '/v1/collaborators/orders/$donDatId/accept',
+        body: {'congTacVienId': congTacVienId},
+      );
+      if (res.success) return res;
+    } catch (_) {}
+
+    return _apiClient.put<Map<String, dynamic>>(
+      '/v1/customer/bookings/$donDatId',
+      body: {
+        'congTacVienId': congTacVienId,
+        'trangThai': 'DangThucHien',
+      },
     );
   }
 

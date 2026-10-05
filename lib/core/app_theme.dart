@@ -8,7 +8,7 @@ class AppTheme {
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.brand500,
         primary: AppColors.brand500,
-        secondary: AppColors.green500,
+        secondary: AppColors.brand400,
         onSurface: AppColors.textPrimary,
       ),
       scaffoldBackgroundColor: AppColors.scaffoldBg,
@@ -51,7 +51,7 @@ class AppTheme {
         thumbColor: WidgetStateProperty.all(Colors.white),
         trackColor: WidgetStateProperty.resolveWith((states) =>
             states.contains(WidgetState.selected)
-                ? AppColors.green500
+                ? AppColors.brand500
                 : AppColors.textMuted),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),

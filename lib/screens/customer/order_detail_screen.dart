@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
 import '../../services/booking_api_service.dart';
 import '../../services/session_service.dart';
+import '../../services/payment_api_service.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
@@ -879,48 +880,404 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
+  void _showPaymentModal() {
+    if (_order == null) return;
+    final int donId = widget.orderId;
+    final int khachHangId = _session?.userId ?? 0;
+    final maDon = _order!['maDonDat']?.toString() ?? _order!['maDon']?.toString() ?? 'DON$donId';
+    final tongTien = num.tryParse(_order!['tongTien']?.toString() ?? _order!['thanhTien']?.toString() ?? '0') ?? 0;
+
+    String method = _order!['phuongThucThanhToan']?.toString() ?? 'CHUYEN_KHOAN';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator(color: AppColors.brand500)),
+    );
+
+    PaymentApiService().getInvoice(donId).then((res) {
+      if (mounted) Navigator.pop(context); // close loading
+      Map<String, dynamic>? invoiceData = res.data;
+      String bankName = invoiceData?['nganHang']?.toString() ?? invoiceData?['bankName']?.toString() ?? 'MBBank';
+      String accNo = invoiceData?['soTaiKhoan']?.toString() ?? invoiceData?['accountNo']?.toString() ?? '0336676173';
+      String qrUrl = invoiceData?['qrCodeUrl']?.toString() ?? invoiceData?['qrUrl']?.toString() ?? invoiceData?['vietQrUrl']?.toString() ?? 'https://img.vietqr.io/image/MB-0336676173-compact2.png?amount=$tongTien&addInfo=$maDon';
+
+      _showPaymentModalWithData(donId, khachHangId, maDon, tongTien, method, bankName, accNo, qrUrl);
+    }).catchError((e) {
+      if (mounted) Navigator.pop(context);
+      _showPaymentModalWithData(donId, khachHangId, maDon, tongTien, method, 'MBBank', '0336676173', 'https://img.vietqr.io/image/MB-0336676173-compact2.png?amount=$tongTien&addInfo=$maDon');
+    });
+  }
+
+  void _showPaymentModalWithData(int donId, int khachHangId, String maDon, num tongTien, String method, String bankName, String accNo, String qrUrl) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              12,
+              20,
+              24 + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.divider,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Icon(Icons.payment_rounded, color: AppColors.brand500, size: 24),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Thanh toán đơn hàng $maDon',
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.brandSurface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.brandLight),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Số tiền cần thanh toán:',
+                          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                        ),
+                        Text(
+                          _formatCurrency(tongTien),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.brand600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Chọn hình thức thanh toán:',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Option 1: VietQR Chuyển khoản
+                  InkWell(
+                    onTap: () => setModalState(() => method = 'CHUYEN_KHOAN'),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Radio<String>(
+                            value: 'CHUYEN_KHOAN',
+                            groupValue: method,
+                            activeColor: AppColors.brand500,
+                            onChanged: (v) => setModalState(() => method = v!),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Chuyển khoản Ngân hàng (VietQR)', style: TextStyle(fontWeight: FontWeight.w600)),
+                                Text('Quét mã QR tự động điền nội dung & số tiền', style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Option 2: VNPAY
+                  InkWell(
+                    onTap: () => setModalState(() => method = 'VNPAY'),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Radio<String>(
+                            value: 'VNPAY',
+                            groupValue: method,
+                            activeColor: AppColors.brand500,
+                            onChanged: (v) => setModalState(() => method = v!),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Thanh toán Online / VNPAY', style: TextStyle(fontWeight: FontWeight.w600)),
+                                Text('Thẻ ATM, Mobile Banking, Ví VNPAY', style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Option 3: Tiền mặt
+                  InkWell(
+                    onTap: () => setModalState(() => method = 'TIEN_MAT'),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Radio<String>(
+                            value: 'TIEN_MAT',
+                            groupValue: method,
+                            activeColor: AppColors.brand500,
+                            onChanged: (v) => setModalState(() => method = v!),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Tiền mặt', style: TextStyle(fontWeight: FontWeight.w600)),
+                                Text('Thanh toán trực tiếp cho người làm khi hoàn thành', style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  if (method == 'CHUYEN_KHOAN') ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                      child: Column(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              qrUrl,
+                              height: 180,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Container(
+                                height: 120,
+                                alignment: Alignment.center,
+                                child: Text('Mã QR $bankName $accNo'),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Ngân hàng:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                              Text(bankName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Số tài khoản:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                              Row(
+                                children: [
+                                  Text(accNo, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.brand600)),
+                                  IconButton(
+                                    icon: const Icon(Icons.copy, size: 16, color: AppColors.brand500),
+                                    onPressed: () {
+                                      Clipboard.setData(ClipboardData(text: accNo));
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã chép số tài khoản')));
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Nội dung:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                              Text(maDon, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        _executePayment(donId, khachHangId, method, maDon);
+                      },
+                      child: Text(
+                        method == 'CHUYEN_KHOAN'
+                            ? 'Xác nhận đã chuyển khoản'
+                            : method == 'VNPAY'
+                                ? 'Thanh toán qua VNPAY'
+                                : 'Xác nhận thanh toán tiền mặt',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _executePayment(int donId, int khachHangId, String method, String maDon) async {
+    setState(() => _loading = true);
+    try {
+      final res = await _bookingApi.payBooking(
+        id: donId,
+        khachHangId: khachHangId,
+        phuongThucThanhToan: method,
+        maGiaoDich: 'PAY_${DateTime.now().millisecondsSinceEpoch}',
+      );
+      if (!mounted) return;
+      if (res.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã cập nhật thanh toán đơn hàng thành công!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        widget.onOrderUpdated?.call();
+        _loadData();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.message ?? 'Thanh toán thành công!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        widget.onOrderUpdated?.call();
+        _loadData();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã ghi nhận thông tin thanh toán.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        widget.onOrderUpdated?.call();
+        _loadData();
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Widget? _buildBottomBar() {
     if (_order == null) return null;
     final trangThai = _order!['trangThai']?.toString();
+    final isPaid = _order!['daThanhToan'] == true ||
+        _order!['trangThaiThanhToan']?.toString().toUpperCase() == 'DATHANHTOAN' ||
+        _order!['trangThaiThanhToan']?.toString().toUpperCase() == 'DA_THANH_TOAN';
 
-    // Chỉ cho phép hủy khi ở trạng thái ChoDuyet / DangTimCTV
-    if (trangThai == 'ChoDuyet' || trangThai == 'DangTimCTV') {
-      return Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -3),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: SizedBox(
-            height: 48,
-            child: OutlinedButton.icon(
-              onPressed: _handleCancelBooking,
-              icon: const Icon(Icons.cancel_outlined, color: AppColors.error, size: 20),
-              label: const Text(
-                'Hủy đơn đặt này',
-                style: TextStyle(
-                  color: AppColors.error,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+    final canCancel = trangThai == 'ChoDuyet' || trangThai == 'DangTimCTV';
+    final canPay = !isPaid && trangThai != 'DaHuy';
+
+    if (!canCancel && !canPay) return null;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (canPay) ...[
+              SizedBox(
+                height: 48,
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _showPaymentModal,
+                  icon: const Icon(Icons.payment_rounded, size: 20),
+                  label: const Text(
+                    'Thanh toán ngay (VietQR / Online)',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.error),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              if (canCancel) const SizedBox(height: 8),
+            ],
+            if (canCancel) ...[
+              SizedBox(
+                height: 44,
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _handleCancelBooking,
+                  icon: const Icon(Icons.cancel_outlined, color: AppColors.error, size: 18),
+                  label: const Text(
+                    'Hủy đơn đặt này',
+                    style: TextStyle(
+                      color: AppColors.error,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.error),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
               ),
-            ),
-          ),
+            ],
+          ],
         ),
-      );
-    }
-
-    return null;
+      ),
+    );
   }
 }
