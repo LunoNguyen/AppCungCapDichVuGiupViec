@@ -438,6 +438,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 color: AppColors.brand600,
                               ),
                             ),
+                            // Gói tháng: các thứ đã chọn và lịch các buổi (máy chủ tính, xem LichGoiThang)
+                            if (_order!['lichBuoi'] is List && (_order!['lichBuoi'] as List).isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Gói ${(_order!['lichBuoi'] as List).length} buổi · ${_order!['thuTrongTuanText'] ?? ''}',
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                (_order!['lichBuoi'] as List).map((n) {
+                                  final d = DateTime.tryParse(n.toString());
+                                  return d == null ? n.toString() : '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+                                }).join(' · '),
+                                style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.4),
+                              ),
+                            ],
                           ],
                         ),
                       ),

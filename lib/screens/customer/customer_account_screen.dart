@@ -102,7 +102,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
                 ),
                 _OptionItem(
                   icon: Icons.info_outline_rounded,
-                  title: 'Giới thiệu Neatify',
+                  title: 'Giới thiệu bTaskee',
                   onTap: () => _showAboutDialog(context),
                 ),
               ]),
@@ -537,7 +537,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
           children: [
             Text('• Hotline hỗ trợ khách hàng: 1900 xxxx (8:00 - 21:00)'),
             SizedBox(height: 8),
-            Text('• Email giải đáp: hotro@neatify.vn'),
+            Text('• Email giải đáp: hotro@btaskee.vn'),
             SizedBox(height: 8),
             Text('• Đội ngũ kỹ thuật túc trực 24/7 giải quyết khiếu nại.'),
           ],
@@ -588,9 +588,9 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Giới thiệu Neatify'),
+        title: const Text('Giới thiệu bTaskee'),
         content: const Text(
-          'Neatify là nền tảng công nghệ kết nối các dịch vụ giúp việc gia đình, vệ sinh điện lạnh và chăm sóc nhà cửa chuyên nghiệp, mang đến không gian sống sạch sẽ, tiện nghi và hạnh phúc cho mọi nhà.',
+          'bTaskee là nền tảng công nghệ kết nối các dịch vụ giúp việc gia đình, vệ sinh điện lạnh và chăm sóc nhà cửa chuyên nghiệp, mang đến không gian sống sạch sẽ, tiện nghi và hạnh phúc cho mọi nhà.',
           style: TextStyle(fontSize: 13.5, height: 1.4),
         ),
         actions: [

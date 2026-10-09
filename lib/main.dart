@@ -21,7 +21,7 @@ class HousekeepingApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Ứng dụng Dịch vụ Giúp việc Neatify',
+      title: 'Ứng dụng Dịch vụ Giúp việc bTaskee',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
       // CTV đã đăng nhập -> app CTV; còn lại vào Trang chủ Khách hàng (như bTaskee)

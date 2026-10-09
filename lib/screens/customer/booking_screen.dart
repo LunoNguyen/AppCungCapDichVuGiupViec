@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../services/address_api_service.dart';
 import '../../services/booking_api_service.dart';
 import '../../services/catalog_ui.dart';
+import '../../services/lich_goi_thang.dart';
 import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
 import 'address_book_screen.dart';
@@ -44,6 +45,18 @@ class _BookingScreenState extends State<BookingScreen> {
   bool _submitting = false;
 
   bool get _promoApplied => _appliedCode != null;
+
+  // Gói tháng: khách chọn các thứ trong tuần (DateTime.weekday 1..7), lịch đủ số buổi trong 1 tháng
+  Set<int> _thuGoi = {2, 4, 6, 7}; // mặc định T3, T5, T7, CN
+  int _soBuoiGoi = 4;
+
+  bool get _laGoiThang =>
+      (_plan?['loaiHinhDat'] ?? widget.service['loaiHinhDat'])?.toString() == 'GoiThang';
+
+  List<DateTime> get _lichGoi =>
+      LichGoiThang.tinhLich(_selectedDate ?? DateTime.now(), _thuGoi, _soBuoiGoi);
+
+  String? get _loiLichGoi => LichGoiThang.loiThieu(_lichGoi, _soBuoiGoi, _thuGoi);
 
   static const _stepTitles = ['Chọn gói', 'Chọn thời gian', 'Xác nhận'];
   static const _weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -152,6 +165,8 @@ class _BookingScreenState extends State<BookingScreen> {
       setState(() {
         _plans = plans;
         _selectedPlan = 0;
+        _soBuoiGoi = LichGoiThang.soBuoi(dv['soBuoiGoi'] ?? dv['soBuoi'],
+            dv['tenDichVu']?.toString() ?? _serviceTitle);
       });
       _recalc();
     } catch (e) {
@@ -505,7 +520,7 @@ class _BookingScreenState extends State<BookingScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       children: [
         _block(
-          'Ngày làm việc',
+          _laGoiThang ? 'Ngày bắt đầu gói' : 'Ngày làm việc',
           SizedBox(
             height: 72,
             child: ListView.separated(
@@ -594,6 +609,10 @@ class _BookingScreenState extends State<BookingScreen> {
             }).toList(),
           ),
         ),
+        if (_laGoiThang) ...[
+          const SizedBox(height: 10),
+          _block('Các thứ trong tuần', _buildThuGoi()),
+        ],
         const SizedBox(height: 10),
         _block(
           'Địa điểm làm việc',
@@ -653,6 +672,94 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+  /// Chọn thứ cho gói tháng: mẫu chọn nhanh, 7 nút thứ, xem trước lịch đủ số buổi.
+  Widget _buildThuGoi() {
+    final lich = _lichGoi;
+    final loi = _loiLichGoi;
+    String dm(DateTime d) =>
+        '${LichGoiThang.nhanThu[d.weekday - 1]} ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Chọn thứ để đủ $_soBuoiGoi buổi trong vòng 1 tháng kể từ ngày bắt đầu.',
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final e in LichGoiThang.mau.entries)
+              ActionChip(
+                label: Text(e.key, style: const TextStyle(fontSize: 12.5)),
+                onPressed: () => setState(() => _thuGoi = {...e.value}),
+                side: BorderSide(
+                    color: _thuGoi.length == e.value.length && _thuGoi.containsAll(e.value)
+                        ? AppColors.brand500
+                        : AppColors.divider),
+                backgroundColor: Colors.white,
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            for (int w = 1; w <= 7; w++)
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: w < 7 ? 6 : 0),
+                  child: GestureDetector(
+                    onTap: () => setState(() {
+                      final moi = {..._thuGoi};
+                      moi.contains(w) ? moi.remove(w) : moi.add(w);
+                      _thuGoi = moi;
+                    }),
+                    child: Container(
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _thuGoi.contains(w) ? AppColors.brand500 : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: _thuGoi.contains(w) ? AppColors.brand500 : AppColors.divider),
+                      ),
+                      child: Text(
+                        LichGoiThang.nhanThu[w - 1],
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: _thuGoi.contains(w) ? Colors.white : AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: loi == null ? AppColors.greenLight : AppColors.orangeLight,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: loi != null
+              ? Text(loi, style: const TextStyle(fontSize: 13, color: AppColors.orange600, height: 1.4))
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$_soBuoiGoi buổi, từ ${dm(lich.first)} đến ${dm(lich.last)}',
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.green600)),
+                    const SizedBox(height: 4),
+                    Text(lich.map(dm).join(' · '),
+                        style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.4)),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
   // ===================== BƯỚC 3: XÁC NHẬN =====================
 
   Widget _buildStep3() {
@@ -689,8 +796,12 @@ class _BookingScreenState extends State<BookingScreen> {
             children: [
               _summaryRow('Dịch vụ', _serviceTitle),
               _summaryRow('Gói', plan['label'] as String),
-              _summaryRow('Ngày làm',
-                  _selectedDate == null ? '—' : _fmtDate(_selectedDate!)),
+              if (_laGoiThang && _loiLichGoi == null) ...[
+                _summaryRow('Thứ trong tuần', LichGoiThang.nhan(_thuGoi)),
+                _summaryRow('Lịch', '$_soBuoiGoi buổi, ${_fmtDate(_lichGoi.first)} → ${_fmtDate(_lichGoi.last)}'),
+              ] else
+                _summaryRow('Ngày làm',
+                    _selectedDate == null ? '—' : _fmtDate(_selectedDate!)),
               _summaryRow('Giờ bắt đầu',
                   _selectedTime == null ? '—' : _fmtTime(_selectedTime!)),
               if (_noteController.text.trim().isNotEmpty)
@@ -892,6 +1003,13 @@ class _BookingScreenState extends State<BookingScreen> {
       );
       return;
     }
+    if (_step == 1 && _laGoiThang && _loiLichGoi != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(_loiLichGoi!),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
     if (_step < 2) {
       setState(() => _step++);
     } else {
@@ -905,7 +1023,8 @@ class _BookingScreenState extends State<BookingScreen> {
     if (plan == null || _session == null || !_session!.isCustomer) return;
     setState(() => _submitting = true);
     try {
-      final d = _selectedDate!;
+      // Gói tháng: ngày thực hiện là buổi đầu tiên trong lịch
+      final d = _laGoiThang && _lichGoi.isNotEmpty ? _lichGoi.first : _selectedDate!;
       final startTime = _selectedTime!;
       final durationMinutes = CatalogUi.toInt(widget.service['thoiGianThucHienPhut'] ?? widget.service['thoiGianThucHien'] ?? 120);
       final durationHours = (durationMinutes / 60).ceil();
@@ -934,6 +1053,7 @@ class _BookingScreenState extends State<BookingScreen> {
         diaChi: _diaChi?.diaChiChiTiet,
         khuVucId: _diaChi?.khuVucId,
         loaiHinhDat: plan['loaiHinhDat'] as String? ?? 'TheoLan',
+        ngayThucHienTrongTuan: _laGoiThang ? LichGoiThang.maThu(_thuGoi) : null,
         yeuCauDacBiet: _noteController.text.trim().isEmpty
             ? null
             : _noteController.text.trim(),

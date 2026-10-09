@@ -553,7 +553,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
-                'assets/images/Logo.png',
+                'assets/images/icon_btaskee.png',
                 fit: BoxFit.contain,
               ),
             ),
@@ -806,7 +806,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ],
                 ),
                 child: Image.asset(
-                  'assets/images/Logo.png',
+                  'assets/images/icon_partner.png',
                   fit: BoxFit.contain,
                 ),
               ),
@@ -816,7 +816,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Trở thành Đối tác Neatify',
+                      'Trở thành Đối tác bTaskee',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

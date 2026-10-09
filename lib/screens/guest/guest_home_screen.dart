@@ -159,7 +159,7 @@ class _GuestHomeScreenState extends State<GuestHomeScreen> {
           child: Row(
             children: [
               Image.asset(
-                'assets/images/Logo.png',
+                'assets/images/icon_btaskee.png',
                 height: 40,
                 errorBuilder: (_, __, ___) => const Icon(
                   Icons.home_repair_service,

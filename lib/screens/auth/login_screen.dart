@@ -471,7 +471,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Tiêu đề Khách hàng (Image 1: bTaskee / Neatify style với màu chủ đạo)
+  /// Tiêu đề Khách hàng (Image 1: bTaskee style với màu chủ đạo)
   Widget _buildCustomerHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -496,14 +496,14 @@ class _LoginScreenState extends State<LoginScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: Image.asset(
-                'assets/images/Logo.png',
+                'assets/images/icon_btaskee.png',
                 fit: BoxFit.contain,
               ),
             ),
           ),
         ),
         Text(
-          'Chào mừng đến với Neatify',
+          'Chào mừng đến với bTaskee',
           style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.w800,
@@ -523,7 +523,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Tiêu đề Cộng tác viên (Image 4: Logo bTaskee / Neatify Dành cho Tasker với màu vàng chanh)
+  /// Tiêu đề Cộng tác viên (Image 4: Logo bTaskee Dành cho Tasker với màu vàng chanh)
   Widget _buildCollaboratorHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -582,7 +582,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         const SizedBox(height: 20),
 
-        // Ảnh Logo Neatify của bạn (thay thế emoji / placeholder icon)
+        // Ảnh Logo bTaskee của bạn (thay thế emoji / placeholder icon)
         Container(
           width: 88,
           height: 88,
@@ -602,14 +602,14 @@ class _LoginScreenState extends State<LoginScreen> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Image.asset(
-              'assets/images/Logo.png',
+              'assets/images/icon_partner.png',
               fit: BoxFit.contain,
             ),
           ),
         ),
         const SizedBox(height: 12),
         const Text(
-          'Neatify Tasker',
+          'bTaskee Partner',
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w900,

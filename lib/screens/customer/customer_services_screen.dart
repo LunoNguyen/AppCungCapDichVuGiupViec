@@ -6,17 +6,26 @@ import '../../services/catalog_ui.dart';
 import '../../services/service_catalog_api_service.dart';
 import 'service_detail_screen.dart';
 
-/// Danh sách dịch vụ lấy từ API (GET /v1/services), lọc theo loại dịch vụ và từ khoá.
+/// Tìm dịch vụ (GET /v1/services) theo nhiều tiêu chí: từ khoá (không dấu cũng được), nhóm dịch vụ,
+/// hình thức (theo lần / gói tháng), khoảng giá, sắp xếp theo giá. Không cần đăng nhập để xem.
 class CustomerServicesScreen extends StatefulWidget {
   final ValueChanged<int>? onSwitchTab;
   final int? loaiDichVuId; // mở sẵn theo một loại (từ lưới dịch vụ ở trang chủ)
   final String? tenLoai;
+  final bool autofocus; // mở từ thanh tìm kiếm ở trang chủ: bàn phím bật sẵn
+  final String? loaiHinhDat; // mở sẵn theo hình thức (TheoLan | GoiThang)
+  final int? giaDen; // mở sẵn theo khoảng giá (đến bao nhiêu)
+  final String? tuKhoa;
 
   const CustomerServicesScreen({
     super.key,
     this.onSwitchTab,
     this.loaiDichVuId,
     this.tenLoai,
+    this.autofocus = false,
+    this.loaiHinhDat,
+    this.giaDen,
+    this.tuKhoa,
   });
 
   @override
@@ -34,10 +43,32 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
   bool _loading = true;
   String? _error;
 
+  // Bộ lọc thêm
+  String? _loaiHinh; // null = tất cả
+  int _khoangGia = 0; // chỉ số trong _khoangGias
+  String _sapXep = 'phu-hop';
+
+  static const _khoangGias = <(String, double?, double?)>[
+    ('Mọi mức giá', null, null),
+    ('Dưới 300.000đ', null, 300000),
+    ('300.000đ – 700.000đ', 300000, 700000),
+    ('700.000đ – 2.000.000đ', 700000, 2000000),
+    ('Trên 2.000.000đ', 2000000, null),
+  ];
+
+  int get _soLocDangBat =>
+      (_khoangGia != 0 ? 1 : 0) + (_sapXep != 'phu-hop' ? 1 : 0);
+
   @override
   void initState() {
     super.initState();
     _loaiId = widget.loaiDichVuId;
+    _loaiHinh = widget.loaiHinhDat;
+    if (widget.tuKhoa != null) _searchCtrl.text = widget.tuKhoa!;
+    if (widget.giaDen != null) {
+      final i = _khoangGias.indexWhere((k) => k.$3 == widget.giaDen);
+      if (i > 0) _khoangGia = i;
+    }
     _loadTypes();
     _loadServices();
   }
@@ -71,11 +102,19 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
       final res = await _api.getServices(
         loaiDichVuId: _loaiId,
         tuKhoa: _searchCtrl.text.trim(),
+        loaiHinhDat: _loaiHinh,
+        minPrice: _khoangGias[_khoangGia].$2,
+        maxPrice: _khoangGias[_khoangGia].$3,
       );
       if (!mounted) return;
       setState(() {
         if (res.success) {
           _services = (res.data ?? []).map(CatalogUi.fromService).toList();
+          if (_sapXep == 'gia-tang') {
+            _services.sort((a, b) => (a['donGia'] as num).compareTo(b['donGia'] as num));
+          } else if (_sapXep == 'gia-giam') {
+            _services.sort((a, b) => (b['donGia'] as num).compareTo(a['donGia'] as num));
+          }
         } else {
           _error = res.message ?? 'Không tải được danh sách dịch vụ';
         }
@@ -122,11 +161,12 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(
               controller: _searchCtrl,
+              autofocus: widget.autofocus,
               onChanged: _onSearchChanged,
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _loadServices(),
               decoration: InputDecoration(
-                hintText: 'Tìm dịch vụ...',
+                hintText: 'Bạn cần gì? Ví dụ: dọn nhà, máy lạnh, sofa',
                 prefixIcon: const Icon(Icons.search_rounded),
                 isDense: true,
                 suffixIcon: _searchCtrl.text.isEmpty
@@ -156,11 +196,114 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
                 ],
               ),
             ),
+          // Hàng lọc: hình thức + nút bộ lọc (giá, sắp xếp) + số kết quả
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(children: [
+                      _chip('Mọi hình thức', _loaiHinh == null, () => _chonLoaiHinh(null)),
+                      _chip('Theo lần', _loaiHinh == 'TheoLan', () => _chonLoaiHinh('TheoLan')),
+                      _chip('Gói tháng', _loaiHinh == 'GoiThang', () => _chonLoaiHinh('GoiThang')),
+                    ]),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _moBoLoc,
+                  icon: const Icon(Icons.tune_rounded, size: 18),
+                  label: Text(_soLocDangBat > 0 ? 'Lọc ($_soLocDangBat)' : 'Lọc'),
+                ),
+              ],
+            ),
+          ),
           const Divider(height: 1),
+          if (!_loading && _error == null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('${_services.length} dịch vụ',
+                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+              ),
+            ),
           Expanded(child: _buildList()),
         ],
       ),
     );
+  }
+
+  void _chonLoaiHinh(String? loai) {
+    if (_loaiHinh == loai) return;
+    setState(() => _loaiHinh = loai);
+    _loadServices();
+  }
+
+  /// Bảng lọc: khoảng giá và sắp xếp.
+  Future<void> _moBoLoc() async {
+    int gia = _khoangGia;
+    String sapXep = _sapXep;
+    final apDung = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Khoảng giá', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (int i = 0; i < _khoangGias.length; i++)
+                    _chip(_khoangGias[i].$1, gia == i, () => setSheet(() => gia = i)),
+                ]),
+                const SizedBox(height: 16),
+                const Text('Sắp xếp', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  _chip('Phù hợp nhất', sapXep == 'phu-hop', () => setSheet(() => sapXep = 'phu-hop')),
+                  _chip('Giá thấp đến cao', sapXep == 'gia-tang', () => setSheet(() => sapXep = 'gia-tang')),
+                  _chip('Giá cao đến thấp', sapXep == 'gia-giam', () => setSheet(() => sapXep = 'gia-giam')),
+                ]),
+                const SizedBox(height: 20),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => setSheet(() {
+                        gia = 0;
+                        sapXep = 'phu-hop';
+                      }),
+                      child: const Text('Đặt lại'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Áp dụng'),
+                    ),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (apDung == true && mounted) {
+      setState(() {
+        _khoangGia = gia;
+        _sapXep = sapXep;
+      });
+      _loadServices();
+    }
   }
 
   Widget _chip(String label, bool selected, VoidCallback onTap) {
@@ -200,9 +343,35 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
       );
     }
     if (_services.isEmpty) {
-      return const Center(
-        child: Text('Không có dịch vụ phù hợp',
-            style: TextStyle(color: AppColors.textSecondary)),
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.search_off_rounded, size: 40, color: AppColors.textMuted),
+              const SizedBox(height: 8),
+              const Text('Không có dịch vụ khớp',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              const SizedBox(height: 4),
+              const Text('Thử từ khoá ngắn hơn hoặc bỏ bớt bộ lọc.',
+                  textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary)),
+              TextButton(
+                onPressed: () {
+                  _searchCtrl.clear();
+                  setState(() {
+                    _loaiId = null;
+                    _loaiHinh = null;
+                    _khoangGia = 0;
+                    _sapXep = 'phu-hop';
+                  });
+                  _loadServices();
+                },
+                child: const Text('Xoá bộ lọc'),
+              ),
+            ],
+          ),
+        ),
       );
     }
     return RefreshIndicator(

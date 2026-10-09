@@ -2,13 +2,19 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
 class AppTheme {
-  static ThemeData get theme {
+  /// Theme app Khách hàng (cam bTaskee).
+  static ThemeData get theme => _build(AppColors.brand500, AppColors.brand400);
+
+  /// Theme app Cộng tác viên (tím chàm bTaskee Partner).
+  static ThemeData get partnerTheme => _build(AppColors.partner500, AppColors.partner400);
+
+  static ThemeData _build(Color primary, Color secondary) {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.brand500,
-        primary: AppColors.brand500,
-        secondary: AppColors.brand400,
+        seedColor: primary,
+        primary: primary,
+        secondary: secondary,
         onSurface: AppColors.textPrimary,
       ),
       scaffoldBackgroundColor: AppColors.scaffoldBg,
@@ -26,9 +32,9 @@ class AppTheme {
         ),
         iconTheme: IconThemeData(color: AppColors.textPrimary),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: AppColors.white,
-        selectedItemColor: AppColors.brand500,
+        selectedItemColor: primary,
         unselectedItemColor: AppColors.textSecondary,
         selectedLabelStyle: TextStyle(
           fontWeight: FontWeight.w600,
@@ -41,17 +47,17 @@ class AppTheme {
         type: BottomNavigationBarType.fixed,
         elevation: 8,
       ),
-      tabBarTheme: const TabBarThemeData(
-        labelColor: AppColors.brand500,
+      tabBarTheme: TabBarThemeData(
+        labelColor: primary,
         unselectedLabelColor: AppColors.textSecondary,
-        indicatorColor: AppColors.brand500,
+        indicatorColor: primary,
         dividerColor: AppColors.divider,
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.all(Colors.white),
         trackColor: WidgetStateProperty.resolveWith((states) =>
             states.contains(WidgetState.selected)
-                ? AppColors.brand500
+                ? primary
                 : AppColors.textMuted),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
@@ -66,7 +72,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.brand500,
+          backgroundColor: primary,
           foregroundColor: AppColors.white,
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -81,8 +87,8 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.brand500,
-          side: const BorderSide(color: AppColors.brand500),
+          foregroundColor: primary,
+          side: BorderSide(color: primary),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
@@ -96,15 +102,15 @@ class AppTheme {
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.divider),
+          borderSide: BorderSide(color: AppColors.divider),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.divider),
+          borderSide: BorderSide(color: AppColors.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.brand500, width: 2),
+          borderSide: BorderSide(color: primary, width: 2),
         ),
         labelStyle: const TextStyle(color: AppColors.textSecondary),
       ),

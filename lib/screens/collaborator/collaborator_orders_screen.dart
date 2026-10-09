@@ -31,7 +31,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
 
   // Màu theo phong cách bTaskee Partner
   static const _primary = AppColors.partner500;
-  static const _money = AppColors.brand500;
+  static const _money = AppColors.ctvMoney;
   static const _ink = AppColors.textPrimary;
 
   // Cặp màu avatar: [nền, chữ]

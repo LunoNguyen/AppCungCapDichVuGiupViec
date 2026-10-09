@@ -130,7 +130,7 @@ class _CollaboratorNotificationsScreenState
       }
     }
 
-    final String nguoiGui = n['nguoiGui']?.toString() ?? 'Hệ thống Neatify';
+    final String nguoiGui = n['nguoiGui']?.toString() ?? 'Hệ thống bTaskee';
 
     showModalBottomSheet(
       context: context,

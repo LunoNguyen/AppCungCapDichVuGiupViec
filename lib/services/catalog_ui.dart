@@ -89,6 +89,8 @@ class CatalogUi {
       'title': ten,
       'subtitle': [
         if (tenLoai.isNotEmpty) tenLoai,
+        if (j['loaiHinhDat'] == 'GoiThang')
+          'Gói tháng${j['soBuoiGoi'] != null ? ' ${j['soBuoiGoi']} buổi' : ''}',
         if (phut > 0) phut % 60 == 0 ? '${phut ~/ 60} giờ' : '$phut phút',
       ].join(' • '),
       'price': _num(gia) > 0

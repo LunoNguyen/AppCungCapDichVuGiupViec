@@ -68,7 +68,7 @@ class _CustomerNotificationScreenState
             'loai': raw['loai']?.toString() ?? 'heThong',
             'tieuDe': raw['tieuDe']?.toString() ?? '',
             'noiDung': raw['noiDung']?.toString() ?? '',
-            'nguoiGui': raw['nguoiGui']?.toString() ?? 'Hệ thống Neatify',
+            'nguoiGui': raw['nguoiGui']?.toString() ?? 'Hệ thống bTaskee',
             'thoiGian': thoiGian,
             'daDoc': raw['daDoc'] == true,
           });
@@ -172,7 +172,7 @@ class _CustomerNotificationScreenState
     _markRead(n);
     final String tieuDe = n['tieuDe']?.toString() ?? '';
     final String noiDung = n['noiDung']?.toString() ?? '';
-    final String nguoiGui = n['nguoiGui']?.toString() ?? 'Hệ thống Neatify';
+    final String nguoiGui = n['nguoiGui']?.toString() ?? 'Hệ thống bTaskee';
     final style = _typeStyle(n['loai']?.toString() ?? '', tieuDe);
     final DateTime thoiGian = n['thoiGian'] as DateTime? ?? DateTime.now();
     final String formattedFullTime =
@@ -428,7 +428,7 @@ class _CustomerNotificationScreenState
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Đăng nhập để nhận thông báo về tiến độ đơn hàng, mã giảm giá và ưu đãi mới nhất từ Neatify.',
+                  'Đăng nhập để nhận thông báo về tiến độ đơn hàng, mã giảm giá và ưu đãi mới nhất từ bTaskee.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,

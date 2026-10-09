@@ -35,8 +35,8 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
 
   // Màu theo phong cách bTaskee Partner (xanh lá chủ đạo, cam cho tiền)
   static const _headerTop = AppColors.partner500;
-  static const _headerBottom = AppColors.partner500;
-  static const _coral = AppColors.brand500;
+  static const _headerBottom = AppColors.partner800;
+  static const _coral = AppColors.ctvMoney;
   static const _ink = AppColors.textPrimary;
 
   @override
@@ -255,7 +255,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                       _buildLogoutButton(),
                       const SizedBox(height: 12),
                       const Text(
-                        'Neatify • Phiên bản 1.0.0',
+                        'bTaskee • Phiên bản 1.0.0',
                         style: TextStyle(
                             fontSize: 11, color: AppColors.textSecondary),
                       ),
@@ -497,7 +497,7 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.brand500, AppColors.brand400],
+          colors: [AppColors.partner500, AppColors.partner400],
         ),
         boxShadow: [
           BoxShadow(

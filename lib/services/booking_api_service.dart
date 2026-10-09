@@ -94,6 +94,7 @@ class BookingApiService {
         if (yeuCauDacBiet != null) 'yeuCauDacBiet': yeuCauDacBiet,
         if (ghiChu != null) 'ghiChu': ghiChu,
         if (maKhuyenMai != null) 'maKhuyenMai': maKhuyenMai,
+        if (maKhuyenMai != null) 'codeKhuyenMai': maKhuyenMai,
         if (congTacVienId != null) 'congTacVienId': congTacVienId,
         if (soGio != null) 'soGio': soGio,
         'phuongThucThanhToan': phuongThucThanhToan,

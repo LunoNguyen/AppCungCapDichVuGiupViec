@@ -162,6 +162,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ],
               ),
               const SizedBox(height: 12),
+              _buildSearchBar(),
+              const SizedBox(height: 12),
               _buildServicesSection(),
               const SizedBox(height: 12),
               if (_promoBanners.isNotEmpty) ...[
@@ -179,6 +181,90 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         ),
         ),
       ),
+    );
+  }
+
+  // ===================== TÌM DỊCH VỤ =====================
+
+  /// Thanh tìm kiếm: chạm vào mở màn tìm dịch vụ (từ khoá, nhóm, hình thức, giá, sắp xếp).
+  Widget _buildSearchBar() {
+    void mo({String? loaiHinh, int? giaDen, String? tuKhoa, bool focus = false}) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CustomerServicesScreen(
+            autofocus: focus,
+            loaiHinhDat: loaiHinh,
+            giaDen: giaDen,
+            tuKhoa: tuKhoa,
+          ),
+        ),
+      );
+    }
+
+    Widget goiY(String nhan, VoidCallback onTap) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ActionChip(
+            label: Text(nhan, style: const TextStyle(fontSize: 12.5)),
+            onPressed: onTap,
+            backgroundColor: Colors.white,
+            side: const BorderSide(color: AppColors.divider),
+          ),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => mo(focus: true),
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.search_rounded, color: AppColors.textSecondary),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Bạn cần gì? Ví dụ: dọn nhà, máy lạnh',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+                      ),
+                    ),
+                    Icon(Icons.tune_rounded, color: AppColors.textSecondary, size: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              goiY('Gói tháng', () => mo(loaiHinh: 'GoiThang')),
+              goiY('Dưới 300.000đ', () => mo(giaDen: 300000)),
+              goiY('Máy lạnh', () => mo(tuKhoa: 'máy lạnh')),
+              goiY('Sofa', () => mo(tuKhoa: 'sofa')),
+              goiY('Người cao tuổi', () => mo(tuKhoa: 'cao tuổi')),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -755,7 +841,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle('Vì sao chọn Neatify?', null, null),
+          _sectionTitle('Vì sao chọn bTaskee?', null, null),
           const SizedBox(height: 14),
           Row(
             children: trustItems.map((item) {
@@ -849,7 +935,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 child: Icon(Icons.email_outlined, color: AppColors.brand500),
               ),
               title: const Text('Email phản hồi'),
-              subtitle: const Text('hotro@neatify.vn'),
+              subtitle: const Text('hotro@btaskee.vn'),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.pop(ctx),
             ),

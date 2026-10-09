@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/app_theme.dart';
 import '../../services/ctv_location_tracker.dart';
 import '../../services/session_service.dart';
 import 'collaborator_orders_screen.dart';
@@ -67,7 +68,10 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // App CTV dùng tông tím chàm (bTaskee Partner), khác tông cam của app khách
+    return Theme(
+      data: AppTheme.partnerTheme,
+      child: Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
@@ -121,6 +125,7 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
           ],
         ),
       ),
+    ),
     );
   }
 }
