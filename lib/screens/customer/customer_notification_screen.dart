@@ -10,10 +10,10 @@ class CustomerNotificationScreen extends StatefulWidget {
 
   @override
   State<CustomerNotificationScreen> createState() =>
-      _CustomerNotificationScreenState();
+      CustomerNotificationScreenState();
 }
 
-class _CustomerNotificationScreenState
+class CustomerNotificationScreenState
     extends State<CustomerNotificationScreen> {
   final NotificationApiService _apiService = NotificationApiService();
   bool _isLoading = true;
@@ -21,6 +21,10 @@ class _CustomerNotificationScreenState
   int _currentTaiKhoanId = 0;
   bool _onlyUnread = false;
   List<Map<String, dynamic>> _items = [];
+
+  void refresh() {
+    _init();
+  }
 
   @override
   void initState() {
@@ -62,6 +66,9 @@ class _CustomerNotificationScreenState
             thoiGian = DateTime.tryParse(raw['thoiGianGui'].toString()) ??
                 DateTime.now();
           }
+          final bool daDoc = raw['daDoc'] == true ||
+              raw['daDoc'] == 1 ||
+              raw['daDoc']?.toString().toLowerCase() == 'true';
           loaded.add({
             'id': raw['id'],
             'thongBaoId': raw['thongBaoId'],
@@ -70,7 +77,7 @@ class _CustomerNotificationScreenState
             'noiDung': raw['noiDung']?.toString() ?? '',
             'nguoiGui': raw['nguoiGui']?.toString() ?? 'Hệ thống bTaskee',
             'thoiGian': thoiGian,
-            'daDoc': raw['daDoc'] == true,
+            'daDoc': daDoc,
           });
         }
         if (mounted) {

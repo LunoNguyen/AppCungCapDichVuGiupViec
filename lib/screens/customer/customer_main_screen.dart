@@ -17,6 +17,7 @@ class CustomerMainScreen extends StatefulWidget {
 
 class _CustomerMainScreenState extends State<CustomerMainScreen> {
   late int _currentIndex;
+  final GlobalKey<CustomerNotificationScreenState> _notifKey = GlobalKey();
 
   @override
   void initState() {
@@ -25,6 +26,9 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
   }
 
   void _switchTab(int index) {
+    if (index == 2) {
+      _notifKey.currentState?.refresh();
+    }
     setState(() {
       _currentIndex = index;
     });
@@ -35,7 +39,7 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
     final screens = [
       CustomerHomeScreen(onSwitchTab: _switchTab),
       BookingHistoryScreen(onSwitchTab: _switchTab),
-      const CustomerNotificationScreen(),
+      CustomerNotificationScreen(key: _notifKey),
       const CustomerAccountScreen(),
     ];
 

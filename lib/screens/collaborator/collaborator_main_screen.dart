@@ -21,18 +21,19 @@ class CollaboratorMainScreen extends StatefulWidget {
 class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
     with WidgetsBindingObserver {
   late int _currentIndex;
-
-  final List<Widget> _screens = const [
-    CollaboratorOrdersScreen(),
-    CollaboratorScheduleScreen(),
-    CollaboratorNotificationsScreen(),
-    CollaboratorAccountScreen(),
-  ];
+  final GlobalKey<CollaboratorNotificationsScreenState> _notifKey = GlobalKey();
+  late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _screens = [
+      const CollaboratorOrdersScreen(),
+      const CollaboratorScheduleScreen(),
+      CollaboratorNotificationsScreen(key: _notifKey),
+      const CollaboratorAccountScreen(),
+    ];
     WidgetsBinding.instance.addObserver(this);
     _batDauGuiViTri();
   }
@@ -84,6 +85,9 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: (index) {
+            if (index == 2) {
+              _notifKey.currentState?.refresh();
+            }
             setState(() {
               _currentIndex = index;
             });
