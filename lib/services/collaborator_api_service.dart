@@ -50,6 +50,13 @@ class CollaboratorApiService {
     );
   }
 
+  /// CTV bắt đầu thực hiện đơn
+  Future<ApiResponse<Map<String, dynamic>>> startAssignment(int phanCongId) async {
+    return _apiClient.put<Map<String, dynamic>>(
+      '/v1/collaborators/assignments/$phanCongId/start',
+    );
+  }
+
   /// CTV từ chối đơn
   Future<ApiResponse<Map<String, dynamic>>> rejectAssignment({
     required int id,
@@ -155,7 +162,8 @@ class CollaboratorApiService {
   }) async {
     try {
       final res = await _apiClient.get<List<Map<String, dynamic>>>(
-        '/v1/customer/bookings',
+        '/v1/collaborators/available-orders',
+        queryParams: {'congTacVienId': congTacVienId},
         fromJsonT: (json) {
           if (json is List) {
             return json.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -164,18 +172,7 @@ class CollaboratorApiService {
         },
       );
       if (res.success && res.data != null) {
-        final unassigned = res.data!.where((item) {
-          final ctvId = item['congTacVienId'] ?? item['ctvId'];
-          final status = (item['trangThai'] ?? item['trangThaiDon'] ?? '').toString().toLowerCase();
-          final isNotDoneOrCancelled = status != 'hoanthanh' &&
-              status != 'hoan_thanh' &&
-              status != 'completed' &&
-              status != 'dahuy' &&
-              status != 'da_huy' &&
-              status != 'cancelled';
-          return (ctvId == null || ctvId == 0) && isNotDoneOrCancelled;
-        }).toList();
-        return ApiResponse(success: true, data: unassigned);
+        return res;
       }
     } catch (_) {}
     return ApiResponse(success: true, data: []);

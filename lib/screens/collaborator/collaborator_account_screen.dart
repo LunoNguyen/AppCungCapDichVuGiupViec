@@ -100,7 +100,11 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
         int count = 0;
         num income = 0;
         for (final a in res.data!) {
-          final st = (a['trangThaiPhanCong']?.toString() ?? '').toLowerCase();
+          final st = (a['trangThai']?.toString() ??
+                  a['trangThaiDon']?.toString() ??
+                  a['trangThaiPhanCong']?.toString() ??
+                  '')
+              .toLowerCase();
           if (st == 'hoanthanh' || st == 'hoan_thanh' || st == 'completed') {
             count++;
             income += num.tryParse(a['thanhTien']?.toString() ?? '') ?? 0;

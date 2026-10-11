@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
 import '../../services/collaborator_api_service.dart';
 import '../../services/location_service.dart';
@@ -10,11 +12,12 @@ class CollaboratorOrdersScreen extends StatefulWidget {
 
   @override
   State<CollaboratorOrdersScreen> createState() =>
-      _CollaboratorOrdersScreenState();
+      CollaboratorOrdersScreenState();
 }
 
-class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
+class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     with SingleTickerProviderStateMixin {
+  void reload() => _fetchAllData();
   late TabController _tabController;
   final CollaboratorApiService _apiService = CollaboratorApiService();
 
@@ -26,8 +29,9 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
   List<Map<String, dynamic>> _allAssignments = [];
   // Các đơn CTV đã bấm bỏ qua/từ chối (lưu local)
   Set<int> _hiddenOrderIds = {};
-  double? _myLat; // vị trí GPS hiện tại của CTV, để tính khoảng cách tới nơi làm
-  double? _myLng;
+
+  // Bộ lọc theo khoảng ngày cho tab "Đã xong"
+  DateTimeRange? _completedDateRange;
 
   // Màu theo phong cách bTaskee Partner
   static const _primary = AppColors.partner500;
@@ -46,7 +50,8 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    // 4 Tab: Mới (0), Chờ làm (1), Đang làm (2), Đã xong (3)
+    _tabController = TabController(length: 4, vsync: this);
     _loadUserAndFetchData();
 
     _tabController.addListener(() {
@@ -73,27 +78,16 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     }
     final hiddenList = prefs.getStringList('hidden_orders_$_currentUserId') ?? [];
     _hiddenOrderIds = hiddenList.map((e) => int.tryParse(e) ?? 0).toSet();
-    _layViTri();
     await _fetchAllData();
   }
 
-  Future<void> _layViTri() async {
-    final r = await LocationService.getCurrentPosition();
-    if (!mounted || !r.ok) return;
-    setState(() {
-      _myLat = r.position!.latitude;
-      _myLng = r.position!.longitude;
-    });
-  }
-
   /// Tải cả 2 nguồn dữ liệu:
-  /// 1. Pool đơn chung (DangTimCTV) — tab "Việc mới"
-  /// 2. Đơn CTV đã nhận (PhanCongCTV của CTV này) — tab "Đã nhận" và "Hoàn thành"
+  /// 1. Pool đơn chung (DangTimCTV) — tab "Mới"
+  /// 2. Đơn CTV đã nhận (PhanCongCTV của CTV này) — tab "Chờ làm", "Đang làm", "Đã xong"
   Future<void> _fetchAllData() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      // Gọi song song
       final results = await Future.wait([
         _apiService.getAvailableOrders(congTacVienId: _currentUserId),
         _apiService.getAssignments(congTacVienId: _currentUserId),
@@ -110,8 +104,6 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
             ? List<Map<String, dynamic>>.from(assignRes.data!)
             : [];
       });
-
-
     } catch (e) {
       _showError('Lỗi kết nối: $e');
     } finally {
@@ -119,7 +111,6 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     }
   }
 
-  /// Chỉ refresh pool (sau khi nhận/từ chối đơn)
   Future<void> _refreshPool() async {
     try {
       final res = await _apiService.getAvailableOrders(congTacVienId: _currentUserId);
@@ -138,43 +129,99 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
 
   List<Map<String, dynamic>> _getFilteredList(String tabType) {
     if (tabType == 'new') {
-      // Tab "Việc mới" = pool đơn DangTimCTV (lọc bỏ đơn CTV này đã ẩn local)
+      // Tab "Mới" = pool đơn DangTimCTV
       return _poolOrders.where((item) {
         final donId = item['donDatId'] ?? item['id'] ?? 0;
         return !_hiddenOrderIds.contains(donId);
       }).toList();
-    } else if (tabType == 'confirmed') {
+    } else if (tabType == 'waiting') {
+      // Tab "Chờ làm": Đã nhận nhưng CHƯA bắt đầu làm
       return _allAssignments.where((item) {
-        final status = (item['trangThaiPhanCong']?.toString() ??
+        final donStatus = (item['trangThaiDon']?.toString() ??
                 item['trangThai']?.toString() ??
                 '')
             .toLowerCase();
-        return status == 'daxacnhan' ||
-            status == 'da_xac_nhan' ||
-            status == 'danhan' ||
-            status == 'da_nhan' ||
-            status == 'daphancong' ||
-            status == 'da_phan_cong' ||
-            status == 'choxacnhan' ||
-            status == 'cho_xac_nhan' ||
-            status == 'choduyet' ||
-            status == 'cho_duyet' ||
-            status == 'dang_thuc_hien' ||
-            status == 'dangthuchien' ||
-            status == 'confirmed' ||
-            status == 'assigned' ||
-            status == 'pending' ||
-            status == 'active';
+        final pcStatus =
+            (item['trangThaiPhanCong']?.toString() ?? '').toLowerCase();
+
+        final isWorking = donStatus == 'dang_thuc_hien' ||
+            donStatus == 'dangthuchien' ||
+            pcStatus == 'dang_thuc_hien' ||
+            pcStatus == 'dangthuchien';
+        final isCompleted = donStatus == 'hoanthanh' ||
+            donStatus == 'hoan_thanh' ||
+            donStatus == 'completed' ||
+            pcStatus == 'hoanthanh';
+        final isCanceled = pcStatus == 'tuchoi' ||
+            donStatus == 'dahuy' ||
+            donStatus == 'tuchoi' ||
+            donStatus == 'choduyet';
+
+        return !isWorking && !isCompleted && !isCanceled;
+      }).toList();
+    } else if (tabType == 'in_progress') {
+      // Tab "Đang làm": Đang thực hiện
+      return _allAssignments.where((item) {
+        final donStatus = (item['trangThaiDon']?.toString() ??
+                item['trangThai']?.toString() ??
+                '')
+            .toLowerCase();
+        final pcStatus =
+            (item['trangThaiPhanCong']?.toString() ?? '').toLowerCase();
+
+        return donStatus == 'dang_thuc_hien' ||
+            donStatus == 'dangthuchien' ||
+            pcStatus == 'dang_thuc_hien' ||
+            pcStatus == 'dangthuchien';
       }).toList();
     } else {
-      return _allAssignments.where((item) {
-        final status = (item['trangThaiPhanCong']?.toString() ??
+      // Tab "Đã xong": Hoàn thành
+      var list = _allAssignments.where((item) {
+        final donStatus = (item['trangThaiDon']?.toString() ??
                 item['trangThai']?.toString() ??
                 '')
             .toLowerCase();
-        return status == 'hoanthanh' ||
-            status == 'hoan_thanh' ||
-            status == 'completed';
+        final pcStatus =
+            (item['trangThaiPhanCong']?.toString() ?? '').toLowerCase();
+
+        return donStatus == 'hoanthanh' ||
+            donStatus == 'hoan_thanh' ||
+            donStatus == 'completed' ||
+            pcStatus == 'hoanthanh';
+      }).toList();
+
+      // SẮP XẾP: Ngày mới nhất cho tới thấp nhất (giảm dần)
+      list.sort((a, b) {
+        final dateA = (a['ngayThucHien'] ?? a['ngayLam'] ?? a['ngayTao'] ?? '').toString();
+        final dateB = (b['ngayThucHien'] ?? b['ngayLam'] ?? b['ngayTao'] ?? '').toString();
+        final cmpDate = dateB.compareTo(dateA); // Mới nhất lên đầu
+        if (cmpDate != 0) return cmpDate;
+        final timeA = (a['gioBatDau'] ?? '').toString();
+        final timeB = (b['gioBatDau'] ?? '').toString();
+        return timeB.compareTo(timeA);
+      });
+
+      // LỌC THEO KHOẢNG NGÀY
+      if (_completedDateRange == null) return list;
+
+      final start = DateTime(
+        _completedDateRange!.start.year,
+        _completedDateRange!.start.month,
+        _completedDateRange!.start.day,
+      );
+      final end = DateTime(
+        _completedDateRange!.end.year,
+        _completedDateRange!.end.month,
+        _completedDateRange!.end.day,
+        23, 59, 59,
+      );
+
+      return list.where((item) {
+        final raw = (item['ngayThucHien'] ?? item['ngayLam'] ?? item['ngayTao'] ?? '').toString();
+        if (raw.isEmpty) return true;
+        final dt = DateTime.tryParse(raw.length >= 10 ? raw.substring(0, 10) : raw);
+        if (dt == null) return false;
+        return !dt.isBefore(start) && !dt.isAfter(end);
       }).toList();
     }
   }
@@ -198,7 +245,8 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                       controller: _tabController,
                       children: [
                         _buildOrderList('new'),
-                        _buildOrderList('confirmed'),
+                        _buildOrderList('waiting'),
+                        _buildOrderList('in_progress'),
                         _buildOrderList('completed'),
                       ],
                     ),
@@ -209,9 +257,11 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     );
   }
 
-  // Header xanh lá + tab gạch chân như bTaskee Partner
   Widget _buildHeader() {
     final newCount = _getFilteredList('new').length;
+    final waitingCount = _getFilteredList('waiting').length;
+    final inProgressCount = _getFilteredList('in_progress').length;
+
     return Container(
       color: _primary,
       padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
@@ -224,7 +274,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                 const SizedBox(width: 48),
                 const Expanded(
                   child: Text(
-                    'Công việc',
+                    'Quản lý công việc',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
@@ -246,16 +296,18 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
             indicatorWeight: 3,
             indicatorSize: TabBarIndicatorSize.label,
             dividerColor: Colors.transparent,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 6),
             labelColor: Colors.white,
-            unselectedLabelColor: Colors.white.withValues(alpha: 0.75),
+            unselectedLabelColor: Colors.white.withValues(alpha: 0.72),
             labelStyle:
-                const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
             unselectedLabelStyle:
-                const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                const TextStyle(fontWeight: FontWeight.w500, fontSize: 12.5),
             tabs: [
-              Tab(text: newCount > 0 ? 'Việc mới ($newCount)' : 'Việc mới'),
-              const Tab(text: 'Đã nhận'),
-              const Tab(text: 'Hoàn thành'),
+              Tab(text: newCount > 0 ? 'Mới ($newCount)' : 'Mới'),
+              Tab(text: waitingCount > 0 ? 'Chờ làm ($waitingCount)' : 'Chờ làm'),
+              Tab(text: inProgressCount > 0 ? 'Đang làm ($inProgressCount)' : 'Đang làm'),
+              const Tab(text: 'Đã xong'),
             ],
           ),
         ],
@@ -266,7 +318,27 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
   Widget _buildOrderList(String status) {
     final filtered = _getFilteredList(status);
 
+    // Xử lý riêng cho tab "Đã xong" (Lịch sử: có bộ lọc ngày + tóm tắt thu nhập + xếp mới nhất -> cũ nhất)
+    if (status == 'completed') {
+      return _buildCompletedOrderTab(filtered);
+    }
+
     if (filtered.isEmpty) {
+      String emptyText;
+      switch (status) {
+        case 'new':
+          emptyText = 'Hiện chưa có công việc mới';
+          break;
+        case 'waiting':
+          emptyText = 'Không có công việc nào đang chờ làm';
+          break;
+        case 'in_progress':
+          emptyText = 'Hiện không có ca làm nào đang diễn ra';
+          break;
+        default:
+          emptyText = 'Chưa có công việc nào hoàn thành';
+      }
+
       return RefreshIndicator(
         onRefresh: _fetchAllData,
         color: _primary,
@@ -287,11 +359,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              status == 'new'
-                  ? 'Hiện chưa có công việc mới'
-                  : status == 'confirmed'
-                      ? 'Bạn chưa nhận công việc nào'
-                      : 'Chưa có công việc hoàn thành',
+              emptyText,
               textAlign: TextAlign.center,
               style: const TextStyle(
                   fontSize: 15,
@@ -321,57 +389,301 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     );
   }
 
+  Widget _buildCompletedOrderTab(List<Map<String, dynamic>> filtered) {
+    num totalIncome = 0;
+    for (final o in filtered) {
+      final p = num.tryParse(o['thanhTien']?.toString() ?? o['tongTien']?.toString() ?? '') ?? 0;
+      totalIncome += p;
+    }
+
+    String dateRangeText = 'Tất cả các ngày (Chọn khoảng ngày)';
+    if (_completedDateRange != null) {
+      final s = DateFormat('dd/MM/yyyy').format(_completedDateRange!.start);
+      final e = DateFormat('dd/MM/yyyy').format(_completedDateRange!.end);
+      dateRangeText = s == e ? s : '$s - $e';
+    }
+
+    return Column(
+      children: [
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Banner tóm tắt đưa lên trên
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.history_rounded, size: 20, color: Color(0xFF16A34A)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Đã xong: ${filtered.length} đơn',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF166534),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'Thu nhập: ${_formatPrice(totalIncome)}',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF15803D),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // 2. Cuốn lịch chọn khoảng ngày (đưa xuống bên dưới banner)
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () async {
+                        final picked = await showDateRangePicker(
+                          context: context,
+                          initialDateRange: _completedDateRange ??
+                              DateTimeRange(
+                                start: DateTime.now().subtract(const Duration(days: 30)),
+                                end: DateTime.now(),
+                              ),
+                          firstDate: DateTime(2025),
+                          lastDate: DateTime(2028),
+                          saveText: 'Áp dụng',
+                          helpText: 'Chọn khoảng ngày đơn hoàn thành',
+                        );
+                        if (picked != null) {
+                          setState(() => _completedDateRange = picked);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        height: 42,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: _completedDateRange != null
+                              ? const Color(0xFFEFF6FF)
+                              : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _completedDateRange != null
+                                ? const Color(0xFF3B82F6)
+                                : const Color(0xFFCBD5E1),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.date_range_rounded,
+                              size: 19,
+                              color: _completedDateRange != null
+                                  ? const Color(0xFF2563EB)
+                                  : const Color(0xFF64748B),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                dateRangeText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: _completedDateRange != null
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: _completedDateRange != null
+                                      ? const Color(0xFF1D4ED8)
+                                      : const Color(0xFF64748B),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_completedDateRange != null) ...[
+                    const SizedBox(width: 6),
+                    IconButton(
+                      tooltip: 'Bỏ lọc',
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(Icons.cancel_rounded, size: 22, color: Color(0xFFEF4444)),
+                      onPressed: () {
+                        setState(() => _completedDateRange = null);
+                      },
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Divider(height: 8, thickness: 0.8, color: AppColors.divider),
+            ],
+          ),
+        ),
+
+        // 3. Danh sách đơn đã xong (sắp xếp mới nhất -> thấp nhất)
+        Expanded(
+          child: filtered.isEmpty
+              ? RefreshIndicator(
+                  onRefresh: _fetchAllData,
+                  color: _primary,
+                  child: ListView(
+                    children: [
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+                      const Center(
+                        child: Icon(Icons.history_toggle_off_rounded,
+                            size: 54, color: Color(0xFFCBD5E1)),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Không có đơn hoàn thành nào trong khoảng thời gian này',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _completedDateRange = null;
+                            });
+                          },
+                          icon: const Icon(Icons.refresh_rounded, size: 16),
+                          label: const Text('Xem tất cả lịch sử'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF16A34A),
+                            side: const BorderSide(color: Color(0xFF16A34A)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _fetchAllData,
+                  color: _primary,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.only(top: 6, bottom: 20),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final item = filtered[index];
+                      final rawDate = (item['ngayThucHien'] ?? item['ngayLam'] ?? '').toString();
+                      final bool showHeader = index == 0 ||
+                          ((filtered[index - 1]['ngayThucHien'] ?? filtered[index - 1]['ngayLam'] ?? '').toString() != rawDate);
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (showHeader && rawDate.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.event_available_rounded, size: 14, color: Color(0xFF16A34A)),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _fmtDate(rawDate),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                      color: _ink,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          _buildOrderCard(item, 'completed'),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
   // ===================== HÀM HỖ TRỢ =====================
 
-  // 338000 -> 338.000đ
   String _formatPrice(dynamic v) {
     final n = num.tryParse(v?.toString() ?? '')?.round() ?? 0;
     final s = n
         .toString()
         .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => '.');
-    return '${s}đ';
+    return '$sđ';
   }
 
-  // Màu theo trạng thái: Mới = cam, Đã nhận = xanh dương, Hoàn thành = xanh lá
-  Color _statusColor(String tab) {
-    switch (tab) {
-      case 'new':
-        return AppColors.partner500;
-      case 'confirmed':
-        return AppColors.info;
-      default:
-        return AppColors.success;
-    }
-  }
-
-  // "09:00:00" -> "09:00"
   String _fmtTime(String? s) {
     if (s == null || s.isEmpty) return '';
     return s.length >= 5 ? s.substring(0, 5) : s;
   }
 
-  // "2026-09-30" -> "30/09/2026"
   String _fmtDate(String s) {
     if (s.length < 10) return s;
     final p = s.substring(0, 10).split('-');
     return p.length == 3 ? '${p[2]}/${p[1]}/${p[0]}' : s;
   }
 
-  // Hôm nay / Ngày mai / Hôm qua (ngày khác thì trả về null)
-  String? _dayLabel(String raw) {
-    if (raw.length < 10) return null;
-    final d = DateTime.tryParse(raw.substring(0, 10));
+  int? _daysDiff(String? rawDate) {
+    if (rawDate == null || rawDate.length < 10) return null;
+    final d = DateTime.tryParse(rawDate.substring(0, 10));
     if (d == null) return null;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final diff = DateTime(d.year, d.month, d.day).difference(today).inDays;
-    if (diff == 0) return 'Hôm nay';
-    if (diff == 1) return 'Ngày mai';
-    if (diff == -1) return 'Hôm qua';
-    return null;
+    final workDay = DateTime(d.year, d.month, d.day);
+    return workDay.difference(today).inDays;
   }
 
-  // "Nguyễn Thị Thu Lan" -> "TL", "Nguyễn Văn A" -> "VA"
+  bool _isGoiThang(Map<String, dynamic> o) {
+    final loaiHinh = (o['loaiHinh'] ?? o['loaiHinhDat'] ?? '').toString().toLowerCase();
+    final ten = (o['tenDichVu'] ?? '').toString().toLowerCase();
+    final ma = (o['maDichVu'] ?? '').toString().toUpperCase();
+    final soBuoi = num.tryParse(o['soBuoi']?.toString() ?? '') ?? 0;
+    return loaiHinh.contains('goi') ||
+        loaiHinh.contains('thang') ||
+        ten.contains('gói') ||
+        ten.contains('tháng') ||
+        ma.endsWith('-T') ||
+        soBuoi > 1;
+  }
+
+  String _getDuration(Map<String, dynamic> o) {
+    if (o['thoiLuong'] != null) return '${o['thoiLuong']} phút';
+    if (o['tg'] != null) return '${o['tg']} phút';
+    final start = o['gioBatDau']?.toString();
+    final end = o['gioKetThuc']?.toString();
+    if (start != null && end != null && start.length >= 5 && end.length >= 5) {
+      try {
+        final sh = int.parse(start.substring(0, 2));
+        final sm = int.parse(start.substring(3, 5));
+        final eh = int.parse(end.substring(0, 2));
+        final em = int.parse(end.substring(3, 5));
+        final mins = (eh * 60 + em) - (sh * 60 + sm);
+        if (mins > 0) return '$mins phút';
+      } catch (_) {}
+    }
+    return '120 phút';
+  }
+
   String _initials(String name) {
     final parts = name
         .trim()
@@ -383,49 +695,54 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     return (parts[parts.length - 2][0] + parts.last[0]).toUpperCase();
   }
 
-  // Mỗi tên khách ra một màu avatar cố định
   List<Color> _avatarPair(String name) {
     final sum = name.codeUnits.fold<int>(0, (a, b) => a + b);
     return _avatarColors[sum % _avatarColors.length];
   }
 
-  // ===================== THẺ CÔNG VIỆC =====================
-
-  /// Toạ độ nhà khách tra từ địa chỉ dạng chữ (CSDL không lưu toạ độ), theo địa chỉ.
-  final Map<String, List<double>?> _toaDoDiaChi = {};
-
-  Future<void> _traToaDo(String address) async {
-    if (_toaDoDiaChi.containsKey(address)) return;
-    _toaDoDiaChi[address] = null;
-    final td = await LocationService.forwardGeocode(address);
-    if (mounted && td != null) setState(() => _toaDoDiaChi[address] = td);
+  Future<void> _handlePhoneCall(String? phone) async {
+    if (phone == null || phone.trim().isEmpty) {
+      _showError('Không có số điện thoại khách hàng');
+      return;
+    }
+    final clean = phone.replaceAll(RegExp(r'\s+'), '');
+    final uri = Uri.parse('tel:$clean');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        _showError('Không thể mở ứng dụng gọi điện');
+      }
+    } catch (e) {
+      _showError('Lỗi cuộc gọi: $e');
+    }
   }
 
-  /// Khoảng cách tới nhà khách (khi tra được toạ độ) và nút mở Google Maps chỉ đường.
+  Future<void> _handleMapButton(String address, {double? lat, double? lng}) async {
+    if ((lat == null || lng == null) && address.trim().isEmpty) {
+      _showError('Chưa có thông tin địa chỉ để mở bản đồ');
+      return;
+    }
+    final ok = await LocationService.openDirections(
+      lat: lat,
+      lng: lng,
+      address: address.trim().isNotEmpty ? address.trim() : null,
+    );
+    if (!ok && mounted) {
+      _showError('Không thể mở ứng dụng Google Maps');
+    }
+  }
+
+  // ===================== THẺ CÔNG VIỆC =====================
+
   Widget _directionsRow(Map<String, dynamic> o) {
     final address = o['diaChi']?.toString().trim() ?? '';
     if (address.isEmpty) return const SizedBox.shrink();
-    String? khoangCach;
-    if (_myLat != null && _myLng != null) {
-      final td = _toaDoDiaChi[address];
-      if (td == null) {
-        _traToaDo(address);
-      } else {
-        khoangCach = 'Cách bạn khoảng ${LocationService.formatKm(LocationService.distanceKm(_myLat!, _myLng!, td[0], td[1]))}';
-      }
-    }
     return Padding(
       padding: const EdgeInsets.only(left: 26, bottom: 6),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (khoangCach != null)
-            Expanded(
-              child: Text(khoangCach,
-                  style: const TextStyle(
-                      fontSize: 12.5, color: AppColors.textSecondary)),
-            )
-          else
-            const Spacer(),
           TextButton.icon(
             onPressed: () async {
               final ok = await LocationService.openDirections(address: address);
@@ -443,156 +760,495 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     );
   }
 
+  Widget _buildServiceTypeBadge(Map<String, dynamic> o) {
+    final isPackage = _isGoiThang(o);
+    final soBuoi = o['soBuoi']?.toString() ?? '8';
+    final buoiHienTai = o['buoiThu']?.toString() ?? o['buoiHienTai']?.toString();
+
+    if (isPackage) {
+      final label = buoiHienTai != null
+          ? '🔄 Gói tháng - Buổi $buoiHienTai/$soBuoi'
+          : '🔄 Gói tháng ($soBuoi buổi)';
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFFCD34D)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFFB45309),
+          ),
+        ),
+      );
+    } else {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEF2FF),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFC7D2FE)),
+        ),
+        child: const Text(
+          '🏷️ Theo lần (1 buổi)',
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF4338CA),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildCountdownBadge(String? rawDate) {
+    final diff = _daysDiff(rawDate);
+    if (diff == null) return const SizedBox.shrink();
+
+    String text;
+    Color bg;
+    Color fg;
+
+    if (diff == 0) {
+      text = '🟢 HÔM NAY';
+      bg = const Color(0xFFDCFCE7);
+      fg = const Color(0xFF15803D);
+    } else if (diff == 1) {
+      text = '⏳ NGÀY MAI';
+      bg = const Color(0xFFFEF3C7);
+      fg = const Color(0xFFB45309);
+    } else if (diff > 1) {
+      text = '⏳ Còn $diff ngày';
+      bg = const Color(0xFFF1F5F9);
+      fg = const Color(0xFF475569);
+    } else {
+      text = '⚠️ Quá hạn';
+      bg = const Color(0xFFFEE2E2);
+      fg = const Color(0xFFDC2626);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewSection(Map<String, dynamic> o) {
+    final dynamic dg = o['danhGia'];
+    num? diem;
+    String? nhanXet;
+
+    if (dg is Map) {
+      diem = dg['diemChatLuong'] ?? dg['diemThaiDo'] ?? dg['diem'];
+      nhanXet = dg['nhanXet']?.toString();
+    } else if (o['diemDanhGia'] != null) {
+      diem = num.tryParse(o['diemDanhGia'].toString());
+      nhanXet = o['nhanXetDanhGia']?.toString();
+    }
+
+    if (diem == null && (nhanXet == null || nhanXet.trim().isEmpty)) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.star_outline_rounded, size: 16, color: AppColors.textMuted),
+            SizedBox(width: 6),
+            Text(
+              'Khách hàng chưa đánh giá ca làm này',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: AppColors.textMuted,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final score = (diem ?? 5.0).toDouble().toStringAsFixed(1);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.star_rounded, size: 18, color: Color(0xFFF59E0B)),
+              const SizedBox(width: 4),
+              Text(
+                'Đánh giá: $score / 5.0',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFB45309),
+                ),
+              ),
+            ],
+          ),
+          if (nhanXet != null && nhanXet.trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              '💬 "$nhanXet"',
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontStyle: FontStyle.italic,
+                color: Color(0xFF78350F),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildOrderCard(Map<String, dynamic> o, String currentTab) {
     final String serviceName = o['tenDichVu'] ?? 'Dịch vụ giúp việc';
     final String customerName = o['khachHangTen'] ?? 'Khách hàng';
     final String address = o['diaChi'] ?? 'Chưa cập nhật địa chỉ';
     final String price = _formatPrice(o['thanhTien']);
-    final String rawDate = o['ngayThucHien']?.toString() ?? '';
+    final String rawDate = o['ngayThucHien']?.toString() ?? o['ngayLam']?.toString() ?? '';
     final String dateStr = _fmtDate(rawDate);
     final String timeStr =
         '${_fmtTime(o['gioBatDau']?.toString())} - ${_fmtTime(o['gioKetThuc']?.toString())}';
-    final bool isNew = currentTab == 'new';
-    final Color sc = _statusColor(currentTab);
-
-    final String statusText = isNew
-        ? 'Chờ nhận'
-        : currentTab == 'confirmed'
-            ? 'Đã nhận'
-            : 'Hoàn thành';
-
-    final String? dayLbl = _dayLabel(rawDate);
+    final String durationStr = _getDuration(o);
+    final String note = o['yeuCauDacBiet']?.toString() ?? o['ghiChu']?.toString() ?? '';
+    final String phone = o['khachHangPhone']?.toString() ?? o['soDienThoai']?.toString() ?? '';
     final avatar = _avatarPair(customerName);
+    final diff = _daysDiff(rawDate);
+    final bool isToday = diff != null && diff == 0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tên dịch vụ + thu nhập
+          // 1. HEADER CỦA CARD
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-            child: Row(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        serviceName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: _ink,
+                if (currentTab == 'waiting')
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.access_time_filled, size: 16, color: _primary),
+                            const SizedBox(width: 4),
+                            Text(
+                              timeStr,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: _primary,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: sc.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          statusText,
+                        _buildCountdownBadge(rawDate),
+                      ],
+                    ),
+                  )
+                else if (currentTab == 'in_progress')
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.play_circle_fill_rounded, size: 16, color: Color(0xFF2563EB)),
+                        SizedBox(width: 6),
+                        Text(
+                          'ĐANG THỰC HIỆN TẠI NHÀ KHÁCH',
                           style: TextStyle(
                             fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: sc,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF2563EB),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  )
+                else if (currentTab == 'completed')
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Đã làm: $dateStr ($timeStr)',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Hoàn thành',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF15803D),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Tên dịch vụ
+                Text(
+                  serviceName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: _ink,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      price,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: _money,
-                      ),
-                    ),
-                    const Text(
-                      'Thu nhập',
-                      style: TextStyle(
-                          fontSize: 11.5, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
+                const SizedBox(height: 6),
+                _buildServiceTypeBadge(o),
               ],
             ),
           ),
           const Divider(height: 1),
 
-          // Thông tin chi tiết
+          // 2. THÔNG TIN CHI TIẾT
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
             child: Column(
               children: [
-                _infoRow(
-                  Icons.calendar_today_outlined,
-                  dayLbl != null ? '$dayLbl, $dateStr' : dateStr,
-                ),
-                _infoRow(Icons.access_time_rounded, timeStr),
-                _infoRow(Icons.location_on_outlined, address, maxLines: 2),
-                _directionsRow(o),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 22,
-                        height: 22,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: avatar[0],
-                          shape: BoxShape.circle,
-                        ),
-                        child: Text(
-                          _initials(customerName),
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            color: avatar[1],
+                if (currentTab == 'new') ...[
+                  _infoRow(Icons.calendar_today_outlined, dateStr),
+                  _infoRow(Icons.access_time_rounded, '$timeStr (Thời lượng: $durationStr)'),
+                  _infoRow(Icons.location_on_outlined, address, maxLines: 2),
+                  _directionsRow(o),
+                ] else if (currentTab == 'waiting' || currentTab == 'in_progress') ...[
+                  _infoRow(Icons.location_on_outlined, address, maxLines: 2),
+                  _directionsRow(o),
+                  // Thông tin khách hàng + nút gọi điện
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: avatar[0],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            _initials(customerName),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: avatar[1],
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          customerName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: _ink,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                customerName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: _ink,
+                                ),
+                              ),
+                              if (phone.isNotEmpty)
+                                Text(
+                                  phone,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                        ElevatedButton.icon(
+                          onPressed: () => _handlePhoneCall(phone),
+                          icon: const Icon(Icons.phone, size: 14),
+                          label: const Text('Gọi khách', style: TextStyle(fontSize: 12)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  if (note.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(9),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.notes_rounded, size: 16, color: Color(0xFF64748B)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Ghi chú: $note',
+                                style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ] else ...[
+                  // Tab completed
+                  _infoRow(Icons.location_on_outlined, address, maxLines: 2),
+                  const SizedBox(height: 4),
+                  _buildReviewSection(o),
+                  const SizedBox(height: 6),
+                ],
               ],
             ),
           ),
 
-          // Nút thao tác
-          if (isNew)
+          // 3. HÀNG TIỀN CÔNG NẰM Ở ĐÁY CARD (ĐỒNG BỘ 4 BODY)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFF1F5F9)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          currentTab == 'completed'
+                              ? 'Tiền công đã nhận:'
+                              : 'Tiền công nhận được:',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          price,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: _money,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCFCE7),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.verified, size: 14, color: Color(0xFF16A34A)),
+                        const SizedBox(width: 4),
+                        Text(
+                          currentTab == 'completed'
+                              ? 'Đã thanh toán'
+                              : 'Đã trả trước 100%',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF16A34A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 4. CÁC NÚT THAO TÁC HÀNH ĐỘNG
+          if (currentTab == 'new')
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
               child: Row(
@@ -603,11 +1259,13 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                       child: OutlinedButton(
                         onPressed: () => _showRejectDialog(o),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.error,
-                          side: const BorderSide(color: AppColors.error),
-                          padding: EdgeInsets.zero,
+                          foregroundColor: const Color(0xFF64748B),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
-                        child: const Text('Từ chối',
+                        child: const Text('Bỏ qua',
                             style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
@@ -621,28 +1279,100 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                         onPressed: () => _handleAction(o, 'accept'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _primary,
-                          padding: EdgeInsets.zero,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
                         ),
-                        child: const Text('Nhận việc'),
+                        child: const Text('Nhận việc ngay',
+                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
                       ),
                     ),
                   ),
                 ],
               ),
             )
-          else if (currentTab == 'confirmed')
+          else if (currentTab == 'waiting')
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          final double? lat = LocationService.toDouble(o['viDo'] ?? o['lat']);
+                          final double? lng = LocationService.toDouble(o['kinhDo'] ?? o['lng']);
+                          _handleMapButton(address, lat: lat, lng: lng);
+                        },
+                        icon: const Icon(Icons.map_outlined, size: 16),
+                        label: const Text(
+                          'Xem bản đồ',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _primary,
+                          side: const BorderSide(color: _primary),
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _handleStartJob(o),
+                        icon: Icon(
+                          isToday ? Icons.play_arrow_rounded : Icons.lock_outline_rounded,
+                          size: 18,
+                        ),
+                        label: const Text(
+                          'Bắt đầu làm',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isToday ? _primary : const Color(0xFF94A3B8),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (currentTab == 'in_progress')
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
               child: SizedBox(
                 width: double.infinity,
-                height: 44,
+                height: 46,
                 child: ElevatedButton.icon(
                   onPressed: () => _handleAction(o, 'complete'),
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('Hoàn thành công việc'),
+                  icon: const Icon(Icons.check_circle_rounded, size: 20),
+                  label: const Text(
+                    'HOÀN THÀNH CA LÀM',
+                    style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold),
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _primary,
-                    padding: EdgeInsets.zero,
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
                   ),
                 ),
               ),
@@ -654,19 +1384,19 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
 
   Widget _infoRow(IconData icon, String text, {int maxLines = 1}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: AppColors.textSecondary),
-          const SizedBox(width: 10),
+          Icon(icon, size: 18, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
               maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 13.5,
                 color: _ink,
                 height: 1.35,
               ),
@@ -902,7 +1632,6 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                           child: ElevatedButton(
                             onPressed: () {
                               final raw = reasonController.text;
-                              // Chuẩn hóa văn bản: xóa khoảng trắng đầu cuối và gộp các khoảng trắng liên tiếp
                               final cleanReason = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
 
                               if (cleanReason.isEmpty) {
@@ -950,14 +1679,60 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
 
   // ===================== THAO TÁC =====================
 
+  Future<void> _handleStartJob(Map<String, dynamic> o) async {
+    final rawDate = o['ngayThucHien']?.toString() ?? o['ngayLam']?.toString();
+    final diff = _daysDiff(rawDate);
+    final dateStr = _fmtDate(rawDate ?? '');
+
+    if (diff != null && diff != 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '⚠️ Chưa đến ngày làm việc, bạn chưa thể bắt đầu ca này!\n(Lịch làm: $dateStr)',
+          ),
+          backgroundColor: AppColors.warning,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    final int phanCongId = o['phanCongId'] ?? o['id'] ?? 0;
+    if (phanCongId == 0) {
+      _showError('Không tìm thấy ID phân công');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final res = await _apiService.startAssignment(phanCongId);
+      if (res.success) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('▶️ Đã bắt đầu ca làm việc! Chúc bạn làm việc tốt.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        await _fetchAllData();
+        _tabController.animateTo(2); // Nhảy sang Tab Đang làm
+      } else {
+        _showError(res.message ?? 'Không thể bắt đầu ca làm');
+      }
+    } catch (e) {
+      _showError('Lỗi kết nối: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _handleAction(Map<String, dynamic> o, String action, {String? lyDo}) async {
     setState(() => _isLoading = true);
     try {
       dynamic res;
 
       if (action == 'accept') {
-        // Pool: dùng donDatId (không phải phanCongId)
-        final int donDatId = o['donDatId'] ?? 0;
+        final int donDatId = o['donDatId'] ?? o['id'] ?? 0;
         if (donDatId == 0) {
           _showError('Lỗi: Không tìm thấy ID đơn hàng');
           return;
@@ -967,8 +1742,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
           congTacVienId: _currentUserId,
         );
       } else if (action == 'reject') {
-        // Pool: dùng donDatId (ẩn local trên máy CTV này)
-        final int donDatId = o['donDatId'] ?? 0;
+        final int donDatId = o['donDatId'] ?? o['id'] ?? 0;
         if (donDatId == 0) {
           _showError('Lỗi: Không tìm thấy ID đơn hàng');
           return;
@@ -983,8 +1757,7 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
           lyDo: lyDo,
         );
       } else if (action == 'complete') {
-        // Đơn đã nhận: dùng phanCongId như cũ
-        final int phanCongId = o['phanCongId'] ?? 0;
+        final int phanCongId = o['phanCongId'] ?? o['id'] ?? 0;
         if (phanCongId == 0) {
           _showError('Lỗi: Không tìm thấy ID phân công');
           return;
@@ -998,40 +1771,37 @@ class _CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(action == 'accept'
-                ? 'Đã nhận việc thành công!'
+                ? 'Đã nhận việc thành công! Ca làm đã được thêm vào lịch.'
                 : (action == 'reject'
                     ? 'Đã bỏ qua. Đơn vẫn hiện cho CTV khác.'
-                    : 'Đã hoàn thành công việc!')),
+                    : 'Đã hoàn thành công việc! Tiền công đã được cộng vào tài khoản.')),
             backgroundColor:
                 action == 'reject' ? AppColors.warning : AppColors.success,
           ),
         );
 
         if (action == 'accept') {
-          // Tải lại cả 2 để pool bớt đơn, tab đã nhận thêm đơn mới
           await _fetchAllData();
-          _tabController.animateTo(1);
+          _tabController.animateTo(1); // Chuyển sang Tab "Chờ làm"
         } else if (action == 'reject') {
-          // Chỉ cần tải lại pool (đơn mới này biến mất, tab khác không đổi)
           await _refreshPool();
         } else if (action == 'complete') {
           await _fetchAllData();
-          _tabController.animateTo(2);
+          _tabController.animateTo(3); // Chuyển sang Tab "Đã xong"
         }
       } else {
-        // 409: đơn đã có người nhận trước
         final msg = res?.message ?? 'Thao tác thất bại';
         if (!mounted) return;
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            title: const Text('Đơn đã có người nhận'),
+            title: const Text('Thông báo'),
             content: Text(msg),
             actions: [
               TextButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  _refreshPool(); // Tải lại để xóa đơn đã bị lấy khỏi list
+                  _refreshPool();
                 },
                 child: const Text('OK'),
               ),
@@ -1054,7 +1824,6 @@ class _NoMultipleSpacesFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    // Không cho phép khoảng trắng ở đầu dòng
     if (newValue.text.startsWith(' ') || newValue.text.startsWith('\n')) {
       final trimmed = newValue.text.trimLeft();
       return newValue.copyWith(
@@ -1062,7 +1831,6 @@ class _NoMultipleSpacesFormatter extends TextInputFormatter {
         selection: TextSelection.collapsed(offset: trimmed.length),
       );
     }
-    // Gộp 2 khoảng trắng liên tiếp trở lên thành 1
     final replaced = newValue.text.replaceAll(RegExp(r' {2,}'), ' ');
     if (replaced != newValue.text) {
       final diff = newValue.text.length - replaced.length;
