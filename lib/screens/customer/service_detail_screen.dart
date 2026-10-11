@@ -1,3 +1,4 @@
+import '../../widgets/gia_hien_thi.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/catalog_ui.dart';
@@ -141,8 +142,9 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                   ),
                   if (_service['price'] != null) ...[
                     const SizedBox(height: 4),
-                    Text(
-                      _service['price'] as String,
+                    GiaHienThi(
+                      gia: _service['price'] as String,
+                      giaGoc: _service['priceGoc'] as String?,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -311,7 +313,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                   child: Text(
                     [
                       CatalogUi.loaiHinhLabel(list[i]['loaiHinhDat']?.toString()),
-                      list[i]['khuVuc'] ?? 'Toàn quốc',
+                      list[i]['khuVuc'] ?? 'Mọi khu vực',
                     ].join(' • '),
                     style: const TextStyle(
                       fontSize: 14,
@@ -320,9 +322,11 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '${CatalogUi.money(list[i]['donGia'])}'
-                  '${(list[i]['donViTinh']?.toString() ?? '').isNotEmpty ? '/${list[i]['donViTinh'].toString().toLowerCase()}' : ''}',
+                GiaHienThi(
+                  canh: CrossAxisAlignment.end,
+                  gia: '${CatalogUi.money(list[i]['donGia'])}'
+                      '${(list[i]['donViTinh']?.toString() ?? '').isNotEmpty ? '/${list[i]['donViTinh'].toString().toLowerCase()}' : ''}',
+                  giaGoc: list[i]['giaGoc'] != null ? CatalogUi.money(list[i]['giaGoc']) : null,
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,

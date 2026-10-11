@@ -129,7 +129,17 @@ class _AddressBookScreenState extends State<AddressBookScreen> {
       elevation: 0,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: widget.selectMode ? () => Navigator.pop(context, d) : () => _openForm(d),
+        onTap: widget.selectMode
+            ? () {
+                // Chỉ đặt dịch vụ được tại địa chỉ nằm trong khu vực (quận, huyện) bTaskee phục vụ
+                if (!d.coKhuVuc) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Địa chỉ này nằm ngoài khu vực bTaskee đang phục vụ, hãy chọn địa chỉ khác.')));
+                  return;
+                }
+                Navigator.pop(context, d);
+              }
+            : () => _openForm(d),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
           child: Row(
@@ -173,10 +183,17 @@ class _AddressBookScreenState extends State<AddressBookScreen> {
                     Text(d.diaChiChiTiet,
                         style: const TextStyle(
                             fontSize: 13, color: AppColors.textSecondary)),
-                    if (d.khuVuc != null)
-                      Text(d.khuVuc!,
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textMuted)),
+                    const SizedBox(height: 2),
+                    Text(
+                      !d.coKhuVuc
+                          ? 'Ngoài khu vực phục vụ (các quận, huyện TP. Hồ Chí Minh): chưa đặt dịch vụ tại đây được'
+                          : d.soCongTacVien > 0
+                              ? '${d.soCongTacVien} cộng tác viên nhận việc trong khu vực này'
+                              : 'Chưa có cộng tác viên trong khu vực này, bTaskee sẽ tìm người ở khu vực lân cận',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: d.coKhuVuc ? AppColors.textMuted : AppColors.error),
+                    ),
                   ],
                 ),
               ),

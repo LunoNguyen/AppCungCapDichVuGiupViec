@@ -11,6 +11,8 @@ class LichGoiThang {
 
   /// Mẫu chọn nhanh.
   static const mau = <String, Set<int>>{
+    'T2 · T4 · T6': {1, 3, 5},
+    'T3 · T5 · T7': {2, 4, 6},
     'T3 · T5 · T7 · CN': {2, 4, 6, 7},
     'T2 · T4 · T6 · CN': {1, 3, 5, 7},
     'T2 → T6': {1, 2, 3, 4, 5},

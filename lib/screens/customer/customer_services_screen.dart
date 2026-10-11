@@ -1,3 +1,4 @@
+import '../../widgets/gia_hien_thi.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -441,8 +442,9 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      item['price'] as String,
+                    GiaHienThi(
+                      gia: item['price'] as String,
+                      giaGoc: item['priceGoc'] as String?,
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,

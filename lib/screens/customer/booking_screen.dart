@@ -1,3 +1,5 @@
+import '../../widgets/gia_hien_thi.dart';
+import '../../widgets/lich_thang.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/address_api_service.dart';
@@ -70,10 +72,32 @@ class _BookingScreenState extends State<BookingScreen> {
   final List<TimeOfDay> _timeSlots = List.generate(
       11, (i) => TimeOfDay(hour: 7 + i, minute: 0));
 
-  late final List<DateTime> _dateOptions = List.generate(14, (i) {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day + i);
-  });
+  /// Khoảng ngày đặt được: từ hôm nay đến 60 ngày tới (giống website, máy chủ kiểm lại).
+  DateTime get _homNay => LichThang.chiNgay(DateTime.now());
+  DateTime get _ngayCuoi => _homNay.add(const Duration(days: 60));
+
+  /// Ngày của buổi đầu tiên: gói tháng là ngày đầu khớp thứ đã chọn, theo lần là ngày đã chọn.
+  DateTime? get _ngayBuoiDau =>
+      _laGoiThang && _lichGoi.isNotEmpty ? _lichGoi.first : _selectedDate;
+
+  /// Giờ bắt đầu phải sau hiện tại ít nhất 1 giờ (cùng quy tắc với website và máy chủ).
+  bool _gioHopLe(DateTime? ngay, TimeOfDay t) {
+    if (ngay == null) return false;
+    final luc = DateTime(ngay.year, ngay.month, ngay.day, t.hour, t.minute);
+    return !luc.isBefore(DateTime.now().add(const Duration(hours: 1)));
+  }
+
+  /// Giờ đang chọn không còn hợp lệ (đổi ngày, đổi thứ) thì chuyển sang giờ hợp lệ đầu tiên.
+  void _chinhGio() {
+    if (_selectedTime != null && _gioHopLe(_ngayBuoiDau, _selectedTime!)) return;
+    final hop = _timeSlots.where((t) => _gioHopLe(_ngayBuoiDau, t));
+    _selectedTime = hop.isEmpty ? null : hop.first;
+  }
+
+  void _chonNgay(DateTime d) => setState(() {
+        _selectedDate = d;
+        _chinhGio();
+      });
 
   int get _dichVuId =>
       CatalogUi.toInt(widget.service['dichVuId'] ?? widget.service['id']);
@@ -111,8 +135,12 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedDate = _dateOptions.first;
-    _selectedTime = _timeSlots.first;
+    // Hôm nay nếu còn khung giờ hợp lệ, không thì ngày mai
+    _selectedDate = _homNay;
+    if (!_timeSlots.any((t) => _gioHopLe(_homNay, t))) {
+      _selectedDate = _homNay.add(const Duration(days: 1));
+    }
+    _chinhGio();
     _loadDefaultAddress();
     _loadPlans();
   }
@@ -142,10 +170,14 @@ class _BookingScreenState extends State<BookingScreen> {
               'bangGiaId': bgId > 0 ? bgId : null,
               'loaiHinhDat': bg['loaiHinhDat']?.toString() ?? dv['loaiHinhDat']?.toString() ?? 'TheoLan',
               'label': CatalogUi.loaiHinhLabel(bg['loaiHinhDat']?.toString() ?? dv['loaiHinhDat']?.toString()),
-              'desc': bg['khuVuc']?.toString() ?? 'Áp dụng toàn quốc',
+              'desc': bg['khuVuc']?.toString() ?? 'Áp dụng mọi khu vực phục vụ',
               'price': bg['donGia'] ?? dv['giaHienTai'] ?? dv['donGia'],
               'display':
                   '${CatalogUi.money(bg['donGia'] ?? dv['giaHienTai'] ?? dv['donGia'])}${donVi.isNotEmpty ? '/${donVi.toLowerCase()}' : ''}',
+              // Giá trước đợt tăng/giảm tạm: hiện gạch ngang
+              'displayGoc': bg['giaGoc'] != null
+                  ? '${CatalogUi.money(bg['giaGoc'])}${donVi.isNotEmpty ? '/${donVi.toLowerCase()}' : ''}'
+                  : null,
             };
           }(),
       ];
@@ -403,8 +435,10 @@ class _BookingScreenState extends State<BookingScreen> {
                           ],
                         ),
                       ),
-                      Text(
-                        p['display'] as String,
+                      GiaHienThi(
+                        canh: CrossAxisAlignment.end,
+                        gia: p['display'] as String,
+                        giaGoc: p['displayGoc'] as String?,
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 15,
@@ -521,59 +555,34 @@ class _BookingScreenState extends State<BookingScreen> {
       children: [
         _block(
           _laGoiThang ? 'Ngày bắt đầu gói' : 'Ngày làm việc',
-          SizedBox(
-            height: 72,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _dateOptions.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, i) {
-                final d = _dateOptions[i];
-                final selected = _selectedDate != null &&
-                    _selectedDate!.year == d.year &&
-                    _selectedDate!.month == d.month &&
-                    _selectedDate!.day == d.day;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedDate = d),
-                  child: Container(
-                    width: 56,
-                    decoration: BoxDecoration(
-                      color: selected ? AppColors.brand500 : Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color:
-                            selected ? AppColors.brand500 : AppColors.divider,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _weekDays[d.weekday - 1],
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: selected
-                                ? Colors.white
-                                : AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${d.day}',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: selected
-                                ? Colors.white
-                                : AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LichThang(
+                ngayChon: _selectedDate,
+                ngayDau: _homNay,
+                ngayCuoi: _ngayCuoi,
+                // Gói tháng: tô các buổi sẽ làm theo thứ đã chọn
+                ngayTo: _laGoiThang && _loiLichGoi == null ? _lichGoi.toSet() : const {},
+                onChon: _chonNgay,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 16,
+                runSpacing: 4,
+                children: [
+                  _chuThich(AppColors.brand500, 'Ngày đang chọn'),
+                  if (_laGoiThang) _chuThich(AppColors.brandLight, 'Các buổi của gói tháng'),
+                ],
+              ),
+              if (_selectedDate != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  '${_laGoiThang ? 'Ngày bắt đầu gói' : 'Ngày làm'}: ${_fmtDate(_selectedDate!)}',
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                ),
+              ],
+            ],
           ),
         ),
         const SizedBox(height: 10),
@@ -584,14 +593,18 @@ class _BookingScreenState extends State<BookingScreen> {
             runSpacing: 8,
             children: _timeSlots.map((t) {
               final selected = _selectedTime == t;
+              // Khung giờ chưa đủ 1 giờ so với hiện tại (tính theo buổi đầu tiên) bị khoá
+              final hopLe = _gioHopLe(_ngayBuoiDau, t);
               return GestureDetector(
-                onTap: () => setState(() => _selectedTime = t),
+                onTap: hopLe ? () => setState(() => _selectedTime = t) : null,
                 child: Container(
                   width: 72,
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: selected ? AppColors.brand500 : Colors.white,
+                    color: selected
+                        ? AppColors.brand500
+                        : (hopLe ? Colors.white : AppColors.divider.withValues(alpha: 0.5)),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: selected ? AppColors.brand500 : AppColors.divider,
@@ -601,7 +614,9 @@ class _BookingScreenState extends State<BookingScreen> {
                     _fmtTime(t),
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      color: selected ? Colors.white : AppColors.textPrimary,
+                      color: selected ? Colors.white : (hopLe ? AppColors.textPrimary : AppColors.textMuted),
+                      decoration: hopLe ? null : TextDecoration.lineThrough,
+                      decorationColor: AppColors.textMuted,
                     ),
                   ),
                 ),
@@ -672,6 +687,18 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+  Widget _chuThich(Color mau, String nhan) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(color: mau, borderRadius: BorderRadius.circular(4))),
+          const SizedBox(width: 6),
+          Text(nhan, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary)),
+        ],
+      );
+
   /// Chọn thứ cho gói tháng: mẫu chọn nhanh, 7 nút thứ, xem trước lịch đủ số buổi.
   Widget _buildThuGoi() {
     final lich = _lichGoi;
@@ -691,7 +718,10 @@ class _BookingScreenState extends State<BookingScreen> {
             for (final e in LichGoiThang.mau.entries)
               ActionChip(
                 label: Text(e.key, style: const TextStyle(fontSize: 12.5)),
-                onPressed: () => setState(() => _thuGoi = {...e.value}),
+                onPressed: () => setState(() {
+                  _thuGoi = {...e.value};
+                  _chinhGio();
+                }),
                 side: BorderSide(
                     color: _thuGoi.length == e.value.length && _thuGoi.containsAll(e.value)
                         ? AppColors.brand500
@@ -712,6 +742,7 @@ class _BookingScreenState extends State<BookingScreen> {
                       final moi = {..._thuGoi};
                       moi.contains(w) ? moi.remove(w) : moi.add(w);
                       _thuGoi = moi;
+                      _chinhGio();
                     }),
                     child: Container(
                       height: 40,
@@ -994,6 +1025,15 @@ class _BookingScreenState extends State<BookingScreen> {
       );
       return;
     }
+    if (_step == 1 && !_diaChi!.coKhuVuc) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Địa chỉ này nằm ngoài khu vực bTaskee đang phục vụ. Vui lòng chọn địa chỉ khác.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
     if (_step == 1 && (_selectedDate == null || _selectedTime == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1001,6 +1041,20 @@ class _BookingScreenState extends State<BookingScreen> {
           backgroundColor: AppColors.error,
         ),
       );
+      return;
+    }
+    if (_step == 1 && !_gioHopLe(_ngayBuoiDau, _selectedTime!)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Giờ bắt đầu cần sau thời điểm hiện tại ít nhất 1 giờ.'),
+        backgroundColor: AppColors.error,
+      ));
+      return;
+    }
+    if (_step == 1 && _selectedDate!.isAfter(_ngayCuoi)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Chỉ đặt được trong vòng 60 ngày tới.'),
+        backgroundColor: AppColors.error,
+      ));
       return;
     }
     if (_step == 1 && _laGoiThang && _loiLichGoi != null) {

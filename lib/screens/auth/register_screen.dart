@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/auth_api_service.dart';
 import '../../services/auth_flow.dart';
+import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
+import '../../widgets/dia_chi_fields.dart';
 import '../customer/customer_main_screen.dart';
 import 'login_screen.dart';
 import 'otp_verification_screen.dart';
@@ -30,16 +32,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _referralController = TextEditingController();
 
   // Các trường bổ sung cho Khách hàng (UC-KH01)
-  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController(); // số nhà, tên đường
   DateTime? _customerDob;
-  String? _selectedCustomerArea;
+  final DiaChiDangChon _diaChiKhach = DiaChiDangChon(); // địa chỉ nơi ở (tỉnh, phường)
 
   // Các trường bổ sung cho Cộng tác viên (UC-KH02, Image 3)
   final TextEditingController _idCardController = TextEditingController(); // CMND/CCCD
   final TextEditingController _experienceController = TextEditingController(); // Kinh nghiệm
   String _ctvGender = 'Nữ'; // Giới tính: Nam / Nữ
   DateTime? _ctvDob;
-  String? _selectedCtvArea;
+  final DiaChiDangChon _diaChiCtv = DiaChiDangChon(); // ĐỊA CHỈ nơi ở hiện tại
+  final Set<int> _khuVucNhanViec = {}; // KHU VỰC nhận việc (1 đến 5 quận, huyện)
   bool _hasReferralCode = false; // Nút [Không] / [Có] trong box mã giới thiệu
 
   final Map<String, bool> _selectedSkills = {
@@ -55,21 +58,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _agreeTerms = true;
   bool _isLoading = false;
 
-  final List<String> _districts = [
-    'Quận 1, TP. Hồ Chí Minh',
-    'Quận 3, TP. Hồ Chí Minh',
-    'Quận 5, TP. Hồ Chí Minh',
-    'Quận 7, TP. Hồ Chí Minh',
-    'Quận 10, TP. Hồ Chí Minh',
-    'Quận Bình Thạnh, TP. Hồ Chí Minh',
-    'Quận Tân Bình, TP. Hồ Chí Minh',
-    'TP. Thủ Đức, TP. Hồ Chí Minh',
-  ];
+  // Quận, huyện TP.HCM lấy từ GET /v1/areas: cùng danh sách khu vực với website
+  // (sổ địa chỉ khách hàng, đăng ký cộng tác viên) để địa chỉ và khu vực luôn khớp.
+  List<Map<String, dynamic>> _khuVucs = [];
+  bool _dangTaiKhuVuc = true;
+  final TextEditingController _ctvAddressController = TextEditingController(); // Số nhà, tên đường hiện tại
+
+  Future<void> _taiKhuVuc() async {
+    final res = await ServiceCatalogApiService().getAreas();
+    if (!mounted) return;
+    setState(() {
+      _khuVucs = res.success && res.data != null ? res.data! : [];
+      _dangTaiKhuVuc = false;
+    });
+  }
+
+  /// Chọn phường nơi ở: tự chọn khu vực gần nhà nếu chưa chọn khu vực nhận việc nào.
+  void _khiDoiNoiOCtv(DiaChiDangChon d) {
+    final kv = d.khuVuc;
+    setState(() {
+      if (kv != null && _khuVucNhanViec.isEmpty) _khuVucNhanViec.add(kv.id);
+    });
+  }
 
   @override
   void initState() {
     super.initState();
     _roleIndex = widget.initialRoleTab;
+    _taiKhuVuc();
   }
 
   @override
@@ -80,6 +96,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _referralController.dispose();
     _addressController.dispose();
+    _ctvAddressController.dispose();
     _idCardController.dispose();
     _experienceController.dispose();
     super.dispose();
@@ -133,8 +150,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _showSnack('Cộng tác viên phải từ đủ 18 tuổi trở lên.', AppColors.error);
         return;
       }
-      if (_selectedCtvArea == null) {
-        _showSnack('Vui lòng chọn nơi cư trú / khu vực nhận việc!',
+      if (_khuVucNhanViec.isEmpty || _khuVucNhanViec.length > 5) {
+        _showSnack('Vui lòng chọn 1 đến 5 khu vực (quận, huyện) nhận việc!',
             AppColors.error);
         return;
       }
@@ -154,18 +171,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       if (isCustomer) {
         // UC-KH01: Đăng ký Khách hàng -> backend tạo tài khoản chờ kích hoạt + mã OTP
-        final address = [
-          _addressController.text.trim(),
-          if (_selectedCustomerArea != null) _selectedCustomerArea!,
-        ].where((e) => e.isNotEmpty).join(', ');
-
         final response = await _authApiService.registerCustomer(
           hoTen: _fullNameController.text.trim(),
           soDienThoai: phone,
           email: _emailController.text.trim(),
           matKhau: _passwordController.text,
           ngaySinh: _customerDob != null ? _fmtApiDate(_customerDob!) : null,
-          diaChiChiTiet: address,
+          // Địa chỉ nơi ở thành địa chỉ mặc định; khu vực suy ra từ phường
+          soNhaTenDuong: _addressController.text.trim(),
+          maTinh: _diaChiKhach.maTinh,
+          maPhuong: _diaChiKhach.phuong?.ma,
+          khuVucId: (_diaChiKhach.phuong?.khuVuc.length ?? 0) > 1 ? _diaChiKhach.khuVuc?.id : null,
         );
         if (!mounted) return;
 
@@ -218,7 +234,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           matKhau: _passwordController.text,
           ngaySinh: _fmtApiDate(_ctvDob!),
           gioiTinh: _ctvGender == 'Nam' ? 'Nam' : 'Nu',
-          noiCuTru: _selectedCtvArea!,
+          soNhaTenDuong: _ctvAddressController.text.trim(),
+          maTinh: _diaChiCtv.maTinh,
+          maPhuong: _diaChiCtv.phuong?.ma,
+          danhSachKhuVucId: _khuVucNhanViec.toList(),
         );
         if (!mounted) return;
 
@@ -672,49 +691,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildFieldLabel('Khu vực phục vụ', isRequired: false),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: _selectedCustomerArea,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.divider),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.divider),
-                      ),
-                    ),
-                    hint: const Text('Chọn khu vực', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
-                    isExpanded: true,
-                    items: _districts.map((d) {
-                      return DropdownMenuItem(value: d, child: Text(d, style: const TextStyle(fontSize: 13)));
-                    }).toList(),
-                    onChanged: (val) {
-                      setState(() => _selectedCustomerArea = val);
-                    },
-                  ),
-                ],
-              ),
-            ),
+            const Expanded(child: SizedBox()),
           ],
         ),
 
         const SizedBox(height: 18),
 
-        // Địa chỉ (UC-KH01)
-        _buildFieldLabel('Địa chỉ', isRequired: false),
-        const SizedBox(height: 6),
-        _buildCleanInputField(
-          controller: _addressController,
-          hintText: 'Số nhà, tên đường, phường...',
-        ),
+        // Địa chỉ nơi ở hiện tại (UC-KH01): tỉnh, phường (provinces.open-api.vn v2) + số nhà.
+        // Lưu làm địa chỉ mặc định; khu vực (quận, huyện) tự suy ra từ phường.
+        _buildFieldLabel('Địa chỉ nơi ở hiện tại', isRequired: true),
+        const SizedBox(height: 8),
+        DiaChiFields(giaTri: _diaChiKhach, soNhaCtrl: _addressController),
 
         const SizedBox(height: 18),
 
@@ -1075,27 +1062,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 18),
 
-              // Nơi cư trú / Khu vực mong muốn nhận việc (UC-KH02)
-              _buildFieldLabel('Nơi cư trú / Khu vực nhận việc', isRequired: true),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: _selectedCtvArea,
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.divider),
-                  ),
-                  prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.ctvYellowDark),
-                ),
-                hint: const Text('Chọn khu vực bạn muốn nhận việc', style: TextStyle(fontSize: 13)),
-                items: _districts.map((d) {
-                  return DropdownMenuItem(value: d, child: Text(d, style: const TextStyle(fontSize: 13.5)));
-                }).toList(),
-                onChanged: (val) {
-                  setState(() => _selectedCtvArea = val);
-                },
+              // ĐỊA CHỈ nơi ở hiện tại (UC-KH02): tỉnh, phường (provinces.open-api.vn v2) + số nhà.
+              _buildFieldLabel('Địa chỉ nơi ở hiện tại', isRequired: true),
+              const SizedBox(height: 8),
+              DiaChiFields(
+                giaTri: _diaChiCtv,
+                soNhaCtrl: _ctvAddressController,
+                onChanged: _khiDoiNoiOCtv,
+                ghiChuKhuVuc: (d) => d.phuong == null
+                    ? ''
+                    : d.phuong!.khuVuc.isEmpty
+                        ? 'Nơi ở ngoài khu vực bTaskee đang phục vụ'
+                        : 'Thuộc khu vực: ${d.phuong!.khuVuc.map((k) => k.ten).join(' / ')}',
               ),
+
+              const SizedBox(height: 12),
+
+              // KHU VỰC nhận việc: quận, huyện (lớn hơn phường) – CSKH ưu tiên giao đơn trong các khu vực này
+              _buildFieldLabel('Khu vực nhận việc (1 đến 5 quận, huyện)', isRequired: true),
+              const SizedBox(height: 8),
+              if (_dangTaiKhuVuc)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: LinearProgressIndicator(),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: _khuVucs.map((kv) {
+                    final id = int.tryParse('${kv['id']}');
+                    if (id == null) return const SizedBox.shrink();
+                    final chon = _khuVucNhanViec.contains(id);
+                    return FilterChip(
+                      label: Text(kv['tenKhuVuc']?.toString() ?? '', style: const TextStyle(fontSize: 12.5)),
+                      selected: chon,
+                      selectedColor: AppColors.ctvYellowDark.withValues(alpha: 0.2),
+                      onSelected: (v) {
+                        if (v && _khuVucNhanViec.length >= 5) {
+                          _showSnack('Chọn tối đa 5 khu vực nhận việc.', AppColors.error);
+                          return;
+                        }
+                        setState(() => v ? _khuVucNhanViec.add(id) : _khuVucNhanViec.remove(id));
+                      },
+                    );
+                  }).toList(),
+                ),
 
               const SizedBox(height: 20),
 
@@ -1455,7 +1467,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               keyboardType: TextInputType.phone,
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
               decoration: const InputDecoration(
-                hintText: 'Nhập số điện thoại',
+                hintText: 'Số điện thoại',
                 hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),

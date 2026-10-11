@@ -5,6 +5,24 @@ import '../models/cong_tac_vien.dart';
 class CollaboratorApiService {
   final ApiClient _apiClient = ApiClient();
 
+  /// Quận, huyện CTV đang nhận việc: [{id, tenKhuVuc}]
+  Future<ApiResponse<List<Map<String, dynamic>>>> getWorkAreas(int congTacVienId) {
+    return _apiClient.get<List<Map<String, dynamic>>>(
+      '/v1/collaborators/$congTacVienId/areas',
+      fromJsonT: (json) => json is List
+          ? json.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[],
+    );
+  }
+
+  /// Đặt lại khu vực nhận việc (1 đến 5 quận, huyện)
+  Future<ApiResponse<dynamic>> updateWorkAreas(int congTacVienId, List<int> khuVucIds) {
+    return _apiClient.put<dynamic>(
+      '/v1/collaborators/$congTacVienId/areas',
+      body: {'khuVucIds': khuVucIds},
+    );
+  }
+
   /// Lấy danh sách đơn được phân công cho CTV
   Future<ApiResponse<List<Map<String, dynamic>>>> getAssignments({
     required int congTacVienId,
