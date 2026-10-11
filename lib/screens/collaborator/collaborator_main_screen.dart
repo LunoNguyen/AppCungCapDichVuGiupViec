@@ -21,12 +21,14 @@ class CollaboratorMainScreen extends StatefulWidget {
 class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
     with WidgetsBindingObserver {
   late int _currentIndex;
+  final GlobalKey<CollaboratorOrdersScreenState> _ordersKey = GlobalKey<CollaboratorOrdersScreenState>();
+  final GlobalKey<CollaboratorScheduleScreenState> _scheduleKey = GlobalKey<CollaboratorScheduleScreenState>();
 
-  final List<Widget> _screens = const [
-    CollaboratorOrdersScreen(),
-    CollaboratorScheduleScreen(),
-    CollaboratorNotificationsScreen(),
-    CollaboratorAccountScreen(),
+  late final List<Widget> _screens = [
+    CollaboratorOrdersScreen(key: _ordersKey),
+    CollaboratorScheduleScreen(key: _scheduleKey),
+    const CollaboratorNotificationsScreen(),
+    const CollaboratorAccountScreen(),
   ];
 
   @override
@@ -87,6 +89,11 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
             setState(() {
               _currentIndex = index;
             });
+            if (index == 0) {
+              _ordersKey.currentState?.reload();
+            } else if (index == 1) {
+              _scheduleKey.currentState?.reload();
+            }
           },
           selectedItemColor: AppColors.partner500,
           unselectedItemColor: AppColors.textMuted,
