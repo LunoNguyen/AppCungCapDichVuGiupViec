@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
+import '../../services/app_realtime.dart';
 import '../../services/notification_api_service.dart';
 import '../../services/session_service.dart';
 import '../auth/login_screen.dart';
@@ -26,10 +28,22 @@ class CustomerNotificationScreenState
     _init();
   }
 
+  StreamSubscription<String>? _realtime;
+
   @override
   void initState() {
     super.initState();
     _init();
+    // Có thông báo mới qua realtime: tải lại danh sách
+    _realtime = AppRealtime.instance.suKien.listen((e) {
+      if (e == 'thong-bao-moi' && mounted) _fetchNotifications();
+    });
+  }
+
+  @override
+  void dispose() {
+    _realtime?.cancel();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -105,6 +119,7 @@ class CustomerNotificationScreenState
     });
     try {
       await _apiService.markAllCustomerNotificationsRead(_currentTaiKhoanId);
+      AppRealtime.instance.capNhatSoChuaDoc();
     } catch (_) {}
   }
 
@@ -118,6 +133,7 @@ class CustomerNotificationScreenState
           id: id,
           taiKhoanId: _currentTaiKhoanId,
         );
+        AppRealtime.instance.capNhatSoChuaDoc();
       } catch (_) {}
     }
   }

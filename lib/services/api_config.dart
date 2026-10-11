@@ -1,9 +1,21 @@
+import 'package:flutter/foundation.dart';
+
 class ApiConfig {
-  /// Base URL của Backend Spring Boot
-  /// - Dùng 'http://10.0.2.2:8080' khi chạy trên Android Emulator
-  /// - Dùng 'http://localhost:8080' khi chạy Web hoặc Windows Desktop
-  /// - Dùng IP mạng LAN (ví dụ: 'http://192.168.1.100:8080') khi chạy trên điện thoại thật
-  static String baseUrl = 'http://192.168.2.10:8083';
+  /// Base URL của Backend Spring Boot (cổng 8083), tự chọn theo nơi chạy app:
+  /// - Android Emulator: 'http://10.0.2.2:8083' (10.0.2.2 = máy tính đang chạy emulator)
+  /// - Web, Windows Desktop: 'http://localhost:8083'
+  /// - Điện thoại thật (cùng Wi-Fi với máy chạy server): truyền IP LAN lúc chạy, không sửa file này:
+  ///     flutter run --dart-define=API_URL=http://192.168.x.x:8083
+  /// Nhờ vậy mỗi máy trong nhóm dùng địa chỉ riêng mà không ghi đè nhau khi merge.
+  static String baseUrl = _diaChiMacDinh();
+
+  static String _diaChiMacDinh() {
+    const tuChon = String.fromEnvironment('API_URL');
+    if (tuChon.isNotEmpty) return tuChon;
+    if (kIsWeb) return 'http://localhost:8083';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8083';
+    return 'http://localhost:8083';
+  }
 
   /// Base URL cho MinIO Storage API
   static String get storageUrl => '$baseUrl/api/storage';

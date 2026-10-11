@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_colors.dart';
+import '../../services/app_realtime.dart';
 import '../../services/notification_api_service.dart';
 import 'collaborator_main_screen.dart';
 
@@ -31,10 +33,22 @@ class CollaboratorNotificationsScreenState
   static const _ink = AppColors.textPrimary;
   static const _headerTop = AppColors.partner500;
 
+  StreamSubscription<String>? _realtime;
+
   @override
   void initState() {
     super.initState();
     _init();
+    // Có thông báo mới qua realtime: tải lại danh sách
+    _realtime = AppRealtime.instance.suKien.listen((e) {
+      if (e == 'thong-bao-moi' && mounted) _fetchNotifications();
+    });
+  }
+
+  @override
+  void dispose() {
+    _realtime?.cancel();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -92,6 +106,7 @@ class CollaboratorNotificationsScreenState
     });
     try {
       await _apiService.markAllCollaboratorNotificationsRead(_currentUserId);
+      AppRealtime.instance.capNhatSoChuaDoc();
     } catch (_) {}
   }
 
@@ -105,6 +120,7 @@ class CollaboratorNotificationsScreenState
           id: id,
           taiKhoanId: _currentUserId,
         );
+        AppRealtime.instance.capNhatSoChuaDoc();
       } catch (_) {}
     }
   }

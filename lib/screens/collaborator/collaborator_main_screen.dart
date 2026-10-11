@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../services/app_realtime.dart';
+import '../../widgets/chuong_thong_bao.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_theme.dart';
 import '../../services/ctv_location_tracker.dart';
@@ -21,21 +23,20 @@ class CollaboratorMainScreen extends StatefulWidget {
 class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
     with WidgetsBindingObserver {
   late int _currentIndex;
-  final GlobalKey<CollaboratorNotificationsScreenState> _notifKey = GlobalKey();
-  late final List<Widget> _screens;
   final GlobalKey<CollaboratorOrdersScreenState> _ordersKey = GlobalKey<CollaboratorOrdersScreenState>();
   final GlobalKey<CollaboratorScheduleScreenState> _scheduleKey = GlobalKey<CollaboratorScheduleScreenState>();
+  final GlobalKey<CollaboratorNotificationsScreenState> _notifKey = GlobalKey<CollaboratorNotificationsScreenState>();
+
+  late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _screens = [
-      const CollaboratorOrdersScreen(),
-      const CollaboratorScheduleScreen(),
-      CollaboratorNotificationsScreen(key: _notifKey),
       CollaboratorOrdersScreen(key: _ordersKey),
       CollaboratorScheduleScreen(key: _scheduleKey),
+      const CollaboratorNotificationsScreen(),
       const CollaboratorAccountScreen(),
     ];
     WidgetsBinding.instance.addObserver(this);
@@ -46,6 +47,11 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
   Future<void> _batDauGuiViTri() async {
     final s = await SessionService.load();
     if (s == null || !s.isCollaborator) return;
+    // Realtime: thông báo mới (được phân công, đơn mới trong khu vực, khách hủy) + số chưa đọc
+    if (s.taiKhoanId > 0) {
+      AppRealtime.instance.batDau(taiKhoanId: s.taiKhoanId, laCongTacVien: true);
+      AppRealtime.instance.capNhatSoChuaDoc();
+    }
     final loi = await CtvLocationTracker.instance.start(s.userId);
     if (loi != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -126,8 +132,9 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
               label: 'Lịch làm',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.notifications_none_rounded),
-              activeIcon: Icon(Icons.notifications_rounded),
+              // Số thông báo chưa đọc, cập nhật theo realtime
+              icon: ChuongThongBao(),
+              activeIcon: ChuongThongBao(icon: Icons.notifications_rounded),
               label: 'Thông báo',
             ),
             BottomNavigationBarItem(

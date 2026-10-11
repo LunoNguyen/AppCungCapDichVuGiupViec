@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'app_realtime.dart';
 
 /// Phiên đăng nhập đã lưu trên máy.
 /// [userId] là id theo vai trò: khachHangId (Khách hàng) hoặc congTacVienId (CTV).
@@ -74,6 +75,7 @@ class SessionService {
 
   /// Xoá phiên đăng nhập, giữ lại các cài đặt khác (VD: bật/tắt thông báo).
   static Future<void> clear() async {
+    AppRealtime.instance.dung(); // ngắt kết nối realtime của tài khoản vừa đăng xuất
     final prefs = await SharedPreferences.getInstance();
     for (final k in [_kRole, _kUserId, _kTaiKhoanId, _kFullName, _kPhone, _kEmail, _kMa, _kToken]) {
       await prefs.remove(k);

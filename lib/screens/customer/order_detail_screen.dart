@@ -1209,7 +1209,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _order!['trangThaiThanhToan']?.toString().toUpperCase() == 'DATHANHTOAN' ||
         _order!['trangThaiThanhToan']?.toString().toUpperCase() == 'DA_THANH_TOAN';
 
-    final canCancel = trangThai == 'ChoDuyet' || trangThai == 'DangTimCTV';
+    // Hủy được khi chưa bắt đầu làm (kể cả đã có cộng tác viên nhận); máy chủ kiểm tra giờ bắt đầu
+    final canCancel = trangThai == 'ChoDuyet' || trangThai == 'DangTimCTV' || trangThai == 'DaXacNhan';
     final canPay = !isPaid && trangThai != 'DaHuy';
 
     if (!canCancel && !canPay) return null;

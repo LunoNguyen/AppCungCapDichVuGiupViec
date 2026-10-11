@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
 import '../auth/login_screen.dart';
 import '../../services/session_service.dart';
 import '../../services/booking_api_service.dart';
+import '../../services/app_realtime.dart';
 import 'order_detail_screen.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
@@ -34,10 +36,17 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _checkSessionAndLoad();
+    // Đơn có thay đổi (có người nhận, đổi trạng thái, bị hủy...) → tải lại danh sách
+    _realtime = AppRealtime.instance.suKien.listen((_) {
+      if (mounted && _loggedIn) _loadBookings();
+    });
   }
+
+  StreamSubscription<String>? _realtime;
 
   @override
   void dispose() {
+    _realtime?.cancel();
     _tabController.dispose();
     super.dispose();
   }

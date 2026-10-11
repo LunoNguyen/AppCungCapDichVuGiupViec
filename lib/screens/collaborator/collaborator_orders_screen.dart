@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
 import '../../services/collaborator_api_service.dart';
+import '../../services/app_realtime.dart';
 import '../../services/location_service.dart';
 
 class CollaboratorOrdersScreen extends StatefulWidget {
@@ -53,6 +55,10 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     // 4 Tab: Mới (0), Chờ làm (1), Đang làm (2), Đã xong (3)
     _tabController = TabController(length: 4, vsync: this);
     _loadUserAndFetchData();
+    // Được phân công / đơn bị hủy / đơn mới... → tải lại danh sách đơn
+    _realtime = AppRealtime.instance.suKien.listen((_) {
+      if (mounted) _fetchAllData();
+    });
 
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
@@ -61,8 +67,11 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     });
   }
 
+  StreamSubscription<String>? _realtime;
+
   @override
   void dispose() {
+    _realtime?.cancel();
     _tabController.dispose();
     super.dispose();
   }

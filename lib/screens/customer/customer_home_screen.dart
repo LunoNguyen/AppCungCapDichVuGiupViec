@@ -1,4 +1,5 @@
 import '../../widgets/gia_hien_thi.dart';
+import '../../widgets/chuong_thong_bao.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
@@ -327,7 +328,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ),
               ),
               _headerIcon(Icons.headset_mic_outlined, _showSupportBottomSheet),
-              _headerIcon(Icons.notifications_none_rounded, () {
+              IconButton(
+                splashRadius: 22,
+                icon: const ChuongThongBao(color: Colors.white, size: 24),
+                onPressed: () {
                 if (widget.onSwitchTab != null) {
                   widget.onSwitchTab!(2);
                 } else {
