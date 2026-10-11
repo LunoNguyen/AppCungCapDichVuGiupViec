@@ -10,10 +10,10 @@ class CollaboratorNotificationsScreen extends StatefulWidget {
 
   @override
   State<CollaboratorNotificationsScreen> createState() =>
-      _CollaboratorNotificationsScreenState();
+      CollaboratorNotificationsScreenState();
 }
 
-class _CollaboratorNotificationsScreenState
+class CollaboratorNotificationsScreenState
     extends State<CollaboratorNotificationsScreen> {
   final NotificationApiService _apiService = NotificationApiService();
   bool _isLoading = true;
@@ -21,6 +21,10 @@ class _CollaboratorNotificationsScreenState
   bool _onlyUnread = false;
   int _currentUserId = 0;
   List<Map<String, dynamic>> _items = [];
+
+  void refresh() {
+    _init();
+  }
 
   // Màu theo phong cách bTaskee Partner
   static const _primary = AppColors.partner500;
@@ -55,6 +59,9 @@ class _CollaboratorNotificationsScreenState
             thoiGian =
                 DateTime.tryParse(raw['thoiGianGui'].toString()) ?? DateTime.now();
           }
+          final bool daDoc = raw['daDoc'] == true ||
+              raw['daDoc'] == 1 ||
+              raw['daDoc']?.toString().toLowerCase() == 'true';
           loaded.add({
             'id': raw['id'],
             'thongBaoId': raw['thongBaoId'],
@@ -63,7 +70,7 @@ class _CollaboratorNotificationsScreenState
             'noiDung': raw['noiDung']?.toString() ?? '',
             'nguoiGui': raw['nguoiGui']?.toString() ?? 'Hệ thống',
             'thoiGian': thoiGian,
-            'daDoc': raw['daDoc'] == true,
+            'daDoc': daDoc,
           });
         }
         if (mounted) setState(() => _items = loaded);
@@ -674,11 +681,9 @@ class _CollaboratorNotificationsScreenState
           ),
           Row(
             children: [
-              _segment('Tất cả', !_onlyUnread,
+              _segment('Tất cả (${_items.length})', !_onlyUnread,
                   () => setState(() => _onlyUnread = false)),
-              _segment(
-                  'Chưa đọc${_unreadCount > 0 ? ' ($_unreadCount)' : ''}',
-                  _onlyUnread,
+              _segment('Chưa đọc (${_unreadCount})', _onlyUnread,
                   () => setState(() => _onlyUnread = true)),
             ],
           ),
