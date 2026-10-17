@@ -12,6 +12,9 @@ class DuLieuDat {
   final bool goiDuBuoi;
   final String? hinhThucThanhToan;
 
+  /// Câu lỗi ngày giờ của RangBuocNgayDat (trùng máy chủ), null nếu hợp lệ.
+  final String? loiNgayGio;
+
   const DuLieuDat({
     this.nhom,
     this.loaiHinhDat,
@@ -21,6 +24,7 @@ class DuLieuDat {
     this.coDiaChiNao = false,
     this.goiDuBuoi = false,
     this.hinhThucThanhToan,
+    this.loiNgayGio,
   });
 }
 
@@ -68,6 +72,7 @@ class BuocDat {
       case 3:
         if (d.dichVuId == null) return 'Vui lòng chọn thời lượng / gói.';
         if (!d.daChonGio) return 'Vui lòng chọn giờ bắt đầu.';
+        if (d.loiNgayGio != null) return d.loiNgayGio;
         if (d.loaiHinhDat == 'GoiThang' && !d.goiDuBuoi) return 'Các thứ đã chọn chưa đủ số buổi của gói.';
         if (!d.coDiaChiNao) return 'Vui lòng chọn địa chỉ làm việc.';
         if (!d.coDiaChiTrongKhuVuc) {
@@ -79,6 +84,14 @@ class BuocDat {
       default:
         return null;
     }
+  }
+
+  /// Bước đầu tiên trước [den] còn chặn (đi thẳng qua thanh bước hoặc gửi đơn với [den] = 6), null nếu đi được.
+  static int? buocChan(int den, DuLieuDat d) {
+    for (var b = 1; b < den && b <= soBuoc; b++) {
+      if (loiBuoc(b, d) != null) return b;
+    }
+    return null;
   }
 
   /// Đổi hình thức đặt: ngày đang chọn vượt mốc tối đa của hình thức mới thì kéo về mốc đó.

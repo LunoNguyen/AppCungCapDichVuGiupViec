@@ -15,37 +15,51 @@ import 'order_detail_screen.dart';
 class ThanhToanScreen extends StatefulWidget {
   final int donDatId;
 
-  const ThanhToanScreen({super.key, required this.donDatId});
+  /// Mở từ chi tiết đơn: xong thì quay về màn đó (pop) thay vì mở chồng thêm một chi tiết đơn.
+  final bool moTuChiTiet;
+
+  const ThanhToanScreen({super.key, required this.donDatId, this.moTuChiTiet = false});
 
   @override
   State<ThanhToanScreen> createState() => _ThanhToanScreenState();
 }
 
-class _ThanhToanScreenState extends State<ThanhToanScreen> {
+class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingObserver {
   final _bookingApi = BookingApiService();
 
   Map<String, dynamic>? _hoaDon;
   bool _dangTai = true;
   String? _loi;
-  int? _giay; // số giây còn lại máy chủ trả; null = không có hạn
+  int? _giayMayChu; // số giây còn lại máy chủ trả lúc tải; null = không có hạn
+  final _daQua = Stopwatch(); // đồng hồ đơn điệu, vẫn chạy khi app ở nền
   Timer? _dongHo;
   Timer? _hen;
   bool _dangGui = false;
   bool _daRoi = false;
+
+  int? get _giay => DongHo.conLai(_giayMayChu, _daQua.elapsed);
 
   bool get _hetGio => DongHo.hetGio(_giay);
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tai();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _dongHo?.cancel();
     _hen?.cancel();
     super.dispose();
+  }
+
+  /// Quay lại từ app ngân hàng: lấy lại số giây và trạng thái từ máy chủ.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_daRoi && !_dangGui) _tai();
   }
 
   Future<void> _tai() async {
@@ -73,7 +87,10 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> {
       final giay = ct.data?['soGiayConLaiThanhToan'];
       setState(() {
         _hoaDon = hd.data;
-        _giay = giay == null ? null : CatalogUi.toInt(giay);
+        _giayMayChu = giay == null ? null : CatalogUi.toInt(giay);
+        _daQua
+          ..reset()
+          ..start();
       });
       _batDongHo();
     } catch (_) {
@@ -92,7 +109,7 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> {
     }
     _dongHo = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
-      setState(() => _giay = (_giay ?? 0) - 1);
+      setState(() {});
       if (_hetGio) {
         t.cancel();
         _henMoChiTiet();
@@ -110,6 +127,10 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> {
   void _moChiTiet() {
     if (_daRoi || !mounted) return;
     _daRoi = true;
+    if (widget.moTuChiTiet) {
+      Navigator.pop(context);
+      return;
+    }
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: widget.donDatId)),

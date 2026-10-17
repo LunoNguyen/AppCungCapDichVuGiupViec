@@ -88,6 +88,9 @@ class _BookingScreenState extends State<BookingScreen> {
         coDiaChiNao: _diaChi != null,
         coDiaChiTrongKhuVuc: _diaChi?.coKhuVuc ?? false,
         hinhThucThanhToan: _hinhThucTT,
+        loiNgayGio: _gio == null
+            ? null
+            : RangBuocNgayDat.loiNgayDat(_loai, _ngayBuoiDau, _gio!.hour, _gio!.minute, DateTime.now()),
       );
 
   bool get _laGoi => _loai == 'GoiThang';
@@ -221,7 +224,12 @@ class _BookingScreenState extends State<BookingScreen> {
   void _huyGia() {
     _gia = null;
     _loiGia = false;
+    _phienGia++;
   }
+
+  /// Tăng mỗi khi lựa chọn đổi: phản hồi giá của lựa chọn cũ về muộn thì bỏ qua.
+  int _phienGia = 0;
+  int _lanTinh = 0; // lần gọi _tinhGia mới nhất: chỉ lần này được tắt vòng xoay
 
   Future<void> _taiDichVu() async {
     setState(() {
@@ -340,6 +348,8 @@ class _BookingScreenState extends State<BookingScreen> {
   Future<void> _tinhGia() async {
     final id = _dichVuId;
     if (id == null) return;
+    final phien = ++_phienGia;
+    final lan = ++_lanTinh;
     setState(() => _dangTinhGia = true);
     try {
       final res = await _bookingApi.calculatePrice(
@@ -350,7 +360,7 @@ class _BookingScreenState extends State<BookingScreen> {
         ngayThucHien: _ngayBuoiDau == null ? null : _ymd(_ngayBuoiDau!),
         gioBatDau: _gio == null ? null : BuocThoiGian.hhmm(_gio!),
       );
-      if (!mounted) return;
+      if (!mounted || phien != _phienGia) return;
       if (!res.success || res.data == null) {
         setState(() {
           _gia = null;
@@ -371,14 +381,14 @@ class _BookingScreenState extends State<BookingScreen> {
       });
       if (boMa != null) _baoLoi(boMa!);
     } catch (_) {
-      if (mounted) {
+      if (mounted && phien == _phienGia) {
         setState(() {
           _gia = null;
           _loiGia = true;
         });
       }
     } finally {
-      if (mounted) setState(() => _dangTinhGia = false);
+      if (mounted && lan == _lanTinh) setState(() => _dangTinhGia = false);
     }
   }
 
@@ -388,6 +398,7 @@ class _BookingScreenState extends State<BookingScreen> {
     code = code.trim().toUpperCase();
     if (id == null || code.isEmpty) return;
     FocusScope.of(context).unfocus();
+    final phien = ++_phienGia;
     setState(() => _dangKiemMa = true);
     try {
       final res = await _bookingApi.calculatePrice(
@@ -399,6 +410,7 @@ class _BookingScreenState extends State<BookingScreen> {
         gioBatDau: _gio == null ? null : BuocThoiGian.hhmm(_gio!),
       );
       if (!mounted) return;
+      if (phien != _phienGia) return; // lựa chọn đã đổi trong lúc chờ
       final data = res.data;
       final thongDiep = data?['thongDiepKMDuocApDung']?.toString();
       if (res.success && data != null && _tien(data['soTienGiam']) > 0) {
@@ -446,18 +458,24 @@ class _BookingScreenState extends State<BookingScreen> {
 
   /// Sang một bước: tới bước 4 thì tính giá.
   void _denBuoc(int b) {
+    if (b > _buoc) {
+      final chan = BuocDat.buocChan(b, _duLieu);
+      if (chan != null) {
+        // Thanh bước nhảy qua một bước vừa bị sửa thành chưa hợp lệ: dừng ở bước đó
+        _baoLoi(BuocDat.loiBuoc(chan, _duLieu)!);
+        setState(() => _buoc = chan);
+        return;
+      }
+    }
     setState(() {
       _buoc = b;
       if (_buoc > _daToi) _daToi = _buoc;
     });
-    if (b == 4 && _gia == null && !_dangTinhGia) _tinhGia();
+    if (b == 4 && _gia == null) _tinhGia();
   }
 
   void _tiep() {
-    final loi = BuocDat.loiBuoc(_buoc, _duLieu) ??
-        (_buoc == 3
-            ? RangBuocNgayDat.loiNgayDat(_loai, _ngayBuoiDau, _gio?.hour, _gio?.minute, DateTime.now())
-            : null);
+    final loi = BuocDat.loiBuoc(_buoc, _duLieu);
     if (loi != null) {
       _baoLoi(loi);
       return;
@@ -479,6 +497,12 @@ class _BookingScreenState extends State<BookingScreen> {
     final hinhThuc = _hinhThucTT;
     if (session == null || !session.isCustomer) {
       _baoLoi('Vui lòng đăng nhập để đặt dịch vụ');
+      return;
+    }
+    final chan = BuocDat.buocChan(BuocDat.soBuoc + 1, _duLieu);
+    if (chan != null) {
+      _baoLoi(BuocDat.loiBuoc(chan, _duLieu)!);
+      setState(() => _buoc = chan);
       return;
     }
     if (id == null || ngay == null || gio == null || hinhThuc == null) return;
@@ -506,7 +530,8 @@ class _BookingScreenState extends State<BookingScreen> {
       if (!res.success) {
         final msg = res.message ?? 'Không đặt được dịch vụ, vui lòng thử lại';
         if (msg.startsWith('Lỗi kết nối')) {
-          _baoLoi('Không kết nối được máy chủ');
+          // Có thể máy chủ đã tạo đơn nhưng phản hồi về muộn: tránh khách bấm lại tạo đơn trùng
+          _baoLoi('Không nhận được phản hồi từ máy chủ. Vui lòng xem "Đơn của tôi" trước khi đặt lại.');
           return;
         }
         _baoLoi(msg);

@@ -16,4 +16,10 @@ void main() {
     expect(DongHo.hetGio(0), isTrue);
     expect(DongHo.hetGio(null), isTrue);
   });
+
+  test('Số giây còn lại trừ thời gian đã trôi (kể cả lúc app chạy nền)', () {
+    expect(DongHo.conLai(900, const Duration(minutes: 6)), 540);
+    expect(DongHo.conLai(30, const Duration(minutes: 1)), 0);
+    expect(DongHo.conLai(null, const Duration(minutes: 1)), isNull);
+  });
 }

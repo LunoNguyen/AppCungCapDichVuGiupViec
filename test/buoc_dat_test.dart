@@ -64,4 +64,42 @@ void main() {
     expect(BuocDat.keoNgay(DateTime(2026, 3, 20), 'TheoLan', homNay), DateTime(2026, 2, 28));
     expect(BuocDat.keoNgay(DateTime(2026, 3, 20), 'GoiThang', homNay), DateTime(2026, 3, 20));
   });
+
+  test('Nhảy tới bước sau qua thanh bước: chặn ở bước đầu tiên chưa hợp lệ', () {
+    final n = nhom(theoLan: true, goi: true);
+    final d = DuLieuDat(
+      nhom: n,
+      loaiHinhDat: 'TheoLan',
+      dichVuId: 7,
+      daChonGio: true,
+      coDiaChiNao: true,
+      coDiaChiTrongKhuVuc: true,
+      hinhThucThanhToan: 'TienMat',
+    );
+    expect(BuocDat.buocChan(5, d), isNull);
+    expect(BuocDat.buocChan(6, d), isNull); // gửi đơn: kiểm cả 5 bước
+
+    final chuaGio = DuLieuDat(nhom: n, loaiHinhDat: 'TheoLan', dichVuId: 7, coDiaChiNao: true, coDiaChiTrongKhuVuc: true);
+    expect(BuocDat.buocChan(5, chuaGio), 3);
+    expect(BuocDat.buocChan(3, chuaGio), isNull);
+
+    // Lỗi ngày giờ (câu của RangBuocNgayDat) cũng chặn bước 3
+    final quaHan = DuLieuDat(
+      nhom: n,
+      loaiHinhDat: 'TheoLan',
+      dichVuId: 7,
+      daChonGio: true,
+      coDiaChiNao: true,
+      coDiaChiTrongKhuVuc: true,
+      loiNgayGio: 'Ngày thực hiện không được ở quá khứ.',
+    );
+    expect(BuocDat.loiBuoc(3, quaHan), 'Ngày thực hiện không được ở quá khứ.');
+    expect(BuocDat.buocChan(4, quaHan), 3);
+
+    // Thiếu phương thức thanh toán chỉ chặn khi gửi đơn
+    expect(BuocDat.buocChan(6, chuaGio), 3);
+    final chuaTT = DuLieuDat(nhom: n, loaiHinhDat: 'TheoLan', dichVuId: 7, daChonGio: true, coDiaChiNao: true, coDiaChiTrongKhuVuc: true);
+    expect(BuocDat.buocChan(5, chuaTT), isNull);
+    expect(BuocDat.buocChan(6, chuaTT), 5);
+  });
 }

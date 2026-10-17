@@ -11,4 +11,12 @@ class DongHo {
     final g = giay!;
     return '${(g ~/ 60).toString().padLeft(2, '0')}:${(g % 60).toString().padLeft(2, '0')}';
   }
+
+  /// Số giây còn lại sau khi đã trôi [daQua] kể từ lúc nhận [giay] từ máy chủ (đo bằng Stopwatch,
+  /// nên vẫn đúng khi app chạy nền và Timer bị dừng). Không âm; null nếu không có hạn.
+  static int? conLai(int? giay, Duration daQua) {
+    if (giay == null) return null;
+    final c = giay - daQua.inSeconds;
+    return c < 0 ? 0 : c;
+  }
 }

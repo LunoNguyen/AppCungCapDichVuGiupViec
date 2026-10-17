@@ -25,7 +25,7 @@ class OrderDetailScreen extends StatefulWidget {
   State<OrderDetailScreen> createState() => _OrderDetailScreenState();
 }
 
-class _OrderDetailScreenState extends State<OrderDetailScreen> {
+class _OrderDetailScreenState extends State<OrderDetailScreen> with WidgetsBindingObserver {
   final _bookingApi = BookingApiService();
   final _currencyFormat = NumberFormat('#,###', 'vi_VN');
 
@@ -35,8 +35,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   UserSession? _session;
 
   // Đồng hồ đếm lùi từ số giây máy chủ trả: hạn chuyển khoản, hạn có người nhận
-  int? _giayThanhToan;
-  int? _giayNhan;
+  int? _giayThanhToanGoc;
+  int? _giayNhanGoc;
+  final _daQua = Stopwatch(); // đồng hồ đơn điệu từ lúc tải đơn, vẫn chạy khi app ở nền
+  int? get _giayThanhToan => DongHo.conLai(_giayThanhToanGoc, _daQua.elapsed);
+  int? get _giayNhan => DongHo.conLai(_giayNhanGoc, _daQua.elapsed);
   Timer? _dongHo;
   Timer? _henTaiLai;
   StreamSubscription<String>? _realtime;
@@ -44,6 +47,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
     // Có cộng tác viên nhận, đơn tự hủy, thanh toán xong... thì tải lại
     _realtime = AppRealtime.instance.suKien.listen((_) => _taiLaiDon());
@@ -51,10 +55,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _dongHo?.cancel();
     _henTaiLai?.cancel();
     _realtime?.cancel();
     super.dispose();
+  }
+
+  /// Quay lại app (vd. từ app ngân hàng): tải lại đơn để đồng hồ và trạng thái khớp máy chủ.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _order != null) _taiLaiDon();
   }
 
   static int? _giay(dynamic v) => v == null ? null : int.tryParse(v.toString());
@@ -63,8 +74,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   /// (máy chủ tự hủy đơn quá hạn mỗi phút).
   void _capNhatDongHo() {
     _dongHo?.cancel();
-    _giayThanhToan = _giay(_order?['soGiayConLaiThanhToan']);
-    _giayNhan = _giay(_order?['soGiayConLaiNhan']);
+    _giayThanhToanGoc = _giay(_order?['soGiayConLaiThanhToan']);
+    _giayNhanGoc = _giay(_order?['soGiayConLaiNhan']);
+    _daQua
+      ..reset()
+      ..start();
     if (_giayThanhToan == null && _giayNhan == null) return;
     if (DongHo.hetGio(_giayThanhToan) && DongHo.hetGio(_giayNhan)) {
       _henTai();
@@ -72,10 +86,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
     _dongHo = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
-      setState(() {
-        if (_giayThanhToan != null) _giayThanhToan = _giayThanhToan! - 1;
-        if (_giayNhan != null) _giayNhan = _giayNhan! - 1;
-      });
+      setState(() {});
       if (DongHo.hetGio(_giayThanhToan) && DongHo.hetGio(_giayNhan)) {
         t.cancel();
         _henTai();
@@ -93,7 +104,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Future<void> _moThanhToan() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => ThanhToanScreen(donDatId: widget.orderId)),
+      MaterialPageRoute(builder: (_) => ThanhToanScreen(donDatId: widget.orderId, moTuChiTiet: true)),
     );
     if (mounted) _taiLaiDon();
   }
