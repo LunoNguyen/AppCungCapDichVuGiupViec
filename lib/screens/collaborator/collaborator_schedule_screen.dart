@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
 import '../../services/collaborator_api_service.dart';
@@ -139,6 +140,12 @@ class CollaboratorScheduleScreenState
 
       if (res.success && res.data != null) {
         for (final item in res.data!) {
+          final st = (item['trangThai'] ?? '').toString().toLowerCase();
+          final donSt = (item['trangThaiDon'] ?? '').toString().toLowerCase();
+          final pcSt = (item['trangThaiPhanCong'] ?? '').toString().toLowerCase();
+          if (st == 'huy' || st == 'dahuy' || donSt == 'dahuy' || pcSt == 'tuchoi') {
+            continue;
+          }
           final donId = item['donDatId'];
           final maDon = item['maDonDat']?.toString();
           if (donId != null) seenDonIds.add(donId);
@@ -160,8 +167,9 @@ class CollaboratorScheduleScreenState
           if (maDon != null && maDon.isNotEmpty && seenMaDons.contains(maDon)) continue;
 
           // Bỏ qua đơn bị từ chối hoặc hủy
-          final status = (a['trangThaiPhanCong']?.toString() ?? a['trangThai']?.toString() ?? '').toLowerCase();
-          if (status == 'tuchoi' || status == 'dahuy' || status == 'choduyet') continue;
+          final pcSt = (a['trangThaiPhanCong']?.toString() ?? '').toLowerCase();
+          final donSt = (a['trangThaiDon']?.toString() ?? a['trangThai']?.toString() ?? '').toLowerCase();
+          if (pcSt == 'tuchoi' || donSt == 'dahuy' || donSt == 'huy' || donSt == 'choduyet' || donSt == 'dangtimctv') continue;
 
           if (donId != null) seenDonIds.add(donId);
           if (maDon != null && maDon.isNotEmpty) seenMaDons.add(maDon);
@@ -813,6 +821,12 @@ class CollaboratorScheduleScreenState
     final Color typeColor = isPackage ? const Color(0xFFD97706) : AppColors.partner500;
     final Color typeBg = isPackage ? const Color(0xFFFEF3C7) : const Color(0xFFEEF2FF);
 
+    final String? dayLbl = _dayLabel(rawDate);
+    final avatar = _avatarPair(customerName);
+    final int? diff = _daysDiff(rawDate);
+    final bool isToday = diff != null && diff == 0;
+    final bool isOverdue = !isCompleted && !isWorking && diff != null && diff < 0;
+
     // Màu trạng thái
     Color sc;
     String statusText;
@@ -822,16 +836,13 @@ class CollaboratorScheduleScreenState
     } else if (isWorking) {
       sc = const Color(0xFF2563EB);
       statusText = 'Đang làm';
+    } else if (isOverdue) {
+      sc = const Color(0xFFDC2626);
+      statusText = '⚠️ Quá hạn';
     } else {
       sc = isPackage ? const Color(0xFFD97706) : AppColors.partner500;
       statusText = 'Sắp tới';
     }
-
-    final String? dayLbl = _dayLabel(rawDate);
-    final avatar = _avatarPair(customerName);
-    final now = DateTime.now();
-    final todayStr = DateFormat('yyyy-MM-dd').format(now);
-    final bool isToday = rawDate.startsWith(todayStr);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -953,7 +964,9 @@ class CollaboratorScheduleScreenState
                               border: Border.all(color: const Color(0xFFFCD34D)),
                             ),
                             child: Text(
-                              '🔄 Gói tháng (Buổi $buoiThu/$soBuoi)',
+                              (s['isBuoiLamBu'] == true)
+                                  ? '🔄 Gói tháng (Buổi $buoiThu/$soBuoi - Làm bù)'
+                                  : '🔄 Gói tháng (Buổi $buoiThu/$soBuoi)',
                               style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -964,7 +977,9 @@ class CollaboratorScheduleScreenState
                           const SizedBox(height: 4),
                           // Thanh tiến độ buổi trong tháng
                           Text(
-                            '📊 Còn ${soBuoi - buoiThu} buổi trong tháng',
+                            s['soBuoiConLai'] != null
+                                ? '📊 Còn ${s['soBuoiConLai']} buổi chưa hoàn thành'
+                                : '📊 Còn ${soBuoi - buoiThu} buổi trong tháng',
                             style: const TextStyle(
                               fontSize: 11.5,
                               color: Color(0xFF92400E),
@@ -1130,14 +1145,22 @@ class CollaboratorScheduleScreenState
                             ),
                           )
                         : ElevatedButton.icon(
-                            onPressed: () => _handleStartJob(s, isToday, dateStr),
+                            onPressed: () => _handleStartJob(s, diff, dateStr),
                             icon: Icon(
-                              isToday ? Icons.play_arrow_rounded : Icons.lock_outline_rounded,
+                              isToday
+                                  ? Icons.play_arrow_rounded
+                                  : isOverdue
+                                      ? Icons.warning_amber_rounded
+                                      : Icons.lock_outline_rounded,
                               size: 15,
                             ),
                             label: const Text('Bắt đầu làm', style: TextStyle(fontSize: 12)),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: isToday ? _primary : const Color(0xFF94A3B8),
+                              backgroundColor: isToday
+                                  ? _primary
+                                  : isOverdue
+                                      ? const Color(0xFFEA580C)
+                                      : const Color(0xFF94A3B8),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               shape: RoundedRectangleBorder(
@@ -1181,8 +1204,33 @@ class CollaboratorScheduleScreenState
     }
   }
 
-  Future<void> _handleStartJob(Map<String, dynamic> s, bool isToday, String dateStr) async {
-    if (!isToday) {
+  Future<void> _handlePhoneCall(String? phone) async {
+    final cleaned = (phone ?? '').trim();
+    if (cleaned.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Không có số điện thoại của khách hàng'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: cleaned);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('📞 Số điện thoại khách hàng: $cleaned'),
+          backgroundColor: AppColors.info,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleStartJob(Map<String, dynamic> s, int? diff, String dateStr) async {
+    // 1. Trường hợp CHƯA ĐẾN NGÀY LÀM (diff > 0)
+    if (diff != null && diff > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('⚠️ Chưa đến ngày làm việc, bạn chưa thể bắt đầu ca này!\n(Lịch làm: $dateStr)'),
@@ -1193,6 +1241,13 @@ class CollaboratorScheduleScreenState
       return;
     }
 
+    // 2. Trường hợp CA LÀM ĐÃ QUÁ HẠN (diff < 0)
+    if (diff != null && diff < 0) {
+      await _showOverdueResolutionModal(s, dateStr, diff.abs());
+      return;
+    }
+
+    // 3. Trường hợp ĐÚNG NGÀY HÔM NAY (diff == 0)
     final int phanCongId = s['phanCongId'] ?? s['id'] ?? 0;
     if (phanCongId == 0) return;
 
@@ -1208,10 +1263,1018 @@ class CollaboratorScheduleScreenState
           ),
         );
         await _fetchSchedules();
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ ${res.message}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     } catch (_) {} finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _showOverdueResolutionModal(
+    Map<String, dynamic> s,
+    String oldDateStr,
+    int daysLate,
+  ) async {
+    final int phanCongId = s['phanCongId'] ?? s['id'] ?? 0;
+    if (phanCongId == 0) return;
+
+    final int? targetLlvId = int.tryParse((s['lichLamViecId'] ?? s['id'])?.toString() ?? '');
+    final bool isGoiThang = _isGoiThang(s);
+    final int soBuoi = int.tryParse(s['soBuoi']?.toString() ?? '') ?? (isGoiThang ? 8 : 1);
+    final int buoiThu = int.tryParse(s['buoiThu']?.toString() ?? s['buoiHienTai']?.toString() ?? '') ?? 1;
+
+    final String customerName = (s['khachHangTen'] ?? 'Khách hàng').toString();
+    final String customerPhone = (s['khachHangPhone'] ?? s['soDienThoai'] ?? '').toString();
+    final String serviceName = (s['tenDichVu'] ?? s['dichVuTitle'] ?? 'Dịch vụ').toString();
+    final String startTimeStr = _fmtTime(s['gioBatDau']?.toString()).isNotEmpty
+        ? _fmtTime(s['gioBatDau']?.toString())
+        : '08:00';
+    final String endTimeStr = _fmtTime(s['gioKetThuc']?.toString()).isNotEmpty
+        ? _fmtTime(s['gioKetThuc']?.toString())
+        : '10:00';
+
+    int parseMinutes(String hhmm) {
+      final parts = hhmm.split(':');
+      if (parts.length < 2) return 480;
+      return (int.tryParse(parts[0]) ?? 8) * 60 + (int.tryParse(parts[1]) ?? 0);
+    }
+
+    String formatMinutes(int totalMins) {
+      final clamped = totalMins.clamp(0, 23 * 60 + 59);
+      final h = (clamped ~/ 60).toString().padLeft(2, '0');
+      final m = (clamped % 60).toString().padLeft(2, '0');
+      return '$h:$m';
+    }
+
+    final int origStartMins = parseMinutes(startTimeStr);
+    final int origEndMins = parseMinutes(endTimeStr);
+    final int durationMins = (origEndMins > origStartMins) ? (origEndMins - origStartMins) : 120;
+    int selectedStartMins = origStartMins;
+
+    final now = DateTime.now();
+    final DateTime todayDate = DateTime(now.year, now.month, now.day);
+
+    String fmtLocalDate(DateTime d) {
+      final dd = d.day.toString().padLeft(2, '0');
+      final mm = d.month.toString().padLeft(2, '0');
+      return '$dd/$mm/${d.year}';
+    }
+
+    String toIsoDate(DateTime d) {
+      final dd = d.day.toString().padLeft(2, '0');
+      final mm = d.month.toString().padLeft(2, '0');
+      return '${d.year}-$mm-$dd';
+    }
+
+    // Thu thập các buổi khác trong cùng đơn gói tháng để kiểm tra trùng ngày và tìm buổi cuối cùng
+    final Map<String, Map<String, dynamic>> packageSessionDates = {};
+    DateTime? lastSessionDate;
+    if (isGoiThang) {
+      for (final item in _allSchedules) {
+        final bool isSameOrder = (item['donDatId'] != null && s['donDatId'] != null && item['donDatId'].toString() == s['donDatId'].toString());
+        if (isSameOrder) {
+          final int? sId = int.tryParse((item['lichLamViecId'] ?? item['id'])?.toString() ?? '');
+          if (targetLlvId != null && sId == targetLlvId) continue;
+          final String st = (item['trangThai'] ?? '').toString().toLowerCase();
+          if (st == 'dahuy' || st == 'huy') continue;
+          final String rawDate = (item['ngayLam'] ?? item['ngayThucHien'] ?? '').toString();
+          if (rawDate.length >= 10) {
+            final String iso = rawDate.substring(0, 10);
+            packageSessionDates[iso] = item;
+            final DateTime? parsedD = DateTime.tryParse(iso);
+            if (parsedD != null) {
+              if (lastSessionDate == null || parsedD.isAfter(lastSessionDate)) {
+                lastSessionDate = parsedD;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Ngày gợi ý làm bù sau buổi cuối cùng của gói
+    final DateTime? suggestedEndOfPackageDate = lastSessionDate != null
+        ? lastSessionDate.add(const Duration(days: 3))
+        : null;
+    final String? endOfPackageFmt = suggestedEndOfPackageDate != null
+        ? fmtLocalDate(suggestedEndOfPackageDate)
+        : null;
+
+    // Lịch cho chọn từ hôm nay đến +90 ngày (không cho dời về ngày đã qua)
+    final DateTime pickerFirstDate = todayDate;
+    final DateTime pickerLastDate = todayDate.add(const Duration(days: 90));
+
+    // Mặc định chọn ngày làm bù: gợi ý sau buổi cuối cùng của gói (nếu có), hoặc ngày mai
+    DateTime selectedNewDate = suggestedEndOfPackageDate ?? todayDate.add(const Duration(days: 1));
+    if (selectedNewDate.isBefore(pickerFirstDate)) {
+      selectedNewDate = pickerFirstDate;
+    }
+
+    bool hasCustomerConsent = false;
+    String selectedAction = 'START_TODAY';
+    final TextEditingController noteController = TextEditingController();
+    bool isSubmitting = false;
+    String? modalError;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final bool needsDatePicker =
+                selectedAction == 'RESCHEDULE_KEEP' || selectedAction == 'RESCHEDULE_RELEASE';
+            final bool usesTargetSlot =
+                selectedAction == 'START_TODAY' ||
+                selectedAction == 'RESCHEDULE_KEEP';
+
+            final DateTime activeTargetDate =
+                selectedAction == 'START_TODAY' ? todayDate : selectedNewDate;
+            final String activeTargetIso = toIsoDate(activeTargetDate);
+            final String activeTargetFmt = fmtLocalDate(activeTargetDate);
+            final String todayIso = toIsoDate(todayDate);
+
+            final int selectedEndMins = selectedStartMins + durationMins;
+            final String selectedStartStr = formatMinutes(selectedStartMins);
+            final String selectedEndStr = formatMinutes(selectedEndMins);
+
+            List<Map<String, dynamic>> getShiftsForIsoDate(String isoDate) {
+              return _allSchedules.where((item) {
+                final int? itemId = int.tryParse((item['lichLamViecId'] ?? item['id'])?.toString() ?? '');
+                if (targetLlvId != null && itemId == targetLlvId) return false;
+                final String st = (item['trangThai'] ?? '').toString().toLowerCase();
+                if (st == 'dahuy' || st == 'huy' || st == 'tuchoi') return false;
+                final String sDate = (item['ngayLam'] ?? item['ngayThucHien'] ?? '').toString();
+                return sDate.startsWith(isoDate);
+              }).toList();
+            }
+
+            // Các ca làm khác của CTV trong ngày activeTargetDate và ngày hôm nay (START_TODAY)
+            final List<Map<String, dynamic>> shiftsOnTargetDate = getShiftsForIsoDate(activeTargetIso);
+            final List<Map<String, dynamic>> shiftsOnToday = getShiftsForIsoDate(todayIso);
+
+            Map<String, dynamic>? conflictingShiftToday;
+            for (final item in shiftsOnToday) {
+              final int exStart = parseMinutes(_fmtTime(item['gioBatDau']?.toString()));
+              final int exEnd = parseMinutes(_fmtTime(item['gioKetThuc']?.toString()));
+              if (selectedStartMins < exEnd && exStart < selectedEndMins) {
+                conflictingShiftToday = item;
+                break;
+              }
+            }
+
+            Map<String, dynamic>? conflictingShift;
+            for (final item in shiftsOnTargetDate) {
+              final int exStart = parseMinutes(_fmtTime(item['gioBatDau']?.toString()));
+              final int exEnd = parseMinutes(_fmtTime(item['gioKetThuc']?.toString()));
+              final bool isSameOrder = (item['donDatId'] != null && s['donDatId'] != null && item['donDatId'].toString() == s['donDatId'].toString());
+              if (selectedAction == 'START_TODAY' || selectedAction == 'RESCHEDULE_KEEP' || isSameOrder) {
+                if (selectedStartMins < exEnd && exStart < selectedEndMins) {
+                  conflictingShift = item;
+                  break;
+                }
+              }
+            }
+
+            // Kiểm tra trùng ngày với bất kỳ buổi nào khác trong cùng đơn gói tháng
+            String? packageOrderWarning;
+            if (isGoiThang && packageSessionDates.containsKey(activeTargetIso)) {
+              final sConf = packageSessionDates[activeTargetIso]!;
+              final String sStart = _fmtTime(sConf['gioBatDau']?.toString());
+              final String sEnd = _fmtTime(sConf['gioKetThuc']?.toString());
+              final String bCode = (sConf['maLichLamViec'] != null && sConf['maLichLamViec'].toString().isNotEmpty)
+                  ? ' (${sConf['maLichLamViec']})'
+                  : '';
+              packageOrderWarning =
+                  'Ngày $activeTargetFmt đã có ca$bCode từ $sStart - $sEnd trong gói này! Vui lòng chọn ngày khác chưa có lịch hoặc bấm "Bù sau buổi cuối".';
+            }
+
+            Widget buildOptionTile({
+              required String value,
+              required IconData icon,
+              required Color iconColor,
+              required String title,
+              required String subtitle,
+              required String badgeText,
+            }) {
+              final bool isSelected = selectedAction == value;
+              return GestureDetector(
+                onTap: () => setModalState(() {
+                  selectedAction = value;
+                  modalError = null;
+                }),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? iconColor.withValues(alpha: 0.07)
+                        : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected ? iconColor : const Color(0xFFE2E8F0),
+                      width: isSelected ? 1.6 : 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: iconColor.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Icon(icon, color: iconColor, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    title,
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: isSelected ? iconColor : _ink,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: iconColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    badgeText,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: iconColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        isSelected
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.radio_button_off_rounded,
+                        color: isSelected ? iconColor : const Color(0xFF94A3B8),
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.90,
+                ),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.warning_amber_rounded,
+                              color: Color(0xFFD97706),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isGoiThang
+                                      ? 'Xử lý ca quá hạn (Buổi $buoiThu/$soBuoi)'
+                                      : 'Xử lý ca làm quá hạn',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: _ink,
+                                  ),
+                                ),
+                                Text(
+                                  'Lịch cũ: $oldDateStr (trễ $daysLate ngày) • $startTimeStr - $endTimeStr',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFFDC2626),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(sheetCtx),
+                            icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: AppColors.divider),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (isGoiThang) ...[
+                              Container(
+                                width: double.infinity,
+                                margin: const EdgeInsets.only(bottom: 10),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF3C7),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFFF59E0B)),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.event_repeat_rounded,
+                                        size: 18, color: Color(0xFFB45309)),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        lastSessionDate != null
+                                            ? '🔄 Gói tháng (Buổi $buoiThu/$soBuoi): Khách có thể dời bù vào ngày trống giữa các buổi, hoặc chọn làm bù sau buổi cuối cùng của gói (sau ngày ${fmtLocalDate(lastSessionDate)}).'
+                                            : '🔄 Gói tháng (Buổi $buoiThu/$soBuoi): Vui lòng chọn ngày chưa có lịch của các buổi khác trong gói.',
+                                        style: const TextStyle(
+                                          fontSize: 11.8,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF92400E),
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            // Bước 1: Gọi khách hàng
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFBFDBFE)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.support_agent_rounded,
+                                      color: Color(0xFF2563EB), size: 24),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Bước 1: Liên hệ KH $customerName',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF1E40AF),
+                                          ),
+                                        ),
+                                        Text(
+                                          customerPhone.isNotEmpty
+                                              ? 'SĐT: $customerPhone • $serviceName'
+                                              : serviceName,
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: Color(0xFF3B82F6),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (customerPhone.isNotEmpty)
+                                    ElevatedButton.icon(
+                                      onPressed: () => _handlePhoneCall(customerPhone),
+                                      icon: const Icon(Icons.phone_in_talk_rounded, size: 15),
+                                      label: const Text('Gọi ngay', style: TextStyle(fontSize: 12)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF2563EB),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        elevation: 0,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Checkbox xác nhận đã hỏi ý kiến khách hàng
+                            InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => setModalState(() {
+                                hasCustomerConsent = !hasCustomerConsent;
+                                modalError = null;
+                              }),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: hasCustomerConsent
+                                      ? const Color(0xFFF0FDF4)
+                                      : const Color(0xFFFFFBEB),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: hasCustomerConsent
+                                        ? const Color(0xFF86EFAC)
+                                        : const Color(0xFFFDE68A),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Checkbox(
+                                      value: hasCustomerConsent,
+                                      activeColor: const Color(0xFF16A34A),
+                                      visualDensity: VisualDensity.compact,
+                                      onChanged: (val) => setModalState(() {
+                                        hasCustomerConsent = val ?? false;
+                                        modalError = null;
+                                      }),
+                                    ),
+                                    const Expanded(
+                                      child: Text(
+                                        'Tôi xác nhận đã liên hệ và được Khách hàng đồng ý với phương án bên dưới',
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: _ink,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+
+                            const Text(
+                              'Bước 2: Chọn phương án thống nhất với khách hàng',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: _ink,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            buildOptionTile(
+                              value: 'START_TODAY',
+                              icon: Icons.play_circle_fill_rounded,
+                              iconColor: conflictingShiftToday != null
+                                  ? const Color(0xFFDC2626)
+                                  : const Color(0xFF16A34A),
+                              title: '1. Làm bù NGAY HÔM NAY (${fmtLocalDate(todayDate)})',
+                              subtitle: conflictingShiftToday != null
+                                  ? '⚠️ Lịch hôm nay của bạn bị trùng giờ ($selectedStartStr-$selectedEndStr)! Dù khách rảnh, hãy đổi sang ca Sáng/Chiều trống bên dưới hoặc chọn Phương án 2 (Dời sang ngày mới).'
+                                  : 'Khách đồng ý cho làm bù ngay hôm nay ($selectedStartStr-$selectedEndStr). Chuyển ca sang Đang làm.',
+                              badgeText: conflictingShiftToday != null ? 'Trùng lịch hôm nay' : 'Làm ngay',
+                            ),
+                            buildOptionTile(
+                              value: 'RESCHEDULE_KEEP',
+                              icon: Icons.event_available_rounded,
+                              iconColor: _primary,
+                              title: '2. Dời sang ngày mới (Tôi vẫn phụ trách)',
+                              subtitle:
+                                  'Khách hẹn ngày khác (trước buổi kế tiếp nếu là gói tháng). Có thể chèn vào buổi Sáng/Chiều còn trống.',
+                              badgeText: 'Giữ đơn',
+                            ),
+                            buildOptionTile(
+                              value: 'RESCHEDULE_RELEASE',
+                              icon: Icons.person_search_rounded,
+                              iconColor: const Color(0xFFD97706),
+                              title: '3. Dời sang ngày mới (Tôi bận — Tìm CTV khác)',
+                              subtitle:
+                                  'Cập nhật ngày mới khách chọn và trả đơn về trạng thái Đang tìm CTV để người khác nhận.',
+                              badgeText: 'Trả về Tìm CTV',
+                            ),
+                            buildOptionTile(
+                              value: 'CANCEL_ORDER',
+                              icon: Icons.cancel_outlined,
+                              iconColor: const Color(0xFFDC2626),
+                              title: '4. Khách không còn nhu cầu (Hủy đơn)',
+                              subtitle:
+                                  'Khách báo không cần dọn nữa. Hủy ca quá hạn để không bị treo đơn.',
+                              badgeText: 'Hủy đơn',
+                            ),
+
+                            if (needsDatePicker) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.calendar_month_rounded,
+                                        color: _primary, size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            isGoiThang
+                                                ? 'Ngày làm bù khách chọn:'
+                                                : 'Ngày làm mới khách hàng chọn:',
+                                            style: const TextStyle(
+                                              fontSize: 11.5,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                          Text(
+                                            fmtLocalDate(selectedNewDate),
+                                            style: const TextStyle(
+                                              fontSize: 14.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: _primary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    OutlinedButton.icon(
+                                      onPressed: () async {
+                                        final DateTime safeInit = selectedNewDate.isAfter(pickerLastDate)
+                                            ? pickerLastDate
+                                            : (selectedNewDate.isBefore(pickerFirstDate) ? pickerFirstDate : selectedNewDate);
+                                        final picked = await showDatePicker(
+                                          context: ctx,
+                                          initialDate: safeInit,
+                                          firstDate: pickerFirstDate,
+                                          lastDate: pickerLastDate,
+                                        );
+                                        if (picked != null) {
+                                          setModalState(() {
+                                            selectedNewDate = picked;
+                                            modalError = null;
+                                          });
+                                        }
+                                      },
+                                      icon: const Icon(Icons.edit_calendar_rounded, size: 15),
+                                      label: const Text('Chọn ngày', style: TextStyle(fontSize: 12)),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: _primary,
+                                        side: const BorderSide(color: _primary),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 6),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isGoiThang && suggestedEndOfPackageDate != null) ...[
+                                const SizedBox(height: 6),
+                                ActionChip(
+                                  avatar: const Icon(Icons.event_repeat_rounded,
+                                      size: 15, color: _primary),
+                                  backgroundColor: selectedNewDate.isAtSameMomentAs(suggestedEndOfPackageDate)
+                                      ? const Color(0xFFDBEAFE)
+                                      : const Color(0xFFEFF6FF),
+                                  side: const BorderSide(color: Color(0xFF93C5FD)),
+                                  label: Text(
+                                    '📅 Bù sau buổi cuối ($endOfPackageFmt)',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: _primary,
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    setModalState(() {
+                                      selectedNewDate = suggestedEndOfPackageDate;
+                                      modalError = null;
+                                    });
+                                  },
+                                ),
+                              ],
+                              if (packageOrderWarning != null) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFEF2F2),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(Icons.error_outline_rounded,
+                                          size: 16, color: Color(0xFFDC2626)),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          packageOrderWarning!,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFFDC2626),
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 8),
+                            ],
+
+                            // Bộ chọn Khung giờ làm bù (Sáng / Chiều) & Kiểm tra trùng lịch trực tiếp
+                            if (usesTargetSlot) ...[
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                margin: const EdgeInsets.only(bottom: 10),
+                                decoration: BoxDecoration(
+                                  color: (conflictingShift != null || packageOrderWarning != null)
+                                      ? const Color(0xFFFEF2F2)
+                                      : const Color(0xFFF0FDF4),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: (conflictingShift != null || packageOrderWarning != null)
+                                        ? const Color(0xFFFCA5A5)
+                                        : const Color(0xFF86EFAC),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.access_time_filled_rounded,
+                                          size: 18,
+                                          color: (conflictingShift != null || packageOrderWarning != null)
+                                              ? const Color(0xFFDC2626)
+                                              : const Color(0xFF15803D),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Khung giờ ngày $activeTargetFmt: $selectedStartStr - $selectedEndStr',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              color: (conflictingShift != null || packageOrderWarning != null)
+                                                  ? const Color(0xFFB91C1C)
+                                                  : const Color(0xFF166534),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: [
+                                        ActionChip(
+                                          visualDensity: VisualDensity.compact,
+                                          backgroundColor: selectedStartMins == origStartMins
+                                              ? const Color(0xFFDBEAFE)
+                                              : Colors.white,
+                                          label: Text(
+                                            'Giờ gốc ($startTimeStr)',
+                                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                          ),
+                                          onPressed: () => setModalState(() {
+                                            selectedStartMins = origStartMins;
+                                            modalError = null;
+                                          }),
+                                        ),
+                                        ActionChip(
+                                          visualDensity: VisualDensity.compact,
+                                          backgroundColor: selectedStartMins == 8 * 60
+                                              ? const Color(0xFFDBEAFE)
+                                              : Colors.white,
+                                          label: const Text(
+                                            '☀️ Ca sáng (08:00)',
+                                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                          ),
+                                          onPressed: () => setModalState(() {
+                                            selectedStartMins = 8 * 60;
+                                            modalError = null;
+                                          }),
+                                        ),
+                                        ActionChip(
+                                          visualDensity: VisualDensity.compact,
+                                          backgroundColor: selectedStartMins == 14 * 60
+                                              ? const Color(0xFFDBEAFE)
+                                              : Colors.white,
+                                          label: const Text(
+                                            '🌤️ Ca chiều (14:00)',
+                                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                          ),
+                                          onPressed: () => setModalState(() {
+                                            selectedStartMins = 14 * 60;
+                                            modalError = null;
+                                          }),
+                                        ),
+                                        ActionChip(
+                                          visualDensity: VisualDensity.compact,
+                                          avatar: const Icon(Icons.schedule_rounded, size: 14),
+                                          label: const Text(
+                                            'Chọn giờ khác',
+                                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                          ),
+                                          onPressed: () async {
+                                            final pickedTime = await showTimePicker(
+                                              context: ctx,
+                                              initialTime: TimeOfDay(
+                                                hour: selectedStartMins ~/ 60,
+                                                minute: selectedStartMins % 60,
+                                              ),
+                                            );
+                                            if (pickedTime != null) {
+                                              setModalState(() {
+                                                selectedStartMins = pickedTime.hour * 60 + pickedTime.minute;
+                                                modalError = null;
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    if (shiftsOnTargetDate.isNotEmpty) ...[
+                                      Text(
+                                        '📅 Các ca đã có trong ngày $activeTargetFmt: ${shiftsOnTargetDate.map((item) => '${_fmtTime(item['gioBatDau']?.toString())}-${_fmtTime(item['gioKetThuc']?.toString())} (${item['maDonDat'] ?? 'Ca làm'})').join(', ')}',
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF475569),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                    ],
+                                    if (packageOrderWarning != null)
+                                      Text(
+                                        '⚠️ $packageOrderWarning',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFFDC2626),
+                                        ),
+                                      )
+                                    else if (conflictingShift != null)
+                                      Text(
+                                        selectedAction == 'START_TODAY'
+                                            ? '⚠️ Trùng lịch hôm nay với ca ${_fmtTime(conflictingShift['gioBatDau']?.toString())} - ${_fmtTime(conflictingShift['gioKetThuc']?.toString())} (${conflictingShift['maDonDat'] ?? ''})! '
+                                                'Dù khách hàng rảnh nhưng lịch của bạn bị trùng: vui lòng chọn Phương án 2 (Dời sang ngày mới) hoặc đổi sang khung giờ Sáng/Chiều còn trống.'
+                                            : '⚠️ Trùng giờ với ca ${_fmtTime(conflictingShift['gioBatDau']?.toString())} - ${_fmtTime(conflictingShift['gioKetThuc']?.toString())} (${conflictingShift['maDonDat'] ?? ''})! '
+                                                'Hãy bấm chọn "Ca sáng (08:00)" hoặc "Ca chiều (14:00)" còn trống, hoặc đổi sang ngày khác.',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFFDC2626),
+                                        ),
+                                      )
+                                    else
+                                      Text(
+                                        shiftsOnTargetDate.isEmpty
+                                            ? '✅ Ngày $activeTargetFmt chưa vướng lịch nào, có thể xếp ca $selectedStartStr - $selectedEndStr.'
+                                            : '✅ Khung giờ $selectedStartStr - $selectedEndStr không trùng với các ca khác trong ngày $activeTargetFmt (có thể chèn ca Sáng/Chiều)!',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF15803D),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            TextField(
+                              controller: noteController,
+                              maxLines: 2,
+                              style: const TextStyle(fontSize: 13),
+                              decoration: InputDecoration(
+                                labelText: 'Ghi chú thỏa thuận với khách (tùy chọn)',
+                                hintText: 'VD: Đã gọi khách lúc 9h, khách đồng ý làm bù...',
+                                hintStyle: const TextStyle(fontSize: 12),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+
+                            if (modalError != null) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                                ),
+                                child: Text(
+                                  '⚠️ $modalError',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFFDC2626),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: isSubmitting
+                                    ? null
+                                    : () async {
+                                        if (!hasCustomerConsent) {
+                                          setModalState(() {
+                                            modalError =
+                                                'Vui lòng gọi điện cho khách hàng và tích chọn xác nhận khách đã đồng ý phương án!';
+                                          });
+                                          return;
+                                        }
+                                        if (packageOrderWarning != null) {
+                                          setModalState(() {
+                                            modalError = packageOrderWarning;
+                                          });
+                                          return;
+                                        }
+                                        if (usesTargetSlot && conflictingShift != null) {
+                                          setModalState(() {
+                                            if (selectedAction == 'START_TODAY') {
+                                              modalError =
+                                                  'Không thể xác nhận "Làm bù ngay hôm nay" vì lịch hôm nay ($activeTargetFmt) của bạn bị trùng giờ ($selectedStartStr - $selectedEndStr) với ca ${conflictingShift!['maDonDat'] ?? ''}! Dù khách hàng rảnh nhưng lịch của bạn bị trùng, vui lòng chọn Phương án 2 (Dời sang ngày mới) hoặc đổi sang khung giờ Sáng/Chiều còn trống.';
+                                            } else {
+                                              modalError =
+                                                  'Khung giờ $selectedStartStr - $selectedEndStr ngày $activeTargetFmt đang bị trùng với ca ${conflictingShift!['maDonDat'] ?? ''}. Vui lòng chọn Ca sáng/Ca chiều còn trống hoặc đổi ngày khác!';
+                                            }
+                                          });
+                                          return;
+                                        }
+                                        setModalState(() {
+                                          isSubmitting = true;
+                                          modalError = null;
+                                        });
+                                        try {
+                                          final res = await _apiService.resolveOverdueAssignment(
+                                            phanCongId: phanCongId,
+                                            action: selectedAction,
+                                            lichLamViecId: targetLlvId,
+                                            ngayMoi: needsDatePicker
+                                                ? toIsoDate(selectedNewDate)
+                                                : null,
+                                            gioBatDauMoi: usesTargetSlot
+                                                ? selectedStartStr
+                                                : null,
+                                            ghiChu: noteController.text.trim(),
+                                          );
+                                          if (!mounted) return;
+                                          if (res.success) {
+                                            if (sheetCtx.mounted) {
+                                              Navigator.pop(sheetCtx);
+                                            }
+                                            final msg = res.data?['message']?.toString() ??
+                                                'Đã xử lý ca làm quá hạn thành công!';
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('✅ $msg'),
+                                                backgroundColor: AppColors.success,
+                                                duration: const Duration(seconds: 3),
+                                              ),
+                                            );
+                                            await _fetchSchedules();
+                                          } else {
+                                            setModalState(() {
+                                              isSubmitting = false;
+                                              modalError = res.message;
+                                            });
+                                          }
+                                        } catch (e) {
+                                          setModalState(() {
+                                            isSubmitting = false;
+                                            modalError = 'Lỗi kết nối: $e';
+                                          });
+                                        }
+                                      },
+                                icon: isSubmitting
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(Icons.check_circle_rounded, size: 18),
+                                label: Text(
+                                  isSubmitting
+                                      ? 'Đang cập nhật...'
+                                      : 'Xác nhận thực hiện phương án',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _primary,
+                                  disabledBackgroundColor: const Color(0xFFCBD5E1),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 13),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(11),
+                                  ),
+                                  elevation: 0,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _handleCompleteJob(Map<String, dynamic> s) async {
@@ -1257,13 +2320,18 @@ class CollaboratorScheduleScreenState
     return p.length == 3 ? '${p[2]}/${p[1]}/${p[0]}' : s;
   }
 
-  String? _dayLabel(String raw) {
-    if (raw.length < 10) return null;
+  int? _daysDiff(String? raw) {
+    if (raw == null || raw.length < 10) return null;
     final d = DateTime.tryParse(raw.substring(0, 10));
     if (d == null) return null;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final diff = DateTime(d.year, d.month, d.day).difference(today).inDays;
+    return DateTime(d.year, d.month, d.day).difference(today).inDays;
+  }
+
+  String? _dayLabel(String raw) {
+    final diff = _daysDiff(raw);
+    if (diff == null) return null;
     if (diff == 0) return 'Hôm nay';
     if (diff == 1) return 'Ngày mai';
     if (diff == -1) return 'Hôm qua';

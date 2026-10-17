@@ -72,6 +72,39 @@ class LocationService {
     }
   }
 
+  /// Lấy chi tiết thông tin hành chính (quận huyện, tỉnh thành, địa chỉ) từ toạ độ GPS.
+  static Future<Map<String, String>> getAddressDetails(double lat, double lng) async {
+    try {
+      final marks = await Geocoding(locale: const Locale('vi', 'VN'))
+          .placemarkFromCoordinates(lat, lng);
+      if (marks.isEmpty) return {};
+      final p = marks.first;
+      String quanHuyen = p.subAdministrativeArea ?? '';
+      if (quanHuyen.isEmpty && p.locality != null && p.locality!.isNotEmpty) {
+        quanHuyen = p.locality!;
+      }
+      final parts = <String?>[
+        <String?>[p.subThoroughfare, p.thoroughfare]
+            .where((s) => s != null && s.isNotEmpty)
+            .join(' '),
+        p.subLocality,
+        quanHuyen,
+        p.administrativeArea,
+      ].where((s) => s != null && s.trim().isNotEmpty).cast<String>();
+      final out = <String>[];
+      for (final s in parts) {
+        if (out.isEmpty || out.last != s) out.add(s);
+      }
+      return {
+        'quanHuyen': quanHuyen,
+        'tinhThanh': p.administrativeArea ?? '',
+        'diaChi': out.join(', '),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
   static final Map<String, List<double>?> _geoCache = {};
 
   /// Đổi địa chỉ dạng chữ thành toạ độ [vĩ độ, kinh độ] (cần mạng, có cache). Null nếu không tra được.
