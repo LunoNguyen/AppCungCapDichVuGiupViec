@@ -9,6 +9,7 @@ import 'customer_notification_screen.dart';
 import '../auth/login_screen.dart';
 import '../../services/booking_api_service.dart';
 import '../../services/catalog_ui.dart';
+import '../../services/nhom_dich_vu.dart';
 import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
 
@@ -32,7 +33,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   bool _loading = true;
   String? _loadError;
   List<Map<String, dynamic>> _serviceTypes = []; // GET /v1/service-types
-  List<Map<String, dynamic>> _featuredServices = []; // GET /v1/services
+  // GET /v1/services gom theo mã dịch vụ (mỗi dịch vụ một thẻ, kèm ảnh), giống danh sách dịch vụ
+  List<NhomDichVu> _featuredServices = [];
   List<Map<String, dynamic>> _promoBanners = []; // GET /v1/promotions
   int? _soDon; // tổng đơn của khách (GET /v1/customer/bookings)
   int _soDonDangLam = 0;
@@ -70,8 +72,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             .where((t) => t['trangThai'] == null || t['trangThai'] == 'HienThi')
             .map(CatalogUi.fromServiceType)
             .toList();
-        _featuredServices =
-            (services.data ?? []).map(CatalogUi.fromService).take(8).toList();
+        _featuredServices = NhomDichVu.gom(services.data ?? []).take(8).toList();
         _promoBanners = [
           for (int i = 0; i < (promos.data ?? []).length; i++)
             CatalogUi.fromPromotion(promos.data![i], i),
@@ -739,7 +740,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 168,
+            height: 172,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
@@ -755,8 +756,15 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  Widget _buildFeaturedCard(Map<String, dynamic> s) {
+  Widget _buildFeaturedCard(NhomDichVu nhom) {
+    final s = CatalogUi.fromService(nhom.bienTheDaiDien(null));
     final Color c = s['iconColor'] as Color;
+    final anh = CatalogUi.fileUrl(nhom.anh);
+    final bieuTuong = Container(
+      color: c.withValues(alpha: 0.12),
+      alignment: Alignment.center,
+      child: Icon(s['icon'] as IconData, color: c, size: 32),
+    );
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => Navigator.push(
@@ -765,6 +773,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       ),
       child: Container(
         width: 160,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -773,15 +782,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              height: 64,
+            SizedBox(
+              height: 84,
               width: double.infinity,
-              decoration: BoxDecoration(
-                color: c.withValues(alpha: 0.12),
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
-              ),
-              child: Icon(s['icon'] as IconData, color: c, size: 32),
+              child: anh == null
+                  ? bieuTuong
+                  : Image.network(anh, fit: BoxFit.cover, errorBuilder: (_, _, _) => bieuTuong),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
@@ -789,7 +795,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    s['title'] as String,
+                    nhom.ten,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -801,8 +807,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   ),
                   const SizedBox(height: 6),
                   GiaHienThi(
-                    gia: s['price'] as String,
-                    giaGoc: s['priceGoc'] as String?,
+                    gia: nhom.giaTu > 0 ? 'Từ ${CatalogUi.money(nhom.giaTu)}' : 'Liên hệ báo giá',
+                    giaGoc: (s['donGia'] as num).round() == nhom.giaTu ? s['priceGoc'] as String? : null,
                     style: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w800,

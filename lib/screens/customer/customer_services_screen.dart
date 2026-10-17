@@ -135,8 +135,19 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
   }
 
   void _chonLoai(int? id) {
-    if (_loaiId == id) return;
-    setState(() => _loaiId = id);
+    // Chọn "Tất cả": bỏ luôn mọi lọc khác (hình thức, mức giá, sắp xếp, từ khoá) để thấy đủ dịch vụ
+    final boLoc = id == null &&
+        (_loaiHinh != null || _khoangGia != 0 || _sapXep != 'phu-hop' || _searchCtrl.text.isNotEmpty);
+    if (_loaiId == id && !boLoc) return;
+    setState(() {
+      _loaiId = id;
+      if (id == null) {
+        _loaiHinh = null;
+        _khoangGia = 0;
+        _sapXep = 'phu-hop';
+        _searchCtrl.clear();
+      }
+    });
     _loadServices();
   }
 
