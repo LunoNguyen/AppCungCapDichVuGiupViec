@@ -6,6 +6,7 @@ import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
 import 'booking_screen.dart';
 import '../auth/login_screen.dart';
+import '../../widgets/phan_hoi_btaskee.dart';
 
 /// Chi tiết dịch vụ lấy từ API: GET /v1/services/{id}
 /// (bảng giá đang áp dụng, đánh giá, số lượt đặt, thông số dịch vụ).
@@ -384,6 +385,10 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                   style: const TextStyle(
                       fontSize: 13.5, color: AppColors.textSecondary, height: 1.4),
                 ),
+              ],
+              if (PhanHoiBTaskee.tuJson(d['phanHoi']) case final phanHoi?) ...[
+                const SizedBox(height: 6),
+                phanHoi,
               ],
             ],
           ),

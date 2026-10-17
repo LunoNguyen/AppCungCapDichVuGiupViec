@@ -4,6 +4,14 @@ import 'package:intl/intl.dart';
 import '../core/app_colors.dart';
 import '../services/review_api_service.dart';
 
+/// Nhãn trạng thái duyệt của đánh giá cho khách; null khi trạng thái lạ.
+String? nhanTrangThaiDanhGia(Object? trangThai) => switch (trangThai) {
+      'ChoDuyet' => 'Đang chờ bTaskee duyệt',
+      'HienThi' => 'Đang hiển thị công khai',
+      'An' => 'Không hiển thị công khai',
+      _ => null,
+    };
+
 /// Đánh giá của một đơn đã hoàn thành (giống trang chi tiết đơn trên website):
 /// - chưa đánh giá: chấm chất lượng, thái độ, nhận xét;
 /// - đã đánh giá: xem lại, sửa trong 7 ngày, trao đổi (bình luận) với CSKH bTaskee.
@@ -160,6 +168,12 @@ class _DanhGiaDonState extends State<DanhGiaDon> {
       children: [
         _chamSao('Chất lượng', _chatLuong, (v) => _chatLuong = v),
         _chamSao('Thái độ', _thaiDo, (v) => _thaiDo = v),
+        if (_dg?['trangThai'] == 'HienThi')
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text('Sau khi sửa, đánh giá sẽ chờ duyệt lại trước khi hiển thị công khai.',
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+          ),
         const SizedBox(height: 8),
         TextField(
           controller: _nhanXetCtrl,
@@ -205,6 +219,7 @@ class _DanhGiaDonState extends State<DanhGiaDon> {
     final coTheSua = _dg!['coTheSua'] == true;
     final traoDoi = (_dg!['traoDoi'] as List?)?.cast<Map>() ?? const [];
     final nhanXet = _dg!['nhanXet']?.toString();
+    final nhanTrangThai = nhanTrangThaiDanhGia(_dg!['trangThai']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,6 +251,8 @@ class _DanhGiaDonState extends State<DanhGiaDon> {
                 ),
             ],
           ),
+          if (nhanTrangThai != null)
+            Text(nhanTrangThai, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
         ],
         const Divider(height: 24),
         const Text('Trao đổi với bTaskee',
