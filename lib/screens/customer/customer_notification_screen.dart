@@ -5,7 +5,9 @@ import '../../core/app_colors.dart';
 import '../../services/app_realtime.dart';
 import '../../services/notification_api_service.dart';
 import '../../services/session_service.dart';
+import '../../services/thong_bao_don.dart';
 import '../auth/login_screen.dart';
+import 'order_detail_screen.dart';
 
 class CustomerNotificationScreen extends StatefulWidget {
   const CustomerNotificationScreen({super.key});
@@ -21,6 +23,7 @@ class CustomerNotificationScreenState
   bool _isLoading = true;
   bool _isLoggedIn = false;
   int _currentTaiKhoanId = 0;
+  int _khachHangId = 0;
   bool _onlyUnread = false;
   List<Map<String, dynamic>> _items = [];
 
@@ -53,6 +56,7 @@ class CustomerNotificationScreenState
         setState(() {
           _isLoggedIn = true;
           _currentTaiKhoanId = session.taiKhoanId;
+          _khachHangId = session.userId;
         });
       }
       await _fetchNotifications();
@@ -191,6 +195,23 @@ class CustomerNotificationScreenState
     return '${time.day.toString().padLeft(2, '0')}/${time.month.toString().padLeft(2, '0')}/${time.year}';
   }
 
+  /// Thông báo về đơn đặt: mở thẳng chi tiết đơn; còn lại (hoặc không tìm được đơn) hiện bảng chi tiết thông báo.
+  Future<void> _moThongBao(Map<String, dynamic> n) async {
+    final maDon = maDonTrongThongBao('${n['tieuDe'] ?? ''} ${n['noiDung'] ?? ''}');
+    if (maDon == null || _khachHangId <= 0) {
+      _showNotificationDetail(n);
+      return;
+    }
+    _markRead(n);
+    final id = await timIdDonCuaKhach(_khachHangId, maDon);
+    if (!mounted) return;
+    if (id == null) {
+      _showNotificationDetail(n);
+      return;
+    }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: id)));
+  }
+
   void _showNotificationDetail(Map<String, dynamic> n) {
     _markRead(n);
     final String tieuDe = n['tieuDe']?.toString() ?? '';
@@ -203,9 +224,7 @@ class CustomerNotificationScreenState
 
     // Parse mã đơn hoặc mã khuyến mãi
     final fullText = '$tieuDe $noiDung';
-    final orderMatch =
-        RegExp(r'(DON-[A-Za-z0-9\-]+)').firstMatch(fullText);
-    final String? orderCode = orderMatch?.group(0);
+    final String? orderCode = maDonTrongThongBao(fullText);
 
     final couponMatch =
         RegExp(r'(mã ưu đãi|mã giảm giá|mã|mã coupon)\s+([A-Za-z0-9\-]+)', caseSensitive: false)
@@ -601,7 +620,7 @@ class CustomerNotificationScreenState
                             n['thoiGian'] as DateTime? ?? DateTime.now();
 
                         return InkWell(
-                          onTap: () => _showNotificationDetail(n),
+                          onTap: () => _moThongBao(n),
                           child: Container(
                             color: isRead
                                 ? Colors.white
