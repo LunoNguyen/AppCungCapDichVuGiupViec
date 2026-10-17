@@ -14,9 +14,12 @@ import 'address_book_screen.dart';
 import 'dat_dich_vu/bang_khuyen_mai.dart';
 import 'dat_dich_vu/buoc_dich_vu.dart';
 import 'dat_dich_vu/buoc_hinh_thuc.dart';
+import 'dat_dich_vu/buoc_thanh_toan.dart';
 import 'dat_dich_vu/buoc_thoi_gian.dart';
 import 'dat_dich_vu/buoc_xac_nhan.dart';
 import 'dat_dich_vu/thanh_buoc.dart';
+import 'order_detail_screen.dart';
+import 'thanh_toan_screen.dart';
 
 /// Màn đặt dịch vụ 5 bước, giống website:
 /// 1 Dịch vụ → 2 Hình thức → 3 Thời gian → 4 Xác nhận → 5 Thanh toán.
@@ -63,6 +66,11 @@ class _BookingScreenState extends State<BookingScreen> {
   String? _maApDung; // mã máy chủ đã chấp nhận (có giảm)
   bool _dangKiemMa = false;
 
+  // Bước 5: phương thức thanh toán ("TienMat" | "ChuyenKhoan") và gửi đơn
+  String? _hinhThucTT;
+  bool _dangGui = false;
+  static const _phutThanhToan = 15;
+
   // Khung giờ bắt đầu 07:00 → 17:00
   static final List<TimeOfDay> _khungGio = List.generate(11, (i) => TimeOfDay(hour: 7 + i, minute: 0));
 
@@ -79,7 +87,7 @@ class _BookingScreenState extends State<BookingScreen> {
         goiDuBuoi: _loiLichGoi == null,
         coDiaChiNao: _diaChi != null,
         coDiaChiTrongKhuVuc: _diaChi?.coKhuVuc ?? false,
-        hinhThucThanhToan: null,
+        hinhThucThanhToan: _hinhThucTT,
       );
 
   bool get _laGoi => _loai == 'GoiThang';
@@ -454,8 +462,81 @@ class _BookingScreenState extends State<BookingScreen> {
       _baoLoi(loi);
       return;
     }
-    if (_buoc >= BuocDat.soBuoc) return;
+    if (_buoc >= BuocDat.soBuoc) {
+      _guiDon();
+      return;
+    }
     _denBuoc(_daTaiDv ? BuocDat.buocKe(_buoc, _nhom!) : _buoc + 1);
+  }
+
+  /// Gửi đơn (POST /v1/bookings): chuyển khoản → màn QR, tiền mặt → chi tiết đơn.
+  /// Máy chủ báo lỗi ngày giờ thì về bước 3, lỗi mã ưu đãi thì về bước 4.
+  Future<void> _guiDon() async {
+    final session = _session;
+    final id = _dichVuId;
+    final ngay = _ngayBuoiDau;
+    final gio = _gio;
+    final hinhThuc = _hinhThucTT;
+    if (session == null || !session.isCustomer) {
+      _baoLoi('Vui lòng đăng nhập để đặt dịch vụ');
+      return;
+    }
+    if (id == null || ngay == null || gio == null || hinhThuc == null) return;
+    final phut = CatalogUi.toInt(_bienThe?['thoiGianThucHienPhut']);
+    final ketThuc = gio.hour * 60 + gio.minute + (phut > 0 ? phut : 120);
+    final ghiChu = _ghiChu.text.trim();
+    setState(() => _dangGui = true);
+    try {
+      final res = await _bookingApi.createBooking(
+        khachHangId: session.userId,
+        dichVuId: id,
+        ngayThucHien: _ymd(ngay),
+        gioBatDau: BuocThoiGian.hhmm(gio),
+        gioKetThuc: BuocThoiGian.hhmm(TimeOfDay(hour: (ketThuc ~/ 60) % 24, minute: ketThuc % 60)),
+        diaChiId: _diaChi?.id,
+        diaChiChiTiet: _diaChi?.diaChiChiTiet,
+        khuVucId: _diaChi?.khuVucId,
+        loaiHinhDat: _loai,
+        ngayThucHienTrongTuan: _laGoi ? LichGoiThang.maThu(_thuGoi) : null,
+        yeuCauDacBiet: ghiChu.isEmpty ? null : ghiChu,
+        maKhuyenMai: _maApDung,
+        hinhThucThanhToan: hinhThuc,
+      );
+      if (!mounted) return;
+      if (!res.success) {
+        final msg = res.message ?? 'Không đặt được dịch vụ, vui lòng thử lại';
+        if (msg.startsWith('Lỗi kết nối')) {
+          _baoLoi('Không kết nối được máy chủ');
+          return;
+        }
+        _baoLoi(msg);
+        final thuong = msg.toLowerCase();
+        if (thuong.contains('ngày') || thuong.contains('giờ')) {
+          setState(() => _buoc = 3);
+        } else if (thuong.contains('mã') || thuong.contains('khuyến mãi')) {
+          setState(() => _buoc = 4);
+          _tinhGia();
+        }
+        return;
+      }
+      final donId = CatalogUi.toInt(res.data?['donDatId'] ?? res.data?['id']);
+      if (donId <= 0) {
+        _baoLoi('Đã đặt nhưng không đọc được mã đơn, vui lòng xem trong Đơn của tôi');
+        return;
+      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => hinhThuc == 'ChuyenKhoan'
+              ? ThanhToanScreen(donDatId: donId)
+              : OrderDetailScreen(orderId: donId),
+        ),
+      );
+    } catch (_) {
+      if (mounted) _baoLoi('Không kết nối được máy chủ');
+    } finally {
+      if (mounted) setState(() => _dangGui = false);
+    }
   }
 
   void _lui() {
@@ -543,6 +624,12 @@ class _BookingScreenState extends State<BookingScreen> {
           onBoMa: _boMa,
           onChonKhuyenMai: _moBangKhuyenMai,
         );
+      case 5:
+        return BuocThanhToan(
+          chon: _hinhThucTT,
+          phutThanhToan: _phutThanhToan,
+          onChon: (ma) => setState(() => _hinhThucTT = ma),
+        );
       default:
         return const SizedBox.shrink();
     }
@@ -571,7 +658,7 @@ class _BookingScreenState extends State<BookingScreen> {
   Widget _thanhDay() {
     final nhanTiep = switch (_buoc) {
       4 => 'Đặt dịch vụ',
-      5 => 'Xác nhận đặt',
+      5 => _hinhThucTT == 'ChuyenKhoan' ? 'Thanh toán' : 'Xác nhận đặt',
       _ => 'Tiếp tục',
     };
     return Container(
@@ -599,7 +686,7 @@ class _BookingScreenState extends State<BookingScreen> {
               Expanded(
                 child: SizedBox(
                   height: 48,
-                  child: OutlinedButton(onPressed: _lui, child: const Text('Quay lại')),
+                  child: OutlinedButton(onPressed: _dangGui ? null : _lui, child: const Text('Quay lại')),
                 ),
               ),
               const SizedBox(width: 10),
@@ -607,7 +694,13 @@ class _BookingScreenState extends State<BookingScreen> {
                 flex: 2,
                 child: SizedBox(
                   height: 48,
-                  child: ElevatedButton(onPressed: _tiep, child: Text(nhanTiep)),
+                  child: ElevatedButton(
+                    onPressed: _dangGui ? null : _tiep,
+                    child: _dangGui
+                        ? const SizedBox(
+                            width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : Text(nhanTiep),
+                  ),
                 ),
               ),
             ],
