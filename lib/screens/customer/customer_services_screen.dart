@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/catalog_ui.dart';
+import '../../services/nhom_dich_vu.dart';
 import '../../services/service_catalog_api_service.dart';
 import 'service_detail_screen.dart';
 
@@ -39,7 +40,8 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
   Timer? _debounce;
 
   List<Map<String, dynamic>> _types = [];
-  List<Map<String, dynamic>> _services = [];
+  // Mỗi mã dịch vụ một dòng (các biến thể thời lượng / gói gom lại), giống website
+  List<NhomDichVu> _services = [];
   int? _loaiId;
   bool _loading = true;
   String? _error;
@@ -110,11 +112,11 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
       if (!mounted) return;
       setState(() {
         if (res.success) {
-          _services = (res.data ?? []).map(CatalogUi.fromService).toList();
+          _services = NhomDichVu.gom(res.data ?? []);
           if (_sapXep == 'gia-tang') {
-            _services.sort((a, b) => (a['donGia'] as num).compareTo(b['donGia'] as num));
+            _services.sort((a, b) => a.giaTu.compareTo(b.giaTu));
           } else if (_sapXep == 'gia-giam') {
-            _services.sort((a, b) => (b['donGia'] as num).compareTo(a['donGia'] as num));
+            _services.sort((a, b) => b.giaTu.compareTo(a.giaTu));
           }
         } else {
           _error = res.message ?? 'Không tải được danh sách dịch vụ';
@@ -389,8 +391,19 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
     );
   }
 
-  Widget _buildServiceRow(BuildContext context, Map<String, dynamic> item) {
+  Widget _buildServiceRow(BuildContext context, NhomDichVu nhom) {
+    // Mở chi tiết biến thể rẻ nhất của hình thức đang lọc; đổi thời lượng / gói ở màn đặt
+    final item = CatalogUi.fromService(nhom.bienTheDaiDien(_loaiHinh));
     final Color c = item['iconColor'] as Color;
+    final anh = CatalogUi.fileUrl(nhom.anh);
+    final phu = [
+      if (nhom.nhanHinhThuc.isNotEmpty) nhom.nhanHinhThuc,
+      if (nhom.bienThe.length > 1) '${nhom.bienThe.length} lựa chọn',
+    ].join(' · ');
+    Widget bieuTuong() => Container(
+          color: c.withValues(alpha: 0.12),
+          child: Icon(item['icon'] as IconData, color: c, size: 26),
+        );
     return Material(
       color: Colors.white,
       child: InkWell(
@@ -406,14 +419,14 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: c.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
+              ClipOval(
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: anh == null
+                      ? bieuTuong()
+                      : Image.network(anh, fit: BoxFit.cover, errorBuilder: (_, _, _) => bieuTuong()),
                 ),
-                child: Icon(item['icon'] as IconData, color: c, size: 26),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -421,7 +434,7 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item['title'] as String,
+                      nhom.ten,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -430,21 +443,24 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      item['subtitle'] as String,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: AppColors.textSecondary,
-                        height: 1.3,
+                    if (phu.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        phu,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.textSecondary,
+                          height: 1.3,
+                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: 4),
                     GiaHienThi(
-                      gia: item['price'] as String,
-                      giaGoc: item['priceGoc'] as String?,
+                      gia: nhom.giaTu > 0 ? 'Từ ${CatalogUi.money(nhom.giaTu)}' : 'Liên hệ báo giá',
+                      // Giá trước đợt tăng/giảm tạm, chỉ khi biến thể mở ra chính là biến thể giá thấp nhất
+                      giaGoc: (item['donGia'] as num).round() == nhom.giaTu ? item['priceGoc'] as String? : null,
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,

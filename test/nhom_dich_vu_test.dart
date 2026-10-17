@@ -51,4 +51,19 @@ void main() {
     expect(NhomDichVu.tenNhom('Tổng vệ sinh nhà (tối đa 60m², 2 người/3 giờ)'), 'Tổng vệ sinh nhà');
     expect(NhomDichVu.tenNhom('Đi chợ hộ'), 'Đi chợ hộ');
   });
+
+  test('Biến thể đại diện khi mở chi tiết: ưu tiên hình thức đang lọc, rẻ nhất', () {
+    final g = NhomDichVu.gom(dichVus).first;
+    expect(g.bienTheDaiDien(null)['donGiaThamKhao'], 216000);
+    expect(g.bienTheDaiDien('TheoLan')['donGiaThamKhao'], 216000);
+    expect(g.bienTheDaiDien('GoiThang')['loaiHinhDat'], 'GoiThang');
+    // Nhóm không có hình thức đang lọc: lấy biến thể đầu tiên
+    expect(NhomDichVu.gom(dichVus)[1].bienTheDaiDien('GoiThang')['loaiHinhDat'] ?? 'TheoLan', 'TheoLan');
+  });
+
+  test('Số lựa chọn và nhãn hình thức của nhóm', () {
+    final g = NhomDichVu.gom(dichVus).first;
+    expect(g.nhanHinhThuc, 'Theo lần · Gói tháng');
+    expect(NhomDichVu.gom(dichVus)[1].nhanHinhThuc, 'Theo lần');
+  });
 }

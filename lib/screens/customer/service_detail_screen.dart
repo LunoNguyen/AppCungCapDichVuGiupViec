@@ -110,17 +110,26 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               color: accent.withValues(alpha: 0.10),
               child: Center(
                 child: Container(
-                  width: 88,
-                  height: 88,
+                  width: 112,
+                  height: 112,
+                  clipBehavior: Clip.antiAlias,
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    _service['icon'] as IconData? ?? Icons.cleaning_services_rounded,
-                    size: 44,
-                    color: accent,
-                  ),
+                  child: () {
+                    final bieuTuong = Icon(
+                      _service['icon'] as IconData? ?? Icons.cleaning_services_rounded,
+                      size: 44,
+                      color: accent,
+                    );
+                    // Ảnh dịch vụ HCNS đặt theo mã dịch vụ (hinhAnhUrl từ danh sách dịch vụ)
+                    final anh = CatalogUi.fileUrl(
+                        (_service['hinhAnhUrl'] ?? _service['hinhAnh'])?.toString());
+                    return anh == null
+                        ? bieuTuong
+                        : Image.network(anh, fit: BoxFit.cover, errorBuilder: (_, _, _) => bieuTuong);
+                  }(),
                 ),
               ),
             ),

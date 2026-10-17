@@ -25,6 +25,15 @@ class NhomDichVu {
   List<Map<String, dynamic>> bienTheTheoLoai(String loaiHinhDat) =>
       bienThe.where((b) => (b['loaiHinhDat'] ?? 'TheoLan') == loaiHinhDat).toList();
 
+  /// Biến thể mở khi bấm thẻ nhóm: rẻ nhất của hình thức đang lọc, không có thì biến thể đầu tiên.
+  Map<String, dynamic> bienTheDaiDien(String? loaiHinhDat) {
+    final ds = loaiHinhDat == null ? const <Map<String, dynamic>>[] : bienTheTheoLoai(loaiHinhDat);
+    return ds.isNotEmpty ? ds.first : bienThe.first;
+  }
+
+  /// "Theo lần · Gói tháng" – các hình thức nhóm có.
+  String get nhanHinhThuc => [if (coTheoLan) 'Theo lần', if (coGoiThang) 'Gói tháng'].join(' · ');
+
   /// Tên chung của nhóm: bỏ phần biến thể " (…)" ở cuối tên.
   static String tenNhom(String tenDichVu) {
     final ngoac = tenDichVu.indexOf(' (');

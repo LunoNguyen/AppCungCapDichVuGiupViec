@@ -61,8 +61,10 @@ class CatalogUi {
   /// URL ảnh MinIO (object key) qua backend: /files/{key}
   static String? fileUrl(String? key) {
     if (key == null || key.trim().isEmpty) return null;
-    if (key.startsWith('http')) return key;
-    final k = key.startsWith('/') ? key.substring(1) : key;
+    final k = key.trim();
+    if (k.startsWith('http')) return k;
+    // Đường dẫn trên máy chủ ("/images/…" ảnh tĩnh, "/files/…" ảnh MinIO đã qua getViewUrl): ghép thẳng
+    if (k.startsWith('/')) return '${ApiConfig.baseUrl}$k';
     return '${ApiConfig.baseUrl}/files/$k';
   }
 
