@@ -11,6 +11,7 @@ class BookingApiService {
     int? bangGiaId,
     String loaiHinhDat = 'TheoLan', // TheoLan | GoiThang
     String? codeKhuyenMai,
+    int? khachHangId, // mỗi khách chỉ dùng một mã khuyến mãi một lần
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/bookings/calculate-price',
@@ -20,6 +21,7 @@ class BookingApiService {
         'loaiHinhDat': loaiHinhDat,
         if (codeKhuyenMai != null && codeKhuyenMai.isNotEmpty)
           'codeKhuyenMai': codeKhuyenMai,
+        if (khachHangId != null) 'khachHangId': khachHangId,
       },
     );
   }
@@ -29,19 +31,21 @@ class BookingApiService {
   Future<ApiResponse<Map<String, dynamic>>> validatePromotion({
     required String codeKhuyenMai,
     required double tongTienDonHang,
+    int? khachHangId,
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/promotions/validate',
       body: {
         'codeKhuyenMai': codeKhuyenMai,
         'tongTienDonHang': tongTienDonHang,
+        if (khachHangId != null) 'khachHangId': khachHangId,
       },
     );
   }
 
-  /// Khách hàng xác nhận và tạo đơn đặt dịch vụ (UC-KH04)
-  /// POST /v1/bookings — khớp BookingCreateRequest
-  Future<ApiResponse<Map<String, dynamic>>> createBooking({
+  /// Thân JSON của POST /v1/bookings (khớp BookingCreateRequest). Tách riêng để kiểm tra tên trường.
+  /// hinhThucThanhToan: "TienMat" | "ChuyenKhoan" (máy chủ chỉ đọc trường này).
+  static Map<String, dynamic> bodyTaoDon({
     required int khachHangId,
     required int dichVuId,
     int? bangGiaId,
@@ -56,49 +60,87 @@ class BookingApiService {
     String? yeuCauDacBiet,
     String? ghiChu,
     String? maKhuyenMai,
-    required String
-    phuongThucThanhToan, // TIEN_MAT, CHUYEN_KHOAN, VNPAY, VIETQR
-    int? congTacVienId,
-    String? ngayLamViec,
-    int? soGio,
-    String? diaChi,
+    required String hinhThucThanhToan,
+  }) {
+    String gio(String g) => g.length == 5 ? '$g:00' : g;
+    return {
+      'khachHangId': khachHangId,
+      'dichVuId': dichVuId,
+      if (bangGiaId != null) 'bangGiaId': bangGiaId,
+      'ngayThucHien': ngayThucHien,
+      'gioBatDau': gio(gioBatDau),
+      if (gioKetThuc != null) 'gioKetThuc': gio(gioKetThuc),
+      if (diaChiId != null) 'diaChiId': diaChiId,
+      if (diaChiChiTiet != null) 'diaChiChiTiet': diaChiChiTiet,
+      if (khuVucId != null) 'khuVucId': khuVucId,
+      'loaiHinhDat': loaiHinhDat,
+      if (ngayThucHienTrongTuan != null) 'ngayThucHienTrongTuan': ngayThucHienTrongTuan,
+      if (yeuCauDacBiet != null) 'yeuCauDacBiet': yeuCauDacBiet,
+      if (ghiChu != null) 'ghiChu': ghiChu,
+      if (maKhuyenMai != null && maKhuyenMai.isNotEmpty) 'codeKhuyenMai': maKhuyenMai,
+      'hinhThucThanhToan': hinhThucThanhToan,
+    };
+  }
+
+  /// Khách hàng xác nhận và tạo đơn đặt dịch vụ (UC-KH04) – POST /v1/bookings
+  Future<ApiResponse<Map<String, dynamic>>> createBooking({
+    required int khachHangId,
+    required int dichVuId,
+    int? bangGiaId,
+    required String ngayThucHien,
+    required String gioBatDau,
+    String? gioKetThuc,
+    int? diaChiId,
+    String? diaChiChiTiet,
+    int? khuVucId,
+    String loaiHinhDat = 'TheoLan',
+    String? ngayThucHienTrongTuan,
+    String? yeuCauDacBiet,
+    String? ghiChu,
+    String? maKhuyenMai,
+    required String hinhThucThanhToan,
   }) async {
-    String formattedTime = gioBatDau;
-    if (formattedTime.length == 5) {
-      formattedTime = '$formattedTime:00';
-    }
-
-    String? formattedEndTime = gioKetThuc;
-    if (formattedEndTime != null && formattedEndTime.length == 5) {
-      formattedEndTime = '$formattedEndTime:00';
-    }
-
-    final String workingDate = ngayLamViec ?? ngayThucHien;
-
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/bookings',
+      body: bodyTaoDon(
+        khachHangId: khachHangId,
+        dichVuId: dichVuId,
+        bangGiaId: bangGiaId,
+        ngayThucHien: ngayThucHien,
+        gioBatDau: gioBatDau,
+        gioKetThuc: gioKetThuc,
+        diaChiId: diaChiId,
+        diaChiChiTiet: diaChiChiTiet,
+        khuVucId: khuVucId,
+        loaiHinhDat: loaiHinhDat,
+        ngayThucHienTrongTuan: ngayThucHienTrongTuan,
+        yeuCauDacBiet: yeuCauDacBiet,
+        ghiChu: ghiChu,
+        maKhuyenMai: maKhuyenMai,
+        hinhThucThanhToan: hinhThucThanhToan,
+      ),
+    );
+  }
+
+  /// Các mã khuyến mãi còn hiệu lực cho dịch vụ đang chọn, tính sẵn số tiền giảm
+  /// POST /v1/bookings/available-promotions → [{codeKhuyenMai, tenChuongTrinh, dungDuoc, soTienGiam, lyDo, ...}]
+  Future<ApiResponse<List<Map<String, dynamic>>>> getAvailablePromotions({
+    required int dichVuId,
+    required String loaiHinhDat,
+    String? ngayThucHien, // yyyy-MM-dd
+    String? gioBatDau, // HH:mm
+  }) async {
+    return _apiClient.post<List<Map<String, dynamic>>>(
+      '/v1/bookings/available-promotions',
       body: {
-        'khachHangId': khachHangId,
         'dichVuId': dichVuId,
-        if (bangGiaId != null) 'bangGiaId': bangGiaId,
-        'ngayThucHien': workingDate,
-        'ngayLamViec': workingDate,
-        'gioBatDau': formattedTime,
-        if (formattedEndTime != null) 'gioKetThuc': formattedEndTime,
-        if (diaChiId != null) 'diaChiId': diaChiId,
-        if (diaChiChiTiet != null) 'diaChiChiTiet': diaChiChiTiet,
-        if (diaChi != null) 'diaChi': diaChi,
-        if (khuVucId != null) 'khuVucId': khuVucId,
         'loaiHinhDat': loaiHinhDat,
-        if (ngayThucHienTrongTuan != null) 'ngayThucHienTrongTuan': ngayThucHienTrongTuan,
-        if (yeuCauDacBiet != null) 'yeuCauDacBiet': yeuCauDacBiet,
-        if (ghiChu != null) 'ghiChu': ghiChu,
-        if (maKhuyenMai != null) 'maKhuyenMai': maKhuyenMai,
-        if (maKhuyenMai != null) 'codeKhuyenMai': maKhuyenMai,
-        if (congTacVienId != null) 'congTacVienId': congTacVienId,
-        if (soGio != null) 'soGio': soGio,
-        'phuongThucThanhToan': phuongThucThanhToan,
+        if (ngayThucHien != null) 'ngayThucHien': ngayThucHien,
+        if (gioBatDau != null) 'gioBatDau': gioBatDau,
       },
+      fromJsonT: (json) => json is List
+          ? json.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[],
     );
   }
 
@@ -152,21 +194,12 @@ class BookingApiService {
     );
   }
 
-  /// Thanh toán đơn đặt dịch vụ (Chuyển khoản VietQR / VNPAY / Tiền mặt)
-  /// PUT /v1/customer/bookings/{id}/pay
-  Future<ApiResponse<Map<String, dynamic>>> payBooking({
-    required int id,
-    required int khachHangId,
-    required String phuongThucThanhToan, // TIEN_MAT, CHUYEN_KHOAN, VNPAY, VIETQR
-    String? maGiaoDich,
-  }) async {
-    return _apiClient.put<Map<String, dynamic>>(
-      '/v1/customer/bookings/$id/pay',
-      body: {
-        'khachHangId': khachHangId,
-        'phuongThucThanhToan': phuongThucThanhToan,
-        if (maGiaoDich != null) 'maGiaoDich': maGiaoDich,
-      },
+  /// Khách xác nhận đã chuyển khoản (màn QR, nút "Thanh toán ngay" ở chi tiết đơn)
+  /// POST /v1/customer/bookings/{id}/confirm-transfer – cùng hàm với website
+  Future<ApiResponse<Map<String, dynamic>>> confirmTransfer(int donDatId) async {
+    return _apiClient.post<Map<String, dynamic>>(
+      '/v1/customer/bookings/$donDatId/confirm-transfer',
+      body: const {},
     );
   }
 }
