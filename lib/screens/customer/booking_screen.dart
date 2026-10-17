@@ -1,16 +1,16 @@
-import '../../widgets/gia_hien_thi.dart';
-import '../../widgets/lich_thang.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../services/address_api_service.dart';
-import '../../services/booking_api_service.dart';
+import '../../services/buoc_dat.dart';
 import '../../services/catalog_ui.dart';
-import '../../services/lich_goi_thang.dart';
+import '../../services/nhom_dich_vu.dart';
 import '../../services/service_catalog_api_service.dart';
-import '../../services/session_service.dart';
-import 'address_book_screen.dart';
-import 'order_detail_screen.dart';
+import 'dat_dich_vu/buoc_dich_vu.dart';
+import 'dat_dich_vu/buoc_hinh_thuc.dart';
+import 'dat_dich_vu/thanh_buoc.dart';
 
+/// Màn đặt dịch vụ 5 bước, giống website:
+/// 1 Dịch vụ → 2 Hình thức → 3 Thời gian → 4 Xác nhận → 5 Thanh toán.
+/// Mở từ trang chi tiết dịch vụ nên dịch vụ đã chọn sẵn, bắt đầu ở bước 2 (bước 3 nếu chỉ có một hình thức).
 class BookingScreen extends StatefulWidget {
   final Map<String, dynamic> service;
 
@@ -21,1203 +21,239 @@ class BookingScreen extends StatefulWidget {
 }
 
 class _BookingScreenState extends State<BookingScreen> {
-  int _step = 0;
-  int _selectedPlan = 0;
-  int _selectedPayment = 0;
-  DateTime? _selectedDate;
-  TimeOfDay? _selectedTime;
-  // Địa chỉ làm việc chọn từ sổ địa chỉ của khách (mặc định: địa chỉ mặc định)
-  UserSession? _session;
-  DiaChi? _diaChi;
-  bool _loadingAddress = true;
-  final _noteController = TextEditingController();
-  final _promoController = TextEditingController();
-  final BookingApiService _bookingApi = BookingApiService();
+  late int _buoc;
+  late int _daToi;
 
-  // Gói giá lấy từ bảng giá đang áp dụng của dịch vụ (GET /v1/services/{id})
-  List<Map<String, dynamic>> _plans = [];
-  bool _loadingPlans = true;
-  String? _planError;
+  // Bước 1: dịch vụ cùng danh mục, gom theo mã dịch vụ
+  List<NhomDichVu> _nhoms = [];
+  NhomDichVu? _nhom;
+  bool _dangTaiDv = true;
+  bool _daTaiDv = false; // đã có danh sách đầy đủ: mới biết nhóm có bỏ qua bước 2 hay không
+  String? _loiDv;
 
-  // Giá do máy chủ tính (POST /v1/bookings/calculate-price), gồm cả khuyến mãi
-  Map<String, dynamic>? _price;
-  bool _calculating = false;
-  String? _appliedCode; // mã đã được máy chủ chấp nhận
-  bool _checkingPromo = false;
-  bool _submitting = false;
+  // Bước 2–3: hình thức và biến thể (thời lượng / gói)
+  String _loai = 'TheoLan';
+  int? _dichVuId;
 
-  bool get _promoApplied => _appliedCode != null;
+  int get _dichVuIdGoc => CatalogUi.toInt(widget.service['dichVuId'] ?? widget.service['id']);
 
-  // Gói tháng: khách chọn các thứ trong tuần (DateTime.weekday 1..7), lịch đủ số buổi trong 1 tháng
-  Set<int> _thuGoi = {2, 4, 6, 7}; // mặc định T3, T5, T7, CN
-  int _soBuoiGoi = 4;
+  /// Trong lúc chưa tải xong danh sách, nhóm tạm chỉ có một biến thể nên chưa kết luận được việc bỏ bước 2.
+  bool get _boQua2 => _daTaiDv && _nhom != null && BuocDat.boQuaBuoc2(_nhom!);
 
-  bool get _laGoiThang =>
-      (_plan?['loaiHinhDat'] ?? widget.service['loaiHinhDat'])?.toString() == 'GoiThang';
+  DuLieuDat get _duLieu => DuLieuDat(
+        nhom: _nhom,
+        loaiHinhDat: _loai,
+        dichVuId: _dichVuId,
+      );
 
-  List<DateTime> get _lichGoi =>
-      LichGoiThang.tinhLich(_selectedDate ?? DateTime.now(), _thuGoi, _soBuoiGoi);
-
-  String? get _loiLichGoi => LichGoiThang.loiThieu(_lichGoi, _soBuoiGoi, _thuGoi);
-
-  static const _stepTitles = ['Chọn gói', 'Chọn thời gian', 'Xác nhận'];
-  static const _weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-
-  final List<Map<String, dynamic>> _payments = [
-    {'icon': Icons.payments_outlined, 'label': 'Tiền mặt', 'code': 'TIEN_MAT'},
-    {'icon': Icons.qr_code_scanner_rounded, 'label': 'Chuyển khoản / QR', 'code': 'CHUYEN_KHOAN'},
-  ];
-
-  // Khung giờ bắt đầu 07:00 → 17:00
-  final List<TimeOfDay> _timeSlots = List.generate(
-      11, (i) => TimeOfDay(hour: 7 + i, minute: 0));
-
-  /// Khoảng ngày đặt được: từ hôm nay đến 60 ngày tới (giống website, máy chủ kiểm lại).
-  DateTime get _homNay => LichThang.chiNgay(DateTime.now());
-  DateTime get _ngayCuoi => _homNay.add(const Duration(days: 60));
-
-  /// Ngày của buổi đầu tiên: gói tháng là ngày đầu khớp thứ đã chọn, theo lần là ngày đã chọn.
-  DateTime? get _ngayBuoiDau =>
-      _laGoiThang && _lichGoi.isNotEmpty ? _lichGoi.first : _selectedDate;
-
-  /// Giờ bắt đầu phải sau hiện tại ít nhất 1 giờ (cùng quy tắc với website và máy chủ).
-  bool _gioHopLe(DateTime? ngay, TimeOfDay t) {
-    if (ngay == null) return false;
-    final luc = DateTime(ngay.year, ngay.month, ngay.day, t.hour, t.minute);
-    return !luc.isBefore(DateTime.now().add(const Duration(hours: 1)));
+  Map<String, dynamic>? get _bienThe {
+    final n = _nhom;
+    if (n == null || _dichVuId == null) return null;
+    for (final b in n.bienThe) {
+      if (CatalogUi.toInt(b['id']) == _dichVuId) return b;
+    }
+    return null;
   }
 
-  /// Giờ đang chọn không còn hợp lệ (đổi ngày, đổi thứ) thì chuyển sang giờ hợp lệ đầu tiên.
-  void _chinhGio() {
-    if (_selectedTime != null && _gioHopLe(_ngayBuoiDau, _selectedTime!)) return;
-    final hop = _timeSlots.where((t) => _gioHopLe(_ngayBuoiDau, t));
-    _selectedTime = hop.isEmpty ? null : hop.first;
-  }
-
-  void _chonNgay(DateTime d) => setState(() {
-        _selectedDate = d;
-        _chinhGio();
-      });
-
-  int get _dichVuId =>
-      CatalogUi.toInt(widget.service['dichVuId'] ?? widget.service['id']);
-
-  Map<String, dynamic>? get _plan =>
-      _plans.isEmpty ? null : _plans[_selectedPlan.clamp(0, _plans.length - 1)];
-
-  int _toMoney(dynamic v) => (num.tryParse(v?.toString() ?? '') ?? 0).round();
-
-  /// Tạm tính / giảm / tổng: ưu tiên số máy chủ tính, chưa có thì lấy đơn giá của gói.
-  int get _base => _price != null
-      ? _toMoney(_price!['chiPhiGoc'] ?? _price!['tongTienGoc'] ?? _price!['donGia'] ?? _price!['price'])
-      : _toMoney(_plan?['price']);
-
-  int get _discount => _price != null
-      ? _toMoney(_price!['soTienGiam'] ?? _price!['giaGiam'] ?? _price!['chietKhau'])
-      : 0;
-
-  int get _total => _price != null
-      ? _toMoney(_price!['thanhTien'] ?? _price!['tongTien'] ?? _price!['tongTienThanhToan'])
-      : (_base - _discount > 0 ? _base - _discount : _base);
-
-  String _formatPrice(int p) =>
-      '${p.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}đ';
-
-  String _fmtDate(DateTime d) =>
-      '${_weekDays[d.weekday - 1]}, ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-
-  String _fmtTime(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-
-  String get _serviceTitle =>
-      ((widget.service['title'] as String?) ?? 'Dịch vụ').replaceAll('\n', ' ');
+  /// Tổng tiền ở thanh đáy: đơn giá tham khảo của biến thể đang chọn.
+  int get _tongTien =>
+      (num.tryParse(_bienThe?['donGiaThamKhao']?.toString() ?? '') ?? 0).round();
 
   @override
   void initState() {
     super.initState();
-    // Hôm nay nếu còn khung giờ hợp lệ, không thì ngày mai
-    _selectedDate = _homNay;
-    if (!_timeSlots.any((t) => _gioHopLe(_homNay, t))) {
-      _selectedDate = _homNay.add(const Duration(days: 1));
-    }
-    _chinhGio();
-    _loadDefaultAddress();
-    _loadPlans();
+    // Dựng tạm nhóm từ dịch vụ đang xem để mở ngay, không chờ mạng
+    final tam = NhomDichVu.gom([widget.service]).first;
+    _nhoms = [tam];
+    _nhom = tam;
+    _loai = BuocDat.loaiMacDinh(tam, uuTien: widget.service['loaiHinhDat']?.toString());
+    _dichVuId = _dichVuIdGoc > 0 ? _dichVuIdGoc : null;
+    _buoc = 2;
+    _daToi = 2;
+    _taiDichVu();
   }
 
-  Future<void> _loadPlans() async {
+  Future<void> _taiDichVu() async {
     setState(() {
-      _loadingPlans = true;
-      _planError = null;
+      _dangTaiDv = true;
+      _loiDv = null;
     });
     try {
-      List<dynamic>? bangGias = widget.service['bangGias'] as List<dynamic>?;
-      Map<String, dynamic> dv = widget.service;
-      if (bangGias == null || bangGias.isEmpty) {
-        final res = await ServiceCatalogApiService().getServiceDetail(_dichVuId);
-        if (res.success && res.data != null) {
-          dv = res.data!;
-          bangGias = dv['bangGias'] as List<dynamic>? ?? [];
-        }
-      }
-      final plans = <Map<String, dynamic>>[
-        for (final raw in (bangGias ?? []))
-          () {
-            final bg = Map<String, dynamic>.from(raw as Map);
-            final donVi = bg['donViTinh']?.toString() ?? dv['donViTinh']?.toString() ?? '';
-            final bgId = CatalogUi.toInt(bg['id'] ?? bg['bangGiaId']);
-            return {
-              'bangGiaId': bgId > 0 ? bgId : null,
-              'loaiHinhDat': bg['loaiHinhDat']?.toString() ?? dv['loaiHinhDat']?.toString() ?? 'TheoLan',
-              'label': CatalogUi.loaiHinhLabel(bg['loaiHinhDat']?.toString() ?? dv['loaiHinhDat']?.toString()),
-              'desc': bg['khuVuc']?.toString() ?? 'Áp dụng mọi khu vực phục vụ',
-              'price': bg['donGia'] ?? dv['giaHienTai'] ?? dv['donGia'],
-              'display':
-                  '${CatalogUi.money(bg['donGia'] ?? dv['giaHienTai'] ?? dv['donGia'])}${donVi.isNotEmpty ? '/${donVi.toLowerCase()}' : ''}',
-              // Giá trước đợt tăng/giảm tạm: hiện gạch ngang
-              'displayGoc': bg['giaGoc'] != null
-                  ? '${CatalogUi.money(bg['giaGoc'])}${donVi.isNotEmpty ? '/${donVi.toLowerCase()}' : ''}'
-                  : null,
-            };
-          }(),
-      ];
-      // Dịch vụ chưa có bảng giá: dùng giá hiện tại của dịch vụ
-      if (plans.isEmpty) {
-        final gia = dv['giaHienTai'] ?? dv['donGia'] ?? dv['donGiaThamKhao'];
-        plans.add({
-          'bangGiaId': null,
-          'loaiHinhDat': dv['loaiHinhDat']?.toString() ?? 'TheoLan',
-          'label': CatalogUi.loaiHinhLabel(dv['loaiHinhDat']?.toString()),
-          'desc': 'Giá tham khảo',
-          'price': gia,
-          'display': CatalogUi.money(gia),
-        });
-      }
+      final loaiId = CatalogUi.toInt(widget.service['loaiDichVuId']);
+      final res = await ServiceCatalogApiService().getServices(loaiDichVuId: loaiId > 0 ? loaiId : null);
       if (!mounted) return;
+      if (!res.success || res.data == null) {
+        setState(() => _loiDv = res.message ?? 'Không tải được danh sách dịch vụ');
+        return;
+      }
+      var nhoms = NhomDichVu.gom(res.data!);
+      var dangChon = _nhom == null ? null : _timNhom(nhoms, _nhom!);
+      if (dangChon == null && _nhom != null) {
+        // Dịch vụ đang chọn không có trong danh sách (đã ngừng / khác danh mục): vẫn giữ để đặt tiếp
+        nhoms = [_nhom!, ...nhoms];
+        dangChon = _nhom;
+      }
       setState(() {
-        _plans = plans;
-        _selectedPlan = 0;
-        _soBuoiGoi = LichGoiThang.soBuoi(dv['soBuoiGoi'] ?? dv['soBuoi'],
-            dv['tenDichVu']?.toString() ?? _serviceTitle);
-      });
-      _recalc();
-    } catch (e) {
-      if (mounted) setState(() => _planError = e.toString().replaceFirst('Exception: ', ''));
-    } finally {
-      if (mounted) setState(() => _loadingPlans = false);
-    }
-  }
-
-  /// Máy chủ tính giá theo gói đã chọn và mã khuyến mãi đã áp dụng.
-  Future<void> _recalc() async {
-    final plan = _plan;
-    if (plan == null) return;
-    setState(() => _calculating = true);
-    try {
-      final res = await _bookingApi.calculatePrice(
-        dichVuId: _dichVuId,
-        bangGiaId: plan['bangGiaId'] as int?,
-        loaiHinhDat: plan['loaiHinhDat'] as String,
-        codeKhuyenMai: _appliedCode,
-      );
-      if (!mounted) return;
-      setState(() => _price = res.success ? res.data : null);
-    } catch (_) {
-      if (mounted) setState(() => _price = null);
-    } finally {
-      if (mounted) setState(() => _calculating = false);
-    }
-  }
-
-  void _selectPlan(int i) {
-    if (i == _selectedPlan) return;
-    setState(() => _selectedPlan = i);
-    _recalc();
-  }
-
-  Future<void> _loadDefaultAddress() async {
-    final session = await SessionService.load();
-    DiaChi? macDinh;
-    if (session != null && session.isCustomer) {
-      try {
-        final res = await AddressApiService().getAddresses(session.userId);
-        final list = res.data ?? const <DiaChi>[];
-        if (list.isNotEmpty) {
-          macDinh = list.firstWhere((d) => d.laMacDinh, orElse: () => list.first);
+        _nhoms = nhoms;
+        _daTaiDv = true;
+        if (dangChon != null) _datNhom(dangChon, giuBienThe: true);
+        if (_buoc == 2 && _boQua2) {
+          _buoc = 3;
+          if (_daToi < 3) _daToi = 3;
         }
-      } catch (_) {}
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loiDv = 'Không kết nối được máy chủ');
+    } finally {
+      if (mounted) setState(() => _dangTaiDv = false);
     }
-    if (!mounted) return;
+  }
+
+  /// Nhóm trong danh sách mới tương ứng nhóm đang chọn: theo biến thể đang chọn, rồi theo mã.
+  NhomDichVu? _timNhom(List<NhomDichVu> nhoms, NhomDichVu cu) {
+    final theoId = _dichVuId == null ? null : NhomDichVu.timTheoDichVuId(nhoms, _dichVuId!);
+    if (theoId != null) return theoId;
+    for (final g in nhoms) {
+      if (g.ma == cu.ma) return g;
+    }
+    return null;
+  }
+
+  /// Chọn nhóm: giữ hình thức nếu nhóm có, chọn biến thể đầu tiên của hình thức đó
+  /// (hoặc giữ biến thể đang chọn khi chỉ thay bằng bản đầy đủ của cùng nhóm).
+  void _datNhom(NhomDichVu g, {bool giuBienThe = false}) {
+    _nhom = g;
+    _loai = BuocDat.loaiMacDinh(g, uuTien: _loai);
+    final ds = g.bienTheTheoLoai(_loai);
+    final conBienThe = giuBienThe && ds.any((b) => CatalogUi.toInt(b['id']) == _dichVuId);
+    if (!conBienThe) _dichVuId = ds.isEmpty ? null : CatalogUi.toInt(ds.first['id']);
+  }
+
+  void _chonNhom(NhomDichVu g) {
+    if (g.ma == _nhom?.ma) return;
     setState(() {
-      _session = session;
-      _diaChi = macDinh;
-      _loadingAddress = false;
+      _datNhom(g);
+      _daToi = _buoc; // đổi dịch vụ: các bước sau phải đi lại
     });
   }
 
-  Future<void> _pickAddress() async {
-    if (_session == null || !_session!.isCustomer) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Vui lòng đăng nhập để chọn địa chỉ làm việc'),
-        backgroundColor: AppColors.error,
-      ));
+  void _chonLoai(String loai) {
+    if (loai == _loai) return;
+    setState(() {
+      _loai = loai;
+      final ds = _nhom?.bienTheTheoLoai(loai) ?? const [];
+      _dichVuId = ds.isEmpty ? null : CatalogUi.toInt(ds.first['id']);
+      _daToi = _buoc;
+    });
+  }
+
+  void _tiep() {
+    final loi = BuocDat.loiBuoc(_buoc, _duLieu);
+    if (loi != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(loi), backgroundColor: AppColors.error));
       return;
     }
-    final picked = await Navigator.push<DiaChi>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddressBookScreen(
-          khachHangId: _session!.userId,
-          selectMode: true,
-          selectedId: _diaChi?.id,
-        ),
-      ),
-    );
-    if (picked != null && mounted) setState(() => _diaChi = picked);
+    if (_buoc >= BuocDat.soBuoc) return;
+    setState(() {
+      _buoc = _daTaiDv ? BuocDat.buocKe(_buoc, _nhom!) : _buoc + 1;
+      if (_buoc > _daToi) _daToi = _buoc;
+    });
   }
 
-  @override
-  void dispose() {
-    _noteController.dispose();
-    _promoController.dispose();
-    super.dispose();
+  void _lui() {
+    if (_buoc <= 1) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() => _buoc = _daTaiDv ? BuocDat.buocLui(_buoc, _nhom!) : _buoc - 1);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
-      appBar: AppBar(
-        title: Text(_stepTitles[_step]),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (_step > 0) {
-              setState(() => _step--);
-            } else {
-              Navigator.pop(context);
-            }
-          },
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(3),
-          child: LinearProgressIndicator(
-            value: (_step + 1) / _stepTitles.length,
-            minHeight: 3,
-            backgroundColor: AppColors.divider,
-            color: AppColors.brand500,
-          ),
-        ),
-      ),
-      body: IndexedStack(
-        index: _step,
+      appBar: AppBar(title: const Text('Đặt dịch vụ')),
+      body: Column(
         children: [
-          _buildStep1(),
-          _buildStep2(),
-          _buildStep3(),
+          ThanhBuoc(
+            buoc: _buoc,
+            daToi: _daToi,
+            boQuaBuoc2: _boQua2,
+            onChon: (b) => setState(() => _buoc = b),
+          ),
+          const Divider(height: 1),
+          Expanded(child: _noiDungBuoc()),
         ],
       ),
-      bottomNavigationBar: _buildBottomBar(),
+      bottomNavigationBar: _thanhDay(),
     );
   }
 
-  // ===================== BƯỚC 1: CHỌN GÓI =====================
-
-  Widget _buildStep1() {
-    final s = widget.service;
-    final Color accent =
-        s['iconColor'] as Color? ?? s['color'] as Color? ?? AppColors.brand500;
-
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 16),
-      children: [
-        Container(
-          color: Colors.white,
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(s['icon'] as IconData? ?? Icons.cleaning_services,
-                    color: accent, size: 26),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _serviceTitle,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      (s['subtitle'] ?? s['price'] ?? '') as String,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        _block(
-          'Gói dịch vụ',
-          _loadingPlans
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                      child: CircularProgressIndicator(color: AppColors.brand500)),
-                )
-              : _planError != null
-                  ? Column(
-                      children: [
-                        Text(_planError!,
-                            style: const TextStyle(color: AppColors.error)),
-                        TextButton(
-                            onPressed: _loadPlans, child: const Text('Thử lại')),
-                      ],
-                    )
-                  : Column(
-            children: List.generate(_plans.length, (i) {
-              final p = _plans[i];
-              final selected = i == _selectedPlan;
-              return GestureDetector(
-                onTap: () => _selectPlan(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: selected ? AppColors.brandSurface : Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: selected ? AppColors.brand500 : AppColors.divider,
-                      width: selected ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              p['label'] as String,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              p['desc'] as String,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      GiaHienThi(
-                        canh: CrossAxisAlignment.end,
-                        gia: p['display'] as String,
-                        giaGoc: p['displayGoc'] as String?,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                          color: selected
-                              ? AppColors.brand600
-                              : AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Icon(
-                        selected
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_unchecked,
-                        color:
-                            selected ? AppColors.brand500 : AppColors.textMuted,
-                        size: 22,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-        const SizedBox(height: 10),
-        _block(
-          'Mã khuyến mãi',
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _promoController,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    hintText: 'Nhập mã khuyến mãi',
-                    prefixIcon: Icon(Icons.local_offer_outlined,
-                        color: AppColors.brand500),
-                    isDense: true,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                height: 46,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                  onPressed: _checkingPromo ? null : _applyPromo,
-                  child: _checkingPromo
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text(_promoApplied ? 'Bỏ mã' : 'Áp dụng'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Kiểm tra mã với máy chủ (POST /v1/promotions/validate) rồi tính lại giá.
-  /// Bấm lại khi đã áp dụng = bỏ mã.
-  Future<void> _applyPromo() async {
-    if (_promoApplied) {
-      setState(() => _appliedCode = null);
-      _promoController.clear();
-      _recalc();
-      return;
-    }
-    final code = _promoController.text.trim();
-    if (code.isEmpty) return;
-    FocusScope.of(context).unfocus();
-    setState(() => _checkingPromo = true);
-    try {
-      final res = await _bookingApi.validatePromotion(
-        codeKhuyenMai: code,
-        tongTienDonHang: _base.toDouble(),
-      );
-      if (!mounted) return;
-      if (res.success) {
-        setState(() => _appliedCode = code);
-        await _recalc();
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(res.success
-              ? 'Đã áp dụng mã ${res.data?['tenChuongTrinh'] ?? code}'
-              : (res.message ?? 'Mã không hợp lệ hoặc đã hết hạn')),
-          backgroundColor: res.success ? AppColors.success : AppColors.error,
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Lỗi kết nối máy chủ'),
-          backgroundColor: AppColors.error,
-        ));
-      }
-    } finally {
-      if (mounted) setState(() => _checkingPromo = false);
+  Widget _noiDungBuoc() {
+    switch (_buoc) {
+      case 1:
+        return BuocDichVu(
+          nhoms: _nhoms,
+          maChon: _nhom?.ma,
+          onChon: _chonNhom,
+          dangTai: _dangTaiDv,
+          loi: _loiDv,
+          onThuLai: _taiDichVu,
+        );
+      case 2:
+        return BuocHinhThuc(nhom: _nhom!, loaiChon: _loai, onChon: _chonLoai);
+      default:
+        return const SizedBox.shrink();
     }
   }
 
-  // ===================== BƯỚC 2: THỜI GIAN & ĐỊA ĐIỂM =====================
-
-  Widget _buildStep2() {
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 16),
-      children: [
-        _block(
-          _laGoiThang ? 'Ngày bắt đầu gói' : 'Ngày làm việc',
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LichThang(
-                ngayChon: _selectedDate,
-                ngayDau: _homNay,
-                ngayCuoi: _ngayCuoi,
-                // Gói tháng: tô các buổi sẽ làm theo thứ đã chọn
-                ngayTo: _laGoiThang && _loiLichGoi == null ? _lichGoi.toSet() : const {},
-                onChon: _chonNgay,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 16,
-                runSpacing: 4,
-                children: [
-                  _chuThich(AppColors.brand500, 'Ngày đang chọn'),
-                  if (_laGoiThang) _chuThich(AppColors.brandLight, 'Các buổi của gói tháng'),
-                ],
-              ),
-              if (_selectedDate != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  '${_laGoiThang ? 'Ngày bắt đầu gói' : 'Ngày làm'}: ${_fmtDate(_selectedDate!)}',
-                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        _block(
-          'Giờ bắt đầu',
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _timeSlots.map((t) {
-              final selected = _selectedTime == t;
-              // Khung giờ chưa đủ 1 giờ so với hiện tại (tính theo buổi đầu tiên) bị khoá
-              final hopLe = _gioHopLe(_ngayBuoiDau, t);
-              return GestureDetector(
-                onTap: hopLe ? () => setState(() => _selectedTime = t) : null,
-                child: Container(
-                  width: 72,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? AppColors.brand500
-                        : (hopLe ? Colors.white : AppColors.divider.withValues(alpha: 0.5)),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: selected ? AppColors.brand500 : AppColors.divider,
-                    ),
-                  ),
-                  child: Text(
-                    _fmtTime(t),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: selected ? Colors.white : (hopLe ? AppColors.textPrimary : AppColors.textMuted),
-                      decoration: hopLe ? null : TextDecoration.lineThrough,
-                      decorationColor: AppColors.textMuted,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        if (_laGoiThang) ...[
-          const SizedBox(height: 10),
-          _block('Các thứ trong tuần', _buildThuGoi()),
-        ],
-        const SizedBox(height: 10),
-        _block(
-          'Địa điểm làm việc',
-          InkWell(
-            onTap: _pickAddress,
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.location_on_outlined,
-                      color: AppColors.brand500),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _loadingAddress
-                        ? const Text('Đang tải địa chỉ...',
-                            style: TextStyle(color: AppColors.textSecondary))
-                        : _diaChi == null
-                            ? const Text('Chọn hoặc thêm địa chỉ làm việc',
-                                style: TextStyle(color: AppColors.textSecondary))
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(_diaChi!.tieuDe,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w700)),
-                                  Text(_diaChi!.diaChiChiTiet,
-                                      style: const TextStyle(
-                                          fontSize: 13,
-                                          color: AppColors.textSecondary)),
-                                ],
-                              ),
-                  ),
-                  const Icon(Icons.chevron_right_rounded,
-                      color: AppColors.textMuted),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        _block(
-          'Ghi chú cho người làm',
-          TextField(
-            controller: _noteController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'VD: Nhà có thú cưng, cần lau kính kỹ...',
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _chuThich(Color mau, String nhan) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-              width: 14,
-              height: 14,
-              decoration: BoxDecoration(color: mau, borderRadius: BorderRadius.circular(4))),
-          const SizedBox(width: 6),
-          Text(nhan, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary)),
-        ],
-      );
-
-  /// Chọn thứ cho gói tháng: mẫu chọn nhanh, 7 nút thứ, xem trước lịch đủ số buổi.
-  Widget _buildThuGoi() {
-    final lich = _lichGoi;
-    final loi = _loiLichGoi;
-    String dm(DateTime d) =>
-        '${LichGoiThang.nhanThu[d.weekday - 1]} ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Chọn thứ để đủ $_soBuoiGoi buổi trong vòng 1 tháng kể từ ngày bắt đầu.',
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final e in LichGoiThang.mau.entries)
-              ActionChip(
-                label: Text(e.key, style: const TextStyle(fontSize: 12.5)),
-                onPressed: () => setState(() {
-                  _thuGoi = {...e.value};
-                  _chinhGio();
-                }),
-                side: BorderSide(
-                    color: _thuGoi.length == e.value.length && _thuGoi.containsAll(e.value)
-                        ? AppColors.brand500
-                        : AppColors.divider),
-                backgroundColor: Colors.white,
-              ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            for (int w = 1; w <= 7; w++)
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(right: w < 7 ? 6 : 0),
-                  child: GestureDetector(
-                    onTap: () => setState(() {
-                      final moi = {..._thuGoi};
-                      moi.contains(w) ? moi.remove(w) : moi.add(w);
-                      _thuGoi = moi;
-                      _chinhGio();
-                    }),
-                    child: Container(
-                      height: 40,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _thuGoi.contains(w) ? AppColors.brand500 : Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: _thuGoi.contains(w) ? AppColors.brand500 : AppColors.divider),
-                      ),
-                      child: Text(
-                        LichGoiThang.nhanThu[w - 1],
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: _thuGoi.contains(w) ? Colors.white : AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: loi == null ? AppColors.greenLight : AppColors.orangeLight,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: loi != null
-              ? Text(loi, style: const TextStyle(fontSize: 13, color: AppColors.orange600, height: 1.4))
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('$_soBuoiGoi buổi, từ ${dm(lich.first)} đến ${dm(lich.last)}',
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.green600)),
-                    const SizedBox(height: 4),
-                    Text(lich.map(dm).join(' · '),
-                        style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.4)),
-                  ],
-                ),
-        ),
-      ],
-    );
-  }
-
-  // ===================== BƯỚC 3: XÁC NHẬN =====================
-
-  Widget _buildStep3() {
-    final plan = _plan ?? const {'label': '—'};
-
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 16),
-      children: [
-        _block(
-          'Vị trí làm việc',
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.location_on_rounded,
-                  color: AppColors.brand500, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _diaChi?.diaChiChiTiet ?? '—',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textPrimary,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        _block(
-          'Thông tin công việc',
-          Column(
-            children: [
-              _summaryRow('Dịch vụ', _serviceTitle),
-              _summaryRow('Gói', plan['label'] as String),
-              if (_laGoiThang && _loiLichGoi == null) ...[
-                _summaryRow('Thứ trong tuần', LichGoiThang.nhan(_thuGoi)),
-                _summaryRow('Lịch', '$_soBuoiGoi buổi, ${_fmtDate(_lichGoi.first)} → ${_fmtDate(_lichGoi.last)}'),
-              ] else
-                _summaryRow('Ngày làm',
-                    _selectedDate == null ? '—' : _fmtDate(_selectedDate!)),
-              _summaryRow('Giờ bắt đầu',
-                  _selectedTime == null ? '—' : _fmtTime(_selectedTime!)),
-              if (_noteController.text.trim().isNotEmpty)
-                _summaryRow('Ghi chú', _noteController.text.trim()),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        _block(
-          'Phương thức thanh toán',
-          Column(
-            children: List.generate(_payments.length, (i) {
-              final p = _payments[i];
-              final selected = i == _selectedPayment;
-              return InkWell(
-                onTap: () => setState(() => _selectedPayment = i),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Icon(p['icon'] as IconData,
-                          color: AppColors.textSecondary),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          p['label'] as String,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        selected
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_unchecked,
-                        color:
-                            selected ? AppColors.brand500 : AppColors.textMuted,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-        const SizedBox(height: 10),
-        _block(
-          'Chi tiết thanh toán',
-          Column(
-            children: [
-              _summaryRow('Tạm tính', _formatPrice(_base)),
-              if (_discount > 0)
-                _summaryRow('Khuyến mãi ($_appliedCode)', '-${_formatPrice(_discount)}',
-                    valueColor: AppColors.green500),
-              const Divider(height: 16),
-              Row(
-                children: [
-                  const Text(
-                    'Tổng cộng',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    _formatPrice(_total),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                      color: AppColors.brand600,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ===================== THÀNH PHẦN CHUNG =====================
-
-  Widget _block(String title, Widget child) {
+  // Thanh đáy cố định: tổng tiền + Quay lại / Tiếp tục
+  Widget _thanhDay() {
+    final nhanTiep = switch (_buoc) {
+      4 => 'Đặt dịch vụ',
+      5 => 'Xác nhận đặt',
+      _ => 'Tiếp tục',
+    };
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryRow(String label, String value, {Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style:
-                  const TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: valueColor ?? AppColors.textPrimary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Nút dưới cùng kiểu bTaskee: giá bên trái, hành động bên phải
-  Widget _buildBottomBar() {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-          16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: AppColors.divider)),
       ),
-      child: SizedBox(
-        height: 50,
-        child: ElevatedButton(
-          onPressed: _submitting || _calculating || _plan == null ? null : _onNext,
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-          ),
-          child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
             children: [
-              Text(
-                _formatPrice(_total),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+              const Text('Tổng tiền', style: TextStyle(color: AppColors.textSecondary)),
               const Spacer(),
               Text(
-                _submitting
-                    ? 'Đang đặt...'
-                    : _step < 2
-                        ? 'Tiếp theo'
-                        : 'Đặt lịch',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
+                _tongTien > 0 ? CatalogUi.money(_tongTien) : '—',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.brand600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: OutlinedButton(onPressed: _lui, child: const Text('Quay lại')),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton(onPressed: _tiep, child: Text(nhanTiep)),
                 ),
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  void _onNext() {
-    if (_step == 1 && _diaChi == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn địa chỉ làm việc'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-    if (_step == 1 && !_diaChi!.coKhuVuc) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Địa chỉ này nằm ngoài khu vực bTaskee đang phục vụ. Vui lòng chọn địa chỉ khác.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-    if (_step == 1 && (_selectedDate == null || _selectedTime == null)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn ngày và giờ làm việc'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-    if (_step == 1 && !_gioHopLe(_ngayBuoiDau, _selectedTime!)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Giờ bắt đầu cần sau thời điểm hiện tại ít nhất 1 giờ.'),
-        backgroundColor: AppColors.error,
-      ));
-      return;
-    }
-    if (_step == 1 && _selectedDate!.isAfter(_ngayCuoi)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Chỉ đặt được trong vòng 60 ngày tới.'),
-        backgroundColor: AppColors.error,
-      ));
-      return;
-    }
-    if (_step == 1 && _laGoiThang && _loiLichGoi != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_loiLichGoi!),
-        backgroundColor: AppColors.error,
-      ));
-      return;
-    }
-    if (_step < 2) {
-      setState(() => _step++);
-    } else {
-      _confirmBooking();
-    }
-  }
-
-  /// Tạo đơn: POST /v1/bookings (giá và khuyến mãi được máy chủ tính lại khi lưu).
-  Future<void> _confirmBooking() async {
-    final plan = _plan;
-    if (plan == null || _session == null || !_session!.isCustomer) return;
-    setState(() => _submitting = true);
-    try {
-      // Gói tháng: ngày thực hiện là buổi đầu tiên trong lịch
-      final d = _laGoiThang && _lichGoi.isNotEmpty ? _lichGoi.first : _selectedDate!;
-      final startTime = _selectedTime!;
-      final durationMinutes = CatalogUi.toInt(widget.service['thoiGianThucHienPhut'] ?? widget.service['thoiGianThucHien'] ?? 120);
-      final durationHours = (durationMinutes / 60).ceil();
-      
-      final totalStartMinutes = startTime.hour * 60 + startTime.minute;
-      final totalEndMinutes = totalStartMinutes + (durationMinutes > 0 ? durationMinutes : 120);
-      final endTime = TimeOfDay(
-        hour: (totalEndMinutes ~/ 60) % 24,
-        minute: totalEndMinutes % 60,
-      );
-
-      final dateStr = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-      final paymentCode = _payments[_selectedPayment]['code'] as String? ?? (_selectedPayment == 0 ? 'TIEN_MAT' : 'CHUYEN_KHOAN');
-
-      final res = await _bookingApi.createBooking(
-        khachHangId: _session!.userId,
-        dichVuId: _dichVuId,
-        bangGiaId: plan['bangGiaId'] as int?,
-        ngayThucHien: dateStr,
-        ngayLamViec: dateStr,
-        gioBatDau: _fmtTime(startTime),
-        gioKetThuc: _fmtTime(endTime),
-        soGio: durationHours > 0 ? durationHours : 2,
-        diaChiId: _diaChi?.id,
-        diaChiChiTiet: _diaChi?.diaChiChiTiet,
-        diaChi: _diaChi?.diaChiChiTiet,
-        khuVucId: _diaChi?.khuVucId,
-        loaiHinhDat: plan['loaiHinhDat'] as String? ?? 'TheoLan',
-        ngayThucHienTrongTuan: _laGoiThang ? LichGoiThang.maThu(_thuGoi) : null,
-        yeuCauDacBiet: _noteController.text.trim().isEmpty
-            ? null
-            : _noteController.text.trim(),
-        ghiChu: 'Thanh toán: ${_payments[_selectedPayment]['label']}',
-        maKhuyenMai: _appliedCode,
-        phuongThucThanhToan: paymentCode,
-      );
-
-      if (!mounted) return;
-      if (!res.success) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(res.message ?? 'Không đặt được lịch, vui lòng thử lại'),
-          backgroundColor: AppColors.error,
-        ));
-        return;
-      }
-      _showBookedDialog(res.data);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Lỗi kết nối máy chủ'),
-          backgroundColor: AppColors.error,
-        ));
-      }
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  void _showBookedDialog(Map<String, dynamic>? data) {
-    final maDon = data?['maDonDat']?.toString() ?? data?['maDon']?.toString();
-    final orderId = CatalogUi.toInt(data?['id'] ?? data?['donDatId']);
-
-    showDialog(
-      barrierDismissible: false,
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 10),
-            Container(
-              width: 70,
-              height: 70,
-              decoration: const BoxDecoration(
-                color: AppColors.greenLight,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.check_rounded,
-                  color: AppColors.green500, size: 42),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Đặt lịch thành công!',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${maDon != null ? 'Mã đơn $maDon. ' : ''}Đơn của bạn đã được ghi nhận hệ thống backend & database. Bạn có thể theo dõi tiến độ trên web hoặc ứng dụng!',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 20),
-            if (orderId > 0) ...[
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => OrderDetailScreen(orderId: orderId),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-                child: const Text('Xem chi tiết đơn hàng'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-                child: const Text('Về trang dịch vụ'),
-              ),
-            ] else ...[
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-                child: const Text('Về trang dịch vụ'),
-              ),
-            ],
-          ],
-        ),
+        ],
       ),
     );
   }

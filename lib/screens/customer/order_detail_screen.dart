@@ -1160,12 +1160,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Future<void> _executePayment(int donId, int khachHangId, String method, String maDon) async {
     setState(() => _loading = true);
     try {
-      final res = await _bookingApi.payBooking(
-        id: donId,
-        khachHangId: khachHangId,
-        phuongThucThanhToan: method,
-        maGiaoDich: 'PAY_${DateTime.now().millisecondsSinceEpoch}',
-      );
+      final res = await _bookingApi.confirmTransfer(donId);
       if (!mounted) return;
       if (res.success) {
         ScaffoldMessenger.of(context).showSnackBar(
