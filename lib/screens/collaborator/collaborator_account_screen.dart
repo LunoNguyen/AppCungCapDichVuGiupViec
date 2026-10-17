@@ -11,7 +11,6 @@ import '../auth/login_screen.dart';
 import '../customer/customer_main_screen.dart';
 import '../../services/session_service.dart';
 import '../collaborator/collaborator_notifications_screen.dart';
-import 'collaborator_areas_screen.dart';
 
 class CollaboratorAccountScreen extends StatefulWidget {
   const CollaboratorAccountScreen({super.key});
@@ -210,16 +209,12 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                       _buildMenuSection('CÔNG VIỆC & DỊCH VỤ', [
                         _MenuItem(Icons.handyman_outlined, 'Dịch vụ đã đăng ký',
                             '5 dịch vụ', AppColors.partner500, () {}),
+                        // Khu vực nhận việc tự cập nhật theo quận CTV đang đứng (GPS), không chọn tay
                         _MenuItem(Icons.map_outlined, 'Khu vực nhận việc',
-                            _profile!.khuVucNhanViec.isNotEmpty ? _profile!.khuVucNhanViec : 'Chưa chọn quận, huyện',
-                            const Color(0xFF2F80ED), () async {
-                          final daLuu = await Navigator.push<bool>(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => CollaboratorAreasScreen(congTacVienId: _currentUserId)),
-                          );
-                          if (daLuu == true) await _fetchProfileData();
-                        }),
+                            _profile!.khuVucNhanViec.isNotEmpty
+                                ? '${_profile!.khuVucNhanViec} · theo GPS'
+                                : 'Đang chờ vị trí GPS',
+                            const Color(0xFF2F80ED), () {}),
                       ]),
                       const SizedBox(height: 16),
                       _buildMenuSection('TÀI CHÍNH', [

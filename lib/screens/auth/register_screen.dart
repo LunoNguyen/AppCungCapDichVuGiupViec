@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/auth_api_service.dart';
 import '../../services/auth_flow.dart';
-import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/dia_chi_fields.dart';
 import '../customer/customer_main_screen.dart';
@@ -42,7 +41,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _ctvGender = 'Nữ'; // Giới tính: Nam / Nữ
   DateTime? _ctvDob;
   final DiaChiDangChon _diaChiCtv = DiaChiDangChon(); // ĐỊA CHỈ nơi ở hiện tại
-  final Set<int> _khuVucNhanViec = {}; // KHU VỰC nhận việc (1 đến 5 quận, huyện)
   bool _hasReferralCode = false; // Nút [Không] / [Có] trong box mã giới thiệu
 
   final Map<String, bool> _selectedSkills = {
@@ -58,34 +56,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _agreeTerms = true;
   bool _isLoading = false;
 
-  // Quận, huyện TP.HCM lấy từ GET /v1/areas: cùng danh sách khu vực với website
-  // (sổ địa chỉ khách hàng, đăng ký cộng tác viên) để địa chỉ và khu vực luôn khớp.
-  List<Map<String, dynamic>> _khuVucs = [];
-  bool _dangTaiKhuVuc = true;
   final TextEditingController _ctvAddressController = TextEditingController(); // Số nhà, tên đường hiện tại
-
-  Future<void> _taiKhuVuc() async {
-    final res = await ServiceCatalogApiService().getAreas();
-    if (!mounted) return;
-    setState(() {
-      _khuVucs = res.success && res.data != null ? res.data! : [];
-      _dangTaiKhuVuc = false;
-    });
-  }
-
-  /// Chọn phường nơi ở: tự chọn khu vực gần nhà nếu chưa chọn khu vực nhận việc nào.
-  void _khiDoiNoiOCtv(DiaChiDangChon d) {
-    final kv = d.khuVuc;
-    setState(() {
-      if (kv != null && _khuVucNhanViec.isEmpty) _khuVucNhanViec.add(kv.id);
-    });
-  }
 
   @override
   void initState() {
     super.initState();
     _roleIndex = widget.initialRoleTab;
-    _taiKhuVuc();
   }
 
   @override
@@ -148,11 +124,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
       if (!_isAdult(_ctvDob!)) {
         _showSnack('Cộng tác viên phải từ đủ 18 tuổi trở lên.', AppColors.error);
-        return;
-      }
-      if (_khuVucNhanViec.isEmpty || _khuVucNhanViec.length > 5) {
-        _showSnack('Vui lòng chọn 1 đến 5 khu vực (quận, huyện) nhận việc!',
-            AppColors.error);
         return;
       }
       final hasSkill = _selectedSkills.values.any((s) => s);
@@ -237,7 +208,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           soNhaTenDuong: _ctvAddressController.text.trim(),
           maTinh: _diaChiCtv.maTinh,
           maPhuong: _diaChiCtv.phuong?.ma,
-          danhSachKhuVucId: _khuVucNhanViec.toList(),
         );
         if (!mounted) return;
 
@@ -1068,7 +1038,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               DiaChiFields(
                 giaTri: _diaChiCtv,
                 soNhaCtrl: _ctvAddressController,
-                onChanged: _khiDoiNoiOCtv,
                 ghiChuKhuVuc: (d) => d.phuong == null
                     ? ''
                     : d.phuong!.khuVuc.isEmpty
@@ -1078,36 +1047,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 12),
 
-              // KHU VỰC nhận việc: quận, huyện (lớn hơn phường) – CSKH ưu tiên giao đơn trong các khu vực này
-              _buildFieldLabel('Khu vực nhận việc (1 đến 5 quận, huyện)', isRequired: true),
-              const SizedBox(height: 8),
-              if (_dangTaiKhuVuc)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: LinearProgressIndicator(),
-                )
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: _khuVucs.map((kv) {
-                    final id = int.tryParse('${kv['id']}');
-                    if (id == null) return const SizedBox.shrink();
-                    final chon = _khuVucNhanViec.contains(id);
-                    return FilterChip(
-                      label: Text(kv['tenKhuVuc']?.toString() ?? '', style: const TextStyle(fontSize: 12.5)),
-                      selected: chon,
-                      selectedColor: AppColors.ctvYellowDark.withValues(alpha: 0.2),
-                      onSelected: (v) {
-                        if (v && _khuVucNhanViec.length >= 5) {
-                          _showSnack('Chọn tối đa 5 khu vực nhận việc.', AppColors.error);
-                          return;
-                        }
-                        setState(() => v ? _khuVucNhanViec.add(id) : _khuVucNhanViec.remove(id));
-                      },
-                    );
-                  }).toList(),
-                ),
+              // Khu vực nhận việc không chọn tay: ban đầu theo quận nơi ở, sau đó theo GPS khi dùng app
+              const Text(
+                'Khu vực nhận việc được xác định theo vị trí GPS khi bạn dùng ứng dụng; trước đó bTaskee dùng quận nơi bạn ở.',
+                style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.4),
+              ),
 
               const SizedBox(height: 20),
 

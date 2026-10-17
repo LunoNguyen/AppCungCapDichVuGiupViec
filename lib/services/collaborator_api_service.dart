@@ -15,14 +15,6 @@ class CollaboratorApiService {
     );
   }
 
-  /// Đặt lại khu vực nhận việc (1 đến 5 quận, huyện)
-  Future<ApiResponse<dynamic>> updateWorkAreas(int congTacVienId, List<int> khuVucIds) {
-    return _apiClient.put<dynamic>(
-      '/v1/collaborators/$congTacVienId/areas',
-      body: {'khuVucIds': khuVucIds},
-    );
-  }
-
   /// Lấy danh sách đơn được phân công cho CTV
   Future<ApiResponse<List<Map<String, dynamic>>>> getAssignments({
     required int congTacVienId,
