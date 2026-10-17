@@ -12,6 +12,8 @@ class BookingApiService {
     String loaiHinhDat = 'TheoLan', // TheoLan | GoiThang
     String? codeKhuyenMai,
     int? khachHangId, // mỗi khách chỉ dùng một mã khuyến mãi một lần
+    String? ngayThucHien, // yyyy-MM-dd – có cả ngày giờ thì lấy đúng bảng giá tại thời điểm làm
+    String? gioBatDau, // HH:mm
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/bookings/calculate-price',
@@ -19,6 +21,8 @@ class BookingApiService {
         'dichVuId': dichVuId,
         if (bangGiaId != null) 'bangGiaId': bangGiaId,
         'loaiHinhDat': loaiHinhDat,
+        if (ngayThucHien != null) 'ngayThucHien': ngayThucHien,
+        if (gioBatDau != null) 'gioBatDau': gioBatDau,
         if (codeKhuyenMai != null && codeKhuyenMai.isNotEmpty)
           'codeKhuyenMai': codeKhuyenMai,
         if (khachHangId != null) 'khachHangId': khachHangId,

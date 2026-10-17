@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../services/address_api_service.dart';
+import '../../services/booking_api_service.dart';
 import '../../services/buoc_dat.dart';
 import '../../services/catalog_ui.dart';
+import '../../services/lich_goi_thang.dart';
 import '../../services/nhom_dich_vu.dart';
+import '../../services/rang_buoc_ngay_dat.dart';
 import '../../services/service_catalog_api_service.dart';
+import '../../services/session_service.dart';
+import '../../widgets/lich_thang.dart';
+import 'address_book_screen.dart';
+import 'dat_dich_vu/bang_khuyen_mai.dart';
 import 'dat_dich_vu/buoc_dich_vu.dart';
 import 'dat_dich_vu/buoc_hinh_thuc.dart';
+import 'dat_dich_vu/buoc_thoi_gian.dart';
+import 'dat_dich_vu/buoc_xac_nhan.dart';
 import 'dat_dich_vu/thanh_buoc.dart';
 
 /// Màn đặt dịch vụ 5 bước, giống website:
@@ -35,6 +45,27 @@ class _BookingScreenState extends State<BookingScreen> {
   String _loai = 'TheoLan';
   int? _dichVuId;
 
+  // Bước 3: thời gian, gói tháng, địa chỉ
+  DateTime? _ngay;
+  TimeOfDay? _gio;
+  Set<int> _thuGoi = {2, 4, 6, 7}; // mặc định T3, T5, T7, CN
+  UserSession? _session;
+  DiaChi? _diaChi;
+  bool _dangTaiDiaChi = true;
+  final _ghiChu = TextEditingController();
+
+  // Bước 4: giá do máy chủ tính (gồm khuyến mãi) và mã ưu đãi
+  final _bookingApi = BookingApiService();
+  Map<String, dynamic>? _gia;
+  bool _dangTinhGia = false;
+  bool _loiGia = false;
+  final _maController = TextEditingController();
+  String? _maApDung; // mã máy chủ đã chấp nhận (có giảm)
+  bool _dangKiemMa = false;
+
+  // Khung giờ bắt đầu 07:00 → 17:00
+  static final List<TimeOfDay> _khungGio = List.generate(11, (i) => TimeOfDay(hour: 7 + i, minute: 0));
+
   int get _dichVuIdGoc => CatalogUi.toInt(widget.service['dichVuId'] ?? widget.service['id']);
 
   /// Trong lúc chưa tải xong danh sách, nhóm tạm chỉ có một biến thể nên chưa kết luận được việc bỏ bước 2.
@@ -44,7 +75,48 @@ class _BookingScreenState extends State<BookingScreen> {
         nhom: _nhom,
         loaiHinhDat: _loai,
         dichVuId: _dichVuId,
+        daChonGio: _gio != null && _gioHopLe(_gio!),
+        goiDuBuoi: _loiLichGoi == null,
+        coDiaChiNao: _diaChi != null,
+        coDiaChiTrongKhuVuc: _diaChi?.coKhuVuc ?? false,
+        hinhThucThanhToan: null,
       );
+
+  bool get _laGoi => _loai == 'GoiThang';
+
+  DateTime get _homNay => LichThang.chiNgay(DateTime.now());
+
+  int get _soBuoiGoi => LichGoiThang.soBuoi(_bienThe?['soBuoiGoi'], _bienThe?['tenDichVu']?.toString());
+
+  List<DateTime> get _lichGoi => LichGoiThang.tinhLich(_ngay ?? _homNay, _thuGoi, _soBuoiGoi);
+
+  String? get _loiLichGoi => _laGoi ? LichGoiThang.loiThieu(_lichGoi, _soBuoiGoi, _thuGoi) : null;
+
+  /// Ngày của buổi đầu tiên: gói tháng là ngày đầu khớp thứ đã chọn, theo lần là ngày đã chọn.
+  DateTime? get _ngayBuoiDau => _laGoi && _lichGoi.isNotEmpty ? _lichGoi.first : _ngay;
+
+  /// Giờ bắt đầu phải sau hiện tại ít nhất 1 giờ (cùng quy tắc với website và máy chủ).
+  bool _gioHopLe(TimeOfDay t) {
+    final ngay = _ngayBuoiDau;
+    if (ngay == null) return false;
+    final luc = DateTime(ngay.year, ngay.month, ngay.day, t.hour, t.minute);
+    return !luc.isBefore(DateTime.now().add(const Duration(hours: 1)));
+  }
+
+  /// Giờ đang chọn không còn hợp lệ (đổi ngày, đổi thứ) thì chuyển sang giờ hợp lệ đầu tiên.
+  void _chinhGio() {
+    if (_gio != null && _gioHopLe(_gio!)) return;
+    final hop = _khungGio.where(_gioHopLe);
+    _gio = hop.isEmpty ? null : hop.first;
+  }
+
+  static String _ymd(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  static String _ddmmyyyy(DateTime d) =>
+      '${LichGoiThang.nhanThu[d.weekday - 1]}, ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  static int _tien(dynamic v) => (num.tryParse(v?.toString() ?? '') ?? 0).round();
 
   Map<String, dynamic>? get _bienThe {
     final n = _nhom;
@@ -55,9 +127,14 @@ class _BookingScreenState extends State<BookingScreen> {
     return null;
   }
 
-  /// Tổng tiền ở thanh đáy: đơn giá tham khảo của biến thể đang chọn.
-  int get _tongTien =>
-      (num.tryParse(_bienThe?['donGiaThamKhao']?.toString() ?? '') ?? 0).round();
+  int get _donGiaThamKhao => _tien(_bienThe?['donGiaThamKhao']);
+
+  int get _tamTinh => _gia != null ? _tien(_gia!['chiPhiGoc']) : _donGiaThamKhao;
+
+  int get _giam => _gia != null ? _tien(_gia!['soTienGiam']) : 0;
+
+  /// Tổng tiền ở thanh đáy: số máy chủ tính, chưa có thì đơn giá tham khảo của biến thể đang chọn.
+  int get _tongTien => _gia != null ? _tien(_gia!['thanhTien']) : _donGiaThamKhao;
 
   @override
   void initState() {
@@ -70,7 +147,72 @@ class _BookingScreenState extends State<BookingScreen> {
     _dichVuId = _dichVuIdGoc > 0 ? _dichVuIdGoc : null;
     _buoc = 2;
     _daToi = 2;
+    // Hôm nay nếu còn khung giờ hợp lệ, không thì ngày mai
+    _ngay = _homNay;
+    if (!_khungGio.any(_gioHopLe)) _ngay = _homNay.add(const Duration(days: 1));
+    _chinhGio();
     _taiDichVu();
+    _taiDiaChi();
+  }
+
+  @override
+  void dispose() {
+    _ghiChu.dispose();
+    _maController.dispose();
+    super.dispose();
+  }
+
+  void _baoLoi(String msg) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.error));
+
+  /// Địa chỉ mặc định: ưu đãi địa chỉ mặc định trong khu vực phục vụ, rồi địa chỉ đầu tiên trong khu vực.
+  Future<void> _taiDiaChi({int? chonId}) async {
+    final session = await SessionService.load();
+    DiaChi? chon;
+    if (session != null && session.isCustomer) {
+      try {
+        final res = await AddressApiService().getAddresses(session.userId);
+        final ds = res.data ?? const <DiaChi>[];
+        final trongKv = ds.where((d) => d.coKhuVuc).toList();
+        chon = ds.where((d) => d.id == chonId).firstOrNull ??
+            trongKv.where((d) => d.laMacDinh).firstOrNull ??
+            trongKv.firstOrNull ??
+            ds.where((d) => d.laMacDinh).firstOrNull ??
+            ds.firstOrNull;
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() {
+      _session = session;
+      _diaChi = chon;
+      _dangTaiDiaChi = false;
+    });
+  }
+
+  Future<void> _chonDiaChi() async {
+    if (_session == null || !_session!.isCustomer) {
+      _baoLoi('Vui lòng đăng nhập để chọn địa chỉ làm việc');
+      return;
+    }
+    final chon = await Navigator.push<DiaChi>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddressBookScreen(khachHangId: _session!.userId, selectMode: true, selectedId: _diaChi?.id),
+      ),
+    );
+    if (!mounted) return;
+    if (chon != null) {
+      setState(() => _diaChi = chon);
+    } else {
+      // Có thể vừa thêm / sửa địa chỉ trong sổ: tải lại, giữ địa chỉ đang chọn
+      _taiDiaChi(chonId: _diaChi?.id);
+    }
+  }
+
+  /// Lựa chọn thay đổi: giá cũ không còn đúng, tính lại khi tới bước 4.
+  void _huyGia() {
+    _gia = null;
+    _loiGia = false;
   }
 
   Future<void> _taiDichVu() async {
@@ -134,31 +276,186 @@ class _BookingScreenState extends State<BookingScreen> {
     setState(() {
       _datNhom(g);
       _daToi = _buoc; // đổi dịch vụ: các bước sau phải đi lại
+      _maApDung = null;
+      _maController.clear();
+      _huyGia();
+      _chinhGio();
     });
   }
 
   void _chonLoai(String loai) {
     if (loai == _loai) return;
+    String? thongBao;
     setState(() {
       _loai = loai;
       final ds = _nhom?.bienTheTheoLoai(loai) ?? const [];
       _dichVuId = ds.isEmpty ? null : CatalogUi.toInt(ds.first['id']);
       _daToi = _buoc;
+      _huyGia();
+      final cu = _ngay;
+      if (cu != null) {
+        final moi = BuocDat.keoNgay(cu, loai, _homNay);
+        if (moi != cu) {
+          _ngay = moi;
+          final dm = '${moi.day.toString().padLeft(2, '0')}/${moi.month.toString().padLeft(2, '0')}';
+          thongBao = loai == 'GoiThang'
+              ? 'Đã đổi ngày về $dm vì gói tháng chỉ bắt đầu trong 3 tháng.'
+              : 'Đã đổi ngày về $dm vì đặt theo lần chỉ trong 1 tháng.';
+        }
+      }
+      _chinhGio();
     });
+    if (thongBao != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(thongBao!)));
+    }
+  }
+
+  void _chonBienThe(int id) => setState(() {
+        _dichVuId = id;
+        _huyGia();
+        _chinhGio();
+      });
+
+  void _chonNgay(DateTime d) => setState(() {
+        _ngay = d;
+        _huyGia();
+        _chinhGio();
+      });
+
+  void _doiThu(Set<int> thu) => setState(() {
+        _thuGoi = thu;
+        _huyGia();
+        _chinhGio();
+      });
+
+  /// Máy chủ tính giá theo biến thể, ngày giờ và mã đang dùng. Mã không còn dùng được thì bỏ và báo lý do.
+  Future<void> _tinhGia() async {
+    final id = _dichVuId;
+    if (id == null) return;
+    setState(() => _dangTinhGia = true);
+    try {
+      final res = await _bookingApi.calculatePrice(
+        dichVuId: id,
+        loaiHinhDat: _loai,
+        codeKhuyenMai: _maApDung,
+        khachHangId: _session?.userId,
+        ngayThucHien: _ngayBuoiDau == null ? null : _ymd(_ngayBuoiDau!),
+        gioBatDau: _gio == null ? null : BuocThoiGian.hhmm(_gio!),
+      );
+      if (!mounted) return;
+      if (!res.success || res.data == null) {
+        setState(() {
+          _gia = null;
+          _loiGia = true;
+        });
+        return;
+      }
+      final data = res.data!;
+      String? boMa;
+      setState(() {
+        _gia = data;
+        _loiGia = false;
+        if (_maApDung != null && _tien(data['soTienGiam']) <= 0) {
+          boMa = data['thongDiepKMDuocApDung']?.toString() ?? 'Mã $_maApDung không còn dùng được cho đơn này.';
+          _maApDung = null;
+          _maController.clear();
+        }
+      });
+      if (boMa != null) _baoLoi(boMa!);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _gia = null;
+          _loiGia = true;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _dangTinhGia = false);
+    }
+  }
+
+  /// Áp mã: máy chủ tính giá kèm mã; có giảm thì nhận mã, không thì báo câu của máy chủ.
+  Future<void> _apDungMa(String code) async {
+    final id = _dichVuId;
+    code = code.trim().toUpperCase();
+    if (id == null || code.isEmpty) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _dangKiemMa = true);
+    try {
+      final res = await _bookingApi.calculatePrice(
+        dichVuId: id,
+        loaiHinhDat: _loai,
+        codeKhuyenMai: code,
+        khachHangId: _session?.userId,
+        ngayThucHien: _ngayBuoiDau == null ? null : _ymd(_ngayBuoiDau!),
+        gioBatDau: _gio == null ? null : BuocThoiGian.hhmm(_gio!),
+      );
+      if (!mounted) return;
+      final data = res.data;
+      final thongDiep = data?['thongDiepKMDuocApDung']?.toString();
+      if (res.success && data != null && _tien(data['soTienGiam']) > 0) {
+        setState(() {
+          _maApDung = code;
+          _maController.text = code;
+          _gia = data;
+          _loiGia = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(thongDiep ?? 'Đã áp dụng mã $code'),
+          backgroundColor: AppColors.success,
+        ));
+      } else {
+        _baoLoi(thongDiep ?? res.message ?? 'Mã không hợp lệ hoặc đã hết hạn');
+      }
+    } catch (_) {
+      if (mounted) _baoLoi('Không kết nối được máy chủ');
+    } finally {
+      if (mounted) setState(() => _dangKiemMa = false);
+    }
+  }
+
+  void _boMa() {
+    setState(() {
+      _maApDung = null;
+      _maController.clear();
+    });
+    _tinhGia();
+  }
+
+  Future<void> _moBangKhuyenMai() async {
+    final id = _dichVuId;
+    if (id == null) return;
+    final code = await moBangKhuyenMai(
+      context,
+      dichVuId: id,
+      loaiHinhDat: _loai,
+      ngayThucHien: _ngayBuoiDau == null ? null : _ymd(_ngayBuoiDau!),
+      gioBatDau: _gio == null ? null : BuocThoiGian.hhmm(_gio!),
+      maDangDung: _maApDung,
+    );
+    if (code != null && mounted) _apDungMa(code);
+  }
+
+  /// Sang một bước: tới bước 4 thì tính giá.
+  void _denBuoc(int b) {
+    setState(() {
+      _buoc = b;
+      if (_buoc > _daToi) _daToi = _buoc;
+    });
+    if (b == 4 && _gia == null && !_dangTinhGia) _tinhGia();
   }
 
   void _tiep() {
-    final loi = BuocDat.loiBuoc(_buoc, _duLieu);
+    final loi = BuocDat.loiBuoc(_buoc, _duLieu) ??
+        (_buoc == 3
+            ? RangBuocNgayDat.loiNgayDat(_loai, _ngayBuoiDau, _gio?.hour, _gio?.minute, DateTime.now())
+            : null);
     if (loi != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(loi), backgroundColor: AppColors.error));
+      _baoLoi(loi);
       return;
     }
     if (_buoc >= BuocDat.soBuoc) return;
-    setState(() {
-      _buoc = _daTaiDv ? BuocDat.buocKe(_buoc, _nhom!) : _buoc + 1;
-      if (_buoc > _daToi) _daToi = _buoc;
-    });
+    _denBuoc(_daTaiDv ? BuocDat.buocKe(_buoc, _nhom!) : _buoc + 1);
   }
 
   void _lui() {
@@ -180,7 +477,7 @@ class _BookingScreenState extends State<BookingScreen> {
             buoc: _buoc,
             daToi: _daToi,
             boQuaBuoc2: _boQua2,
-            onChon: (b) => setState(() => _buoc = b),
+            onChon: _denBuoc,
           ),
           const Divider(height: 1),
           Expanded(child: _noiDungBuoc()),
@@ -203,9 +500,71 @@ class _BookingScreenState extends State<BookingScreen> {
         );
       case 2:
         return BuocHinhThuc(nhom: _nhom!, loaiChon: _loai, onChon: _chonLoai);
+      case 3:
+        return BuocThoiGian(
+          loai: _loai,
+          bienThes: _nhom?.bienTheTheoLoai(_loai) ?? const [],
+          dichVuId: _dichVuId,
+          onChonBienThe: _chonBienThe,
+          ngay: _ngay,
+          ngayDau: _homNay,
+          ngayCuoi: RangBuocNgayDat.ngayToiDa(_loai, _homNay),
+          onChonNgay: _chonNgay,
+          khungGio: _khungGio,
+          gio: _gio,
+          gioHopLe: _gioHopLe,
+          onChonGio: (t) => setState(() {
+            _gio = t;
+            _huyGia();
+          }),
+          thuGoi: _thuGoi,
+          soBuoiGoi: _soBuoiGoi,
+          lichGoi: _lichGoi,
+          loiLichGoi: _loiLichGoi,
+          onDoiThu: _doiThu,
+          diaChi: _diaChi,
+          dangTaiDiaChi: _dangTaiDiaChi,
+          onChonDiaChi: _chonDiaChi,
+          ghiChu: _ghiChu,
+        );
+      case 4:
+        return BuocXacNhan(
+          tomTat: _tomTat(),
+          tamTinh: _tamTinh,
+          giam: _giam,
+          tong: _tongTien,
+          dangTinhGia: _dangTinhGia,
+          loiGia: _loiGia,
+          onTinhLai: _tinhGia,
+          maController: _maController,
+          maApDung: _maApDung,
+          dangKiemMa: _dangKiemMa,
+          onApDung: () => _apDungMa(_maController.text),
+          onBoMa: _boMa,
+          onChonKhuyenMai: _moBangKhuyenMai,
+        );
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  List<(String, String)> _tomTat() {
+    final bt = _bienThe;
+    final lich = _lichGoi;
+    final ghiChu = _ghiChu.text.trim();
+    return [
+      ('Dịch vụ', _nhom?.ten ?? '—'),
+      ('Hình thức', CatalogUi.loaiHinhLabel(_loai)),
+      (_laGoi ? 'Gói' : 'Thời lượng', bt == null ? '—' : BuocThoiGian.nhanBienThe(bt)),
+      if (_laGoi && _loiLichGoi == null) ...[
+        ('Thứ trong tuần', LichGoiThang.nhan(_thuGoi)),
+        ('Lịch', '$_soBuoiGoi buổi, ${_ddmmyyyy(lich.first)} → ${_ddmmyyyy(lich.last)}'),
+      ] else
+        ('Ngày làm', _ngay == null ? '—' : _ddmmyyyy(_ngay!)),
+      ('Giờ bắt đầu', _gio == null ? '—' : BuocThoiGian.hhmm(_gio!)),
+      ('Địa chỉ', _diaChi?.diaChiChiTiet ?? '—'),
+      if (ghiChu.isNotEmpty) ('Ghi chú', ghiChu),
+    ];
   }
 
   // Thanh đáy cố định: tổng tiền + Quay lại / Tiếp tục
