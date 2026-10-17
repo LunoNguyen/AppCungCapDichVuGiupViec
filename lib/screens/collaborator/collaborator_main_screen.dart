@@ -26,6 +26,7 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
   final GlobalKey<CollaboratorOrdersScreenState> _ordersKey = GlobalKey<CollaboratorOrdersScreenState>();
   final GlobalKey<CollaboratorScheduleScreenState> _scheduleKey = GlobalKey<CollaboratorScheduleScreenState>();
   final GlobalKey<CollaboratorNotificationsScreenState> _notifKey = GlobalKey<CollaboratorNotificationsScreenState>();
+  final GlobalKey<CollaboratorAccountScreenState> _accountKey = GlobalKey<CollaboratorAccountScreenState>();
 
   late final List<Widget> _screens;
 
@@ -38,7 +39,7 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
       CollaboratorScheduleScreen(key: _scheduleKey),
       // Gắn key để bấm vào tab Thông báo là tải lại danh sách
       CollaboratorNotificationsScreen(key: _notifKey),
-      const CollaboratorAccountScreen(),
+      CollaboratorAccountScreen(key: _accountKey),
     ];
     WidgetsBinding.instance.addObserver(this);
     // Đợi khung hình đầu tiên hiện xong rồi mới bật chia sẻ vị trí: service vị trí của Geolocator
@@ -112,6 +113,8 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
               _ordersKey.currentState?.reload();
             } else if (index == 1) {
               _scheduleKey.currentState?.reload();
+            } else if (index == 3) {
+              _accountKey.currentState?.reload();
             }
           },
           selectedItemColor: AppColors.partner500,

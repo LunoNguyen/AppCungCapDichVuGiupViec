@@ -72,6 +72,25 @@ class LocationService {
     }
   }
 
+  /// Quận/huyện, tỉnh/thành và địa chỉ của toạ độ (geocoder của máy, cần mạng). Null nếu không tra được.
+  static Future<({String? quanHuyen, String? tinhThanh, String? diaChi})?> traQuan(
+      double lat, double lng) async {
+    try {
+      final marks = await Geocoding(locale: const Locale('vi', 'VN'))
+          .placemarkFromCoordinates(lat, lng);
+      if (marks.isEmpty) return null;
+      final p = marks.first;
+      String? khongRong(String? s) => s == null || s.trim().isEmpty ? null : s.trim();
+      return (
+        quanHuyen: khongRong(p.subAdministrativeArea) ?? khongRong(p.locality),
+        tinhThanh: khongRong(p.administrativeArea),
+        diaChi: await reverseGeocode(lat, lng),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   static final Map<String, List<double>?> _geoCache = {};
 
   /// Đổi địa chỉ dạng chữ thành toạ độ [vĩ độ, kinh độ] (cần mạng, có cache). Null nếu không tra được.

@@ -145,10 +145,17 @@ class CollaboratorApiService {
   /// GPS: gửi vị trí hiện tại của CTV
   /// PUT /v1/collaborators/{id}/location
   Future<ApiResponse<Map<String, dynamic>>> updateLocation(
-      int id, double viDo, double kinhDo) async {
+      int id, double viDo, double kinhDo,
+      {String? quanHuyen, String? tinhThanh, String? diaChi}) async {
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/collaborators/$id/location',
-      body: {'viDo': viDo, 'kinhDo': kinhDo},
+      body: {
+        'viDo': viDo,
+        'kinhDo': kinhDo,
+        if (quanHuyen != null) 'quanHuyen': quanHuyen,
+        if (tinhThanh != null) 'tinhThanh': tinhThanh,
+        if (diaChi != null) 'diaChi': diaChi,
+      },
     );
   }
 

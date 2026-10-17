@@ -18,10 +18,23 @@ class CollaboratorAccountScreen extends StatefulWidget {
 
   @override
   State<CollaboratorAccountScreen> createState() =>
-      _CollaboratorAccountScreenState();
+      CollaboratorAccountScreenState();
 }
 
-class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
+class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
+  /// Tải ngầm lại hồ sơ khi mở tab Tài khoản (khu vực nhận việc có thể vừa đổi theo GPS), không hiện vòng xoay.
+  Future<void> reload() async {
+    if (_currentUserId == 0 || _isLoading) return;
+    try {
+      final response = await _apiService.getProfile(_currentUserId);
+      if (mounted && response.success && response.data != null) {
+        setState(() => _profile = response.data);
+      }
+    } catch (e) {
+      debugPrint('Lỗi tải lại hồ sơ: $e');
+    }
+  }
+
   bool _isLoading = true;
   int _currentUserId = 0;
   CongTacVien? _profile;
