@@ -452,7 +452,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _sectionTitle('Dịch vụ', 'Xem tất cả', _openServices),
+            child: _sectionTitle('Dịch vụ', null, null),
           ),
           const SizedBox(height: 14),
           if (_loading && _serviceTypes.isEmpty)
@@ -750,13 +750,51 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _sectionTitle('Dịch vụ nổi bật', 'Xem tất cả', _openServices),
+            child: _sectionTitle('Dịch vụ nổi bật', null, null),
           ),
           const SizedBox(height: 14),
-          _hangNgang(
-            chieuCao: 136,
-            soMuc: _featuredServices.length,
-            muc: (index) => _buildFeaturedCard(_featuredServices[index]),
+          // Lưới 4 cột: tối đa 7 dịch vụ nổi bật, ô cuối là "Xem tất cả"
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: _soNoiBat + 1,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              mainAxisExtent: 136,
+              crossAxisSpacing: 4,
+              mainAxisSpacing: 4,
+            ),
+            itemBuilder: (context, index) => index < _soNoiBat
+                ? _buildFeaturedCard(_featuredServices[index])
+                : _buildXemTatCa(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Số dịch vụ nổi bật trên trang chủ: 2 hàng x 4 ô, chừa ô cuối cho "Xem tất cả".
+  int get _soNoiBat => _featuredServices.length < 7 ? _featuredServices.length : 7;
+
+  Widget _buildXemTatCa() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: _openServices,
+      child: Column(
+        children: [
+          const SizedBox(height: 4),
+          _anhTron(null, Icons.apps_rounded, AppColors.brand500),
+          const SizedBox(height: 6),
+          const Text(
+            'Xem tất cả',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.brand500,
+              height: 1.25,
+            ),
           ),
         ],
       ),
