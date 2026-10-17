@@ -181,27 +181,4 @@ class AuthApiService {
       },
     );
   }
-
-  /// Đăng nhập mạng xã hội (Google / Facebook)
-  /// POST /v1/auth/social-login
-  Future<ApiResponse<Map<String, dynamic>>> socialLogin({
-    required String provider, // Google | Facebook
-    required String providerId, // user ID từ Google/Facebook
-    String? email,
-    String? hoTen,
-    String? soDienThoai,
-    String? avatarUrl,
-  }) async {
-    return _apiClient.post<Map<String, dynamic>>(
-      '/v1/auth/social-login',
-      body: {
-        'provider': provider,
-        'providerId': providerId,
-        if (email != null) 'email': email,
-        if (hoTen != null) 'hoTen': hoTen,
-        if (soDienThoai != null) 'soDienThoai': soDienThoai,
-        if (avatarUrl != null) 'avatarUrl': avatarUrl,
-      },
-    );
-  }
 }

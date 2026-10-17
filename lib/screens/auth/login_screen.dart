@@ -316,10 +316,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 36),
-
-                  // SOCIAL LOGIN (Image 1: Apple, Facebook, Google)
-                  _buildSocialLoginRow(),
                 ] else ...[
                   // Image 4: "Bạn chưa có tài khoản? Đăng ký" (Màu vàng CTV)
                   Center(
@@ -790,73 +786,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  /// Hàng đăng nhập mạng xã hội (Apple, Facebook, Google - Image 1)
-  Widget _buildSocialLoginRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildSocialCircleButton(
-          icon: Icons.apple,
-          color: Colors.black,
-          onTap: () => _handleSocialLogin('APPLE'),
-        ),
-        const SizedBox(width: 20),
-        _buildSocialCircleButton(
-          icon: Icons.facebook,
-          color: const Color(0xFF1877F2),
-          onTap: () => _handleSocialLogin('FACEBOOK'),
-        ),
-        const SizedBox(width: 20),
-        _buildSocialCircleButton(
-          icon: Icons.g_mobiledata,
-          color: const Color(0xFFEA4335),
-          size: 30,
-          onTap: () => _handleSocialLogin('GOOGLE'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSocialCircleButton({
-    required IconData icon,
-    required Color color,
-    double size = 24,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(30),
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.divider, width: 1.5),
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Center(
-          child: Icon(icon, color: color, size: size),
-        ),
-      ),
-    );
-  }
-
-  void _handleSocialLogin(String provider) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Đang kết nối đăng nhập qua $provider...'),
-        backgroundColor: AppColors.brand500,
-      ),
     );
   }
 
