@@ -19,4 +19,8 @@ class DongHo {
     final c = giay - daQua.inSeconds;
     return c < 0 ? 0 : c;
   }
+
+  /// Đơn chuyển khoản đang chờ thanh toán (chưa phát hành cho CTV): máy chủ chỉ trả
+  /// soGiayConLaiThanhToan cho những đơn này, kể cả khi đã về 0 và đang chờ hệ thống hủy.
+  static bool choThanhToan(Map<String, dynamic>? don) => don?['soGiayConLaiThanhToan'] != null;
 }

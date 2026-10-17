@@ -796,7 +796,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with WidgetsBindi
                                   ? 'Đơn đặt này đã được hủy, không có cộng tác viên thực hiện.'
                                   : (trangThai == 'HoanThanh'
                                       ? 'Đơn đặt đã hoàn thành.'
-                                      : 'Hệ thống đang tìm cộng tác viên phù hợp nhất gần khu vực của bạn.'),
+                                      : (_giayThanhToan != null
+                                          ? 'Đơn đang chờ bạn chuyển khoản. Hệ thống sẽ tìm cộng tác viên ngay sau khi nhận được thanh toán.'
+                                          : 'Hệ thống đang tìm cộng tác viên phù hợp nhất gần khu vực của bạn.')),
                               style: TextStyle(
                                 fontSize: 12.5,
                                 color: trangThai == 'DaHuy'

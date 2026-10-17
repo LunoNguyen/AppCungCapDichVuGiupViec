@@ -22,4 +22,12 @@ void main() {
     expect(DongHo.conLai(30, const Duration(minutes: 1)), 0);
     expect(DongHo.conLai(null, const Duration(minutes: 1)), isNull);
   });
+
+  test('Đơn chờ thanh toán nhận biết qua soGiayConLaiThanhToan (kể cả đã về 0)', () {
+    expect(DongHo.choThanhToan({'trangThai': 'ChoDuyet', 'soGiayConLaiThanhToan': 600}), isTrue);
+    expect(DongHo.choThanhToan({'trangThai': 'ChoDuyet', 'soGiayConLaiThanhToan': 0}), isTrue);
+    expect(DongHo.choThanhToan({'trangThai': 'ChoDuyet', 'soGiayConLaiThanhToan': null}), isFalse);
+    expect(DongHo.choThanhToan({'trangThai': 'ChoDuyet'}), isFalse);
+    expect(DongHo.choThanhToan(null), isFalse);
+  });
 }

@@ -6,6 +6,7 @@ import '../auth/login_screen.dart';
 import '../../services/session_service.dart';
 import '../../services/booking_api_service.dart';
 import '../../services/app_realtime.dart';
+import '../../services/dong_ho.dart';
 import 'order_detail_screen.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
@@ -405,7 +406,15 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
 
   Widget _buildOrderCard(Map<String, dynamic> order) {
     final status = order['trangThai']?.toString();
-    final badge = _getStatusBadge(status);
+    // Đơn chuyển khoản chưa thanh toán chưa được phát hành cho CTV: hiện "Chờ thanh toán"
+    final choThanhToan = DongHo.choThanhToan(order);
+    final badge = choThanhToan
+        ? {
+            'text': 'Chờ thanh toán',
+            'color': const Color(0xFFE65100),
+            'bgColor': const Color(0xFFFFF3E0),
+          }
+        : _getStatusBadge(status);
     final ctvTen = order['congTacVienTen']?.toString();
     final ctvDiem = order['congTacVienDiem'];
     final tenDichVu = order['tenDichVu']?.toString() ?? 'Dịch vụ giúp việc';
@@ -585,6 +594,17 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen>
                               style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
                             ),
                           ],
+                        ],
+                      )
+                    else if (choThanhToan)
+                      const Row(
+                        children: [
+                          Icon(Icons.qr_code_2_rounded, size: 16, color: Color(0xFFE65100)),
+                          SizedBox(width: 5),
+                          Text(
+                            'Chạm để thanh toán',
+                            style: TextStyle(fontSize: 12, color: Color(0xFFE65100), fontWeight: FontWeight.w500),
+                          ),
                         ],
                       )
                     else if (status == 'ChoDuyet' || status == 'DangTimCTV')
