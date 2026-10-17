@@ -169,12 +169,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               const SizedBox(height: 12),
               _buildServicesSection(),
               const SizedBox(height: 12),
-              if (_promoBanners.isNotEmpty) ...[
-                _buildPromoCarousel(),
-                const SizedBox(height: 12),
-              ],
               if (_featuredServices.isNotEmpty) ...[
                 _buildFeaturedSection(),
+                const SizedBox(height: 12),
+              ],
+              if (_promoBanners.isNotEmpty) ...[
+                _buildPromoCarousel(),
                 const SizedBox(height: 12),
               ],
               _buildTrustBadges(),
@@ -446,11 +446,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   Widget _buildServicesSection() {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle('Dịch vụ', 'Xem tất cả', _openServices),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _sectionTitle('Dịch vụ', 'Xem tất cả', _openServices),
+          ),
           const SizedBox(height: 14),
           if (_loading && _serviceTypes.isEmpty)
             const Padding(
@@ -472,22 +475,49 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ),
             )
           else
-          GridView.builder(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _serviceTypes.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              childAspectRatio: 0.78,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
+            _hangNgang(
+              chieuCao: 104,
+              soMuc: _serviceTypes.length,
+              muc: (index) => _buildGridServiceItem(_serviceTypes[index]),
             ),
-            itemBuilder: (context, index) =>
-                _buildGridServiceItem(_serviceTypes[index]),
-          ),
         ],
       ),
+    );
+  }
+
+  /// Hàng mục tròn lướt ngang (dùng cho loại dịch vụ và dịch vụ nổi bật).
+  Widget _hangNgang({
+    required double chieuCao,
+    required int soMuc,
+    required Widget Function(int index) muc,
+  }) {
+    return SizedBox(
+      height: chieuCao,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: soMuc,
+        separatorBuilder: (context, index) => const SizedBox(width: 4),
+        itemBuilder: (context, index) => SizedBox(width: 84, child: muc(index)),
+      ),
+    );
+  }
+
+  /// Ảnh tròn 56px; không có ảnh hoặc ảnh lỗi thì hiện biểu tượng trên nền nhạt.
+  Widget _anhTron(String? anh, IconData icon, Color c) {
+    final bieuTuong = Icon(icon, color: c, size: 28);
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: anh != null
+          ? Image.network(anh, fit: BoxFit.cover, errorBuilder: (_, _, _) => bieuTuong)
+          : bieuTuong,
     );
   }
 
@@ -531,23 +561,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: c.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: item['imageUrl'] != null
-                    ? Image.network(
-                        item['imageUrl'] as String,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            Icon(item['icon'] as IconData, color: c, size: 28),
-                      )
-                    : Icon(item['icon'] as IconData, color: c, size: 28),
-              ),
+              _anhTron(item['imageUrl'] as String?, item['icon'] as IconData, c),
               if (item['badge'] != null)
                 Positioned(
                   top: -4,
@@ -738,18 +752,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: _sectionTitle('Dịch vụ nổi bật', 'Xem tất cả', _openServices),
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 172,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _featuredServices.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 12),
-              itemBuilder: (context, index) =>
-                  _buildFeaturedCard(_featuredServices[index]),
-            ),
+          const SizedBox(height: 14),
+          _hangNgang(
+            chieuCao: 136,
+            soMuc: _featuredServices.length,
+            muc: (index) => _buildFeaturedCard(_featuredServices[index]),
           ),
         ],
       ),
@@ -759,67 +766,41 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   Widget _buildFeaturedCard(NhomDichVu nhom) {
     final s = CatalogUi.fromService(nhom.bienTheDaiDien(null));
     final Color c = s['iconColor'] as Color;
-    final anh = CatalogUi.fileUrl(nhom.anh);
-    final bieuTuong = Container(
-      color: c.withValues(alpha: 0.12),
-      alignment: Alignment.center,
-      child: Icon(s['icon'] as IconData, color: c, size: 32),
-    );
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => ServiceDetailScreen(service: s)),
       ),
-      child: Container(
-        width: 160,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.cardBorder),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              height: 84,
-              width: double.infinity,
-              child: anh == null
-                  ? bieuTuong
-                  : Image.network(anh, fit: BoxFit.cover, errorBuilder: (_, _, _) => bieuTuong),
+      child: Column(
+        children: [
+          const SizedBox(height: 4),
+          _anhTron(CatalogUi.fileUrl(nhom.anh), s['icon'] as IconData, c),
+          const SizedBox(height: 6),
+          Text(
+            nhom.ten,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+              height: 1.25,
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    nhom.ten,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                      height: 1.25,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  GiaHienThi(
-                    gia: nhom.giaTu > 0 ? 'Từ ${CatalogUi.money(nhom.giaTu)}' : 'Liên hệ báo giá',
-                    giaGoc: (s['donGia'] as num).round() == nhom.giaTu ? s['priceGoc'] as String? : null,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.brand600,
-                    ),
-                  ),
-                ],
-              ),
+          ),
+          const SizedBox(height: 2),
+          GiaHienThi(
+            gia: nhom.giaTu > 0 ? 'Từ ${CatalogUi.money(nhom.giaTu)}' : 'Liên hệ',
+            giaGoc: (s['donGia'] as num).round() == nhom.giaTu ? s['priceGoc'] as String? : null,
+            canh: CrossAxisAlignment.center,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AppColors.brand600,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
