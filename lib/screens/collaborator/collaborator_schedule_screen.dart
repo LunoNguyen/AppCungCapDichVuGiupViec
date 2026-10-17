@@ -824,8 +824,10 @@ class CollaboratorScheduleScreenState
     final String? dayLbl = _dayLabel(rawDate);
     final avatar = _avatarPair(customerName);
     final int? diff = _daysDiff(rawDate);
-    final bool isToday = diff != null && diff == 0;
-    final bool isOverdue = !isCompleted && !isWorking && diff != null && diff < 0;
+    final String timingStatus = _getShiftTimingStatus(s);
+    final bool isOverdue = !isCompleted && !isWorking && timingStatus == 'OVERDUE';
+    final bool isReady = !isCompleted && !isWorking && timingStatus == 'READY';
+    final bool isTooEarly = !isCompleted && !isWorking && timingStatus == 'TOO_EARLY';
 
     // Màu trạng thái
     Color sc;
@@ -839,9 +841,12 @@ class CollaboratorScheduleScreenState
     } else if (isOverdue) {
       sc = const Color(0xFFDC2626);
       statusText = '⚠️ Quá hạn';
+    } else if (isReady) {
+      sc = const Color(0xFF16A34A);
+      statusText = '🟢 Đến giờ làm';
     } else {
       sc = isPackage ? const Color(0xFFD97706) : AppColors.partner500;
-      statusText = 'Sắp tới';
+      statusText = isTooEarly ? 'Chưa đến giờ' : 'Sắp tới';
     }
 
     return Container(
@@ -1147,20 +1152,27 @@ class CollaboratorScheduleScreenState
                         : ElevatedButton.icon(
                             onPressed: () => _handleStartJob(s, diff, dateStr),
                             icon: Icon(
-                              isToday
-                                  ? Icons.play_arrow_rounded
-                                  : isOverdue
-                                      ? Icons.warning_amber_rounded
-                                      : Icons.lock_outline_rounded,
+                              isOverdue
+                                  ? Icons.warning_amber_rounded
+                                  : (isReady
+                                      ? Icons.play_arrow_rounded
+                                      : Icons.lock_outline_rounded),
                               size: 15,
                             ),
-                            label: const Text('Bắt đầu làm', style: TextStyle(fontSize: 12)),
+                            label: Text(
+                              isOverdue
+                                  ? 'Xử lý quá hạn'
+                                  : (isReady
+                                      ? 'Bắt đầu làm'
+                                      : (diff != null && diff > 0 ? 'Chưa đến ngày' : 'Chưa đến giờ')),
+                              style: const TextStyle(fontSize: 12),
+                            ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: isToday
-                                  ? _primary
-                                  : isOverdue
-                                      ? const Color(0xFFEA580C)
-                                      : const Color(0xFF94A3B8),
+                              backgroundColor: isOverdue
+                                  ? const Color(0xFFEA580C)
+                                  : (isReady
+                                      ? _primary
+                                      : const Color(0xFF94A3B8)),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               shape: RoundedRectangleBorder(
@@ -1229,11 +1241,28 @@ class CollaboratorScheduleScreenState
   }
 
   Future<void> _handleStartJob(Map<String, dynamic> s, int? diff, String dateStr) async {
-    // 1. Trường hợp CHƯA ĐẾN NGÀY LÀM (diff > 0)
-    if (diff != null && diff > 0) {
+    final String timingStatus = _getShiftTimingStatus(s);
+
+    // 1. Trường hợp CHƯA ĐẾN NGÀY / CHƯA ĐẾN GIỜ (TOO_EARLY)
+    if (timingStatus == 'TOO_EARLY') {
+      final String startStr = _fmtTime(s['gioBatDau']?.toString());
+      String earlyMsg = '';
+      if (startStr.isNotEmpty) {
+        final parts = startStr.split(':');
+        if (parts.length >= 2) {
+          final int sM = (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
+          final int eM = (sM - 30).clamp(0, 23 * 60 + 59);
+          final h = (eM ~/ 60).toString().padLeft(2, '0');
+          final m = (eM % 60).toString().padLeft(2, '0');
+          earlyMsg = ' (bạn chỉ có thể bắt đầu từ $h:$m trở đi)';
+        }
+      }
+      final String msg = (diff != null && diff > 0)
+          ? '⚠️ Chưa đến ngày làm việc, bạn chưa thể bắt đầu ca này!\n(Lịch làm: $dateStr)'
+          : '⏳ Chưa đến giờ làm việc!\nCa làm bắt đầu lúc $startStr$earlyMsg.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('⚠️ Chưa đến ngày làm việc, bạn chưa thể bắt đầu ca này!\n(Lịch làm: $dateStr)'),
+          content: Text(msg),
           backgroundColor: AppColors.warning,
           duration: const Duration(seconds: 3),
         ),
@@ -1241,13 +1270,14 @@ class CollaboratorScheduleScreenState
       return;
     }
 
-    // 2. Trường hợp CA LÀM ĐÃ QUÁ HẠN (diff < 0)
-    if (diff != null && diff < 0) {
-      await _showOverdueResolutionModal(s, dateStr, diff.abs());
+    // 2. Trường hợp CA LÀM ĐÃ QUÁ HẠN (OVERDUE)
+    if (timingStatus == 'OVERDUE') {
+      final int overdueDays = (diff != null && diff < 0) ? diff.abs() : 0;
+      await _showOverdueResolutionModal(s, dateStr, overdueDays);
       return;
     }
 
-    // 3. Trường hợp ĐÚNG NGÀY HÔM NAY (diff == 0)
+    // 3. Trường hợp ĐÚNG KHUNG GIỜ HỢP LỆ (READY)
     final int phanCongId = s['phanCongId'] ?? s['id'] ?? 0;
     if (phanCongId == 0) return;
 
@@ -1360,9 +1390,7 @@ class CollaboratorScheduleScreenState
     }
 
     // Ngày gợi ý làm bù sau buổi cuối cùng của gói
-    final DateTime? suggestedEndOfPackageDate = lastSessionDate != null
-        ? lastSessionDate.add(const Duration(days: 3))
-        : null;
+    final DateTime? suggestedEndOfPackageDate = lastSessionDate?.add(const Duration(days: 3));
     final String? endOfPackageFmt = suggestedEndOfPackageDate != null
         ? fmtLocalDate(suggestedEndOfPackageDate)
         : null;
@@ -1377,8 +1405,17 @@ class CollaboratorScheduleScreenState
       selectedNewDate = pickerFirstDate;
     }
 
+    final int nowMins = now.hour * 60 + now.minute;
+    final bool isLateNight = now.hour >= 21 || (nowMins + durationMins > 24 * 60);
+
     bool hasCustomerConsent = false;
-    String selectedAction = 'START_TODAY';
+    String selectedAction = isLateNight ? 'RESCHEDULE_KEEP' : 'START_TODAY';
+    if (!isLateNight && selectedAction == 'START_TODAY' && selectedStartMins < nowMins) {
+      selectedStartMins = ((nowMins + 15) ~/ 15) * 15;
+      if (selectedStartMins + durationMins > 24 * 60) {
+        selectedAction = 'RESCHEDULE_KEEP';
+      }
+    }
     final TextEditingController noteController = TextEditingController();
     bool isSubmitting = false;
     String? modalError;
@@ -1464,94 +1501,107 @@ class CollaboratorScheduleScreenState
               required String title,
               required String subtitle,
               required String badgeText,
+              bool enabled = true,
+              String? disabledReason,
             }) {
               final bool isSelected = selectedAction == value;
               return GestureDetector(
-                onTap: () => setModalState(() {
-                  selectedAction = value;
-                  modalError = null;
-                }),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? iconColor.withValues(alpha: 0.07)
-                        : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected ? iconColor : const Color(0xFFE2E8F0),
-                      width: isSelected ? 1.6 : 1.0,
+                onTap: enabled
+                    ? () => setModalState(() {
+                        selectedAction = value;
+                        modalError = null;
+                      })
+                    : () {
+                        if (disabledReason != null) {
+                          setModalState(() {
+                            modalError = disabledReason;
+                          });
+                        }
+                      },
+                child: Opacity(
+                  opacity: enabled ? 1.0 : 0.6,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? iconColor.withValues(alpha: 0.07)
+                          : (enabled ? const Color(0xFFF8FAFC) : const Color(0xFFF1F5F9)),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? iconColor : const Color(0xFFE2E8F0),
+                        width: isSelected ? 1.6 : 1.0,
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: iconColor.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(9),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: iconColor.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Icon(icon, color: iconColor, size: 20),
                         ),
-                        child: Icon(icon, color: iconColor, size: 20),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    title,
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: isSelected ? iconColor : _ink,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      title,
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: isSelected ? iconColor : (enabled ? _ink : AppColors.textSecondary),
+                                      ),
                                     ),
                                   ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: iconColor.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    badgeText,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: iconColor,
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: iconColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      badgeText,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: iconColor,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              subtitle,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary,
-                                height: 1.35,
+                                ],
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 4),
+                              Text(
+                                subtitle,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Icon(
-                        isSelected
-                            ? Icons.radio_button_checked_rounded
-                            : Icons.radio_button_off_rounded,
-                        color: isSelected ? iconColor : const Color(0xFF94A3B8),
-                        size: 20,
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Icon(
+                          isSelected
+                              ? Icons.radio_button_checked_rounded
+                              : (enabled ? Icons.radio_button_off_rounded : Icons.block_rounded),
+                          color: isSelected ? iconColor : const Color(0xFF94A3B8),
+                          size: 20,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -1603,9 +1653,13 @@ class CollaboratorScheduleScreenState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  isGoiThang
-                                      ? 'Xử lý ca quá hạn (Buổi $buoiThu/$soBuoi)'
-                                      : 'Xử lý ca làm quá hạn',
+                                  daysLate > 0
+                                      ? (isGoiThang
+                                          ? 'Ca quá hạn $daysLate ngày (Buổi $buoiThu/$soBuoi)'
+                                          : 'Ca làm đã quá hạn $daysLate ngày')
+                                      : (isGoiThang
+                                          ? 'Ca làm quá hạn hôm nay (Buổi $buoiThu/$soBuoi)'
+                                          : 'Ca làm đã quá hạn hôm nay'),
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w800,
@@ -1613,7 +1667,9 @@ class CollaboratorScheduleScreenState
                                   ),
                                 ),
                                 Text(
-                                  'Lịch cũ: $oldDateStr (trễ $daysLate ngày) • $startTimeStr - $endTimeStr',
+                                  daysLate > 0
+                                      ? 'Lịch cũ: $oldDateStr (trễ $daysLate ngày) • $startTimeStr - $endTimeStr'
+                                      : 'Lịch ca làm: $oldDateStr • $startTimeStr - $endTimeStr (đã quá giờ làm hôm nay)',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: Color(0xFFDC2626),
@@ -1790,42 +1846,56 @@ class CollaboratorScheduleScreenState
                             buildOptionTile(
                               value: 'START_TODAY',
                               icon: Icons.play_circle_fill_rounded,
-                              iconColor: conflictingShiftToday != null
+                              iconColor: isLateNight
                                   ? const Color(0xFFDC2626)
-                                  : const Color(0xFF16A34A),
+                                  : (conflictingShiftToday != null
+                                      ? const Color(0xFFDC2626)
+                                      : const Color(0xFF16A34A)),
                               title: '1. Làm bù NGAY HÔM NAY (${fmtLocalDate(todayDate)})',
-                              subtitle: conflictingShiftToday != null
-                                  ? '⚠️ Lịch hôm nay của bạn bị trùng giờ ($selectedStartStr-$selectedEndStr)! Dù khách rảnh, hãy đổi sang ca Sáng/Chiều trống bên dưới hoặc chọn Phương án 2 (Dời sang ngày mới).'
-                                  : 'Khách đồng ý cho làm bù ngay hôm nay ($selectedStartStr-$selectedEndStr). Chuyển ca sang Đang làm.',
-                              badgeText: conflictingShiftToday != null ? 'Trùng lịch hôm nay' : 'Làm ngay',
+                              enabled: !isLateNight,
+                              disabledReason:
+                                  '⚠️ Đã quá muộn trong ngày (${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}), không còn khung giờ phù hợp để dọn dẹp hôm nay! Vui lòng chọn Phương án 2 để dời sang ngày làm bù.',
+                              subtitle: isLateNight
+                                  ? '⚠️ Đã quá muộn trong ngày (${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}). Hệ thống tự động chuyển sang Phương án 2 (Dời sang ngày làm bù) để đảm bảo chất lượng dịch vụ!'
+                                  : (conflictingShiftToday != null
+                                      ? '⚠️ Lịch hôm nay của bạn bị trùng giờ ($selectedStartStr-$selectedEndStr)! Dù khách rảnh, hãy đổi sang ca Sáng/Chiều trống bên dưới hoặc chọn Phương án 2 (Dời sang ngày mới).'
+                                      : 'Khách đồng ý cho làm bù ngay hôm nay ($selectedStartStr-$selectedEndStr). Chuyển ca sang Đang làm.'),
+                              badgeText: isLateNight ? 'Quá muộn' : (conflictingShiftToday != null ? 'Trùng lịch hôm nay' : 'Làm ngay'),
                             ),
                             buildOptionTile(
                               value: 'RESCHEDULE_KEEP',
                               icon: Icons.event_available_rounded,
                               iconColor: _primary,
-                              title: '2. Dời sang ngày mới (Tôi vẫn phụ trách)',
-                              subtitle:
-                                  'Khách hẹn ngày khác (trước buổi kế tiếp nếu là gói tháng). Có thể chèn vào buổi Sáng/Chiều còn trống.',
+                              title: isGoiThang
+                                  ? '2. Dời sang ngày làm bù (Tôi vẫn nhận làm trọn gói)'
+                                  : '2. Dời sang ngày mới (Tôi vẫn phụ trách)',
+                              subtitle: isGoiThang
+                                  ? (endOfPackageFmt != null
+                                      ? 'Làm bù sau buổi cuối cùng của gói (Gợi ý: $endOfPackageFmt). Đảm bảo hoàn thành trọn vẹn toàn bộ gói.'
+                                      : 'Khách hẹn ngày khác (trước buổi kế tiếp nếu là gói tháng). Có thể chèn vào buổi Sáng/Chiều còn trống.')
+                                  : 'Khách hẹn ngày khác. Có thể chèn vào buổi Sáng/Chiều còn trống.',
                               badgeText: 'Giữ đơn',
                             ),
-                            buildOptionTile(
-                              value: 'RESCHEDULE_RELEASE',
-                              icon: Icons.person_search_rounded,
-                              iconColor: const Color(0xFFD97706),
-                              title: '3. Dời sang ngày mới (Tôi bận — Tìm CTV khác)',
-                              subtitle:
-                                  'Cập nhật ngày mới khách chọn và trả đơn về trạng thái Đang tìm CTV để người khác nhận.',
-                              badgeText: 'Trả về Tìm CTV',
-                            ),
-                            buildOptionTile(
-                              value: 'CANCEL_ORDER',
-                              icon: Icons.cancel_outlined,
-                              iconColor: const Color(0xFFDC2626),
-                              title: '4. Khách không còn nhu cầu (Hủy đơn)',
-                              subtitle:
-                                  'Khách báo không cần dọn nữa. Hủy ca quá hạn để không bị treo đơn.',
-                              badgeText: 'Hủy đơn',
-                            ),
+                            if (!isGoiThang) ...[
+                              buildOptionTile(
+                                value: 'RESCHEDULE_RELEASE',
+                                icon: Icons.person_search_rounded,
+                                iconColor: const Color(0xFFD97706),
+                                title: '3. Dời sang ngày mới (Tôi bận — Tìm CTV khác)',
+                                subtitle:
+                                    'Cập nhật ngày mới khách chọn và trả đơn về trạng thái Đang tìm CTV để người khác nhận.',
+                                badgeText: 'Trả về Tìm CTV',
+                              ),
+                              buildOptionTile(
+                                value: 'CANCEL_ORDER',
+                                icon: Icons.cancel_outlined,
+                                iconColor: const Color(0xFFDC2626),
+                                title: '4. Khách không còn nhu cầu (Hủy đơn)',
+                                subtitle:
+                                    'Khách báo không cần dọn nữa. Hủy ca quá hạn để không bị treo đơn.',
+                                badgeText: 'Hủy đơn',
+                              ),
+                            ],
 
                             if (needsDatePicker) ...[
                               const SizedBox(height: 4),
@@ -1937,7 +2007,7 @@ class CollaboratorScheduleScreenState
                                       const SizedBox(width: 6),
                                       Expanded(
                                         child: Text(
-                                          packageOrderWarning!,
+                                          packageOrderWarning,
                                           style: const TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w700,
@@ -2001,48 +2071,51 @@ class CollaboratorScheduleScreenState
                                       spacing: 6,
                                       runSpacing: 6,
                                       children: [
-                                        ActionChip(
-                                          visualDensity: VisualDensity.compact,
-                                          backgroundColor: selectedStartMins == origStartMins
-                                              ? const Color(0xFFDBEAFE)
-                                              : Colors.white,
-                                          label: Text(
-                                            'Giờ gốc ($startTimeStr)',
-                                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                        if (selectedAction != 'START_TODAY' || origStartMins >= nowMins)
+                                          ActionChip(
+                                            visualDensity: VisualDensity.compact,
+                                            backgroundColor: selectedStartMins == origStartMins
+                                                ? const Color(0xFFDBEAFE)
+                                                : Colors.white,
+                                            label: Text(
+                                              'Giờ gốc ($startTimeStr)',
+                                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                            ),
+                                            onPressed: () => setModalState(() {
+                                              selectedStartMins = origStartMins;
+                                              modalError = null;
+                                            }),
                                           ),
-                                          onPressed: () => setModalState(() {
-                                            selectedStartMins = origStartMins;
-                                            modalError = null;
-                                          }),
-                                        ),
-                                        ActionChip(
-                                          visualDensity: VisualDensity.compact,
-                                          backgroundColor: selectedStartMins == 8 * 60
-                                              ? const Color(0xFFDBEAFE)
-                                              : Colors.white,
-                                          label: const Text(
-                                            '☀️ Ca sáng (08:00)',
-                                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                        if (selectedAction != 'START_TODAY' || 8 * 60 >= nowMins)
+                                          ActionChip(
+                                            visualDensity: VisualDensity.compact,
+                                            backgroundColor: selectedStartMins == 8 * 60
+                                                ? const Color(0xFFDBEAFE)
+                                                : Colors.white,
+                                            label: const Text(
+                                              '☀️ Ca sáng (08:00)',
+                                              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                            ),
+                                            onPressed: () => setModalState(() {
+                                              selectedStartMins = 8 * 60;
+                                              modalError = null;
+                                            }),
                                           ),
-                                          onPressed: () => setModalState(() {
-                                            selectedStartMins = 8 * 60;
-                                            modalError = null;
-                                          }),
-                                        ),
-                                        ActionChip(
-                                          visualDensity: VisualDensity.compact,
-                                          backgroundColor: selectedStartMins == 14 * 60
-                                              ? const Color(0xFFDBEAFE)
-                                              : Colors.white,
-                                          label: const Text(
-                                            '🌤️ Ca chiều (14:00)',
-                                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                        if (selectedAction != 'START_TODAY' || 14 * 60 >= nowMins)
+                                          ActionChip(
+                                            visualDensity: VisualDensity.compact,
+                                            backgroundColor: selectedStartMins == 14 * 60
+                                                ? const Color(0xFFDBEAFE)
+                                                : Colors.white,
+                                            label: const Text(
+                                              '🌤️ Ca chiều (14:00)',
+                                              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                            ),
+                                            onPressed: () => setModalState(() {
+                                              selectedStartMins = 14 * 60;
+                                              modalError = null;
+                                            }),
                                           ),
-                                          onPressed: () => setModalState(() {
-                                            selectedStartMins = 14 * 60;
-                                            modalError = null;
-                                          }),
-                                        ),
                                         ActionChip(
                                           visualDensity: VisualDensity.compact,
                                           avatar: const Icon(Icons.schedule_rounded, size: 14),
@@ -2166,6 +2239,20 @@ class CollaboratorScheduleScreenState
                                           setModalState(() {
                                             modalError =
                                                 'Vui lòng gọi điện cho khách hàng và tích chọn xác nhận khách đã đồng ý phương án!';
+                                          });
+                                          return;
+                                        }
+                                        if (selectedAction == 'START_TODAY' && isLateNight) {
+                                          setModalState(() {
+                                            modalError =
+                                                '⚠️ Đã quá muộn trong ngày (${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}), không thể làm bù hôm nay! Vui lòng chọn Phương án 2 (Dời sang ngày mới).';
+                                          });
+                                          return;
+                                        }
+                                        if (selectedAction == 'START_TODAY' && selectedStartMins < nowMins) {
+                                          setModalState(() {
+                                            modalError =
+                                                '⚠️ Giờ làm bù hôm nay (${formatMinutes(selectedStartMins)}) không được ở trong quá khứ so với hiện tại (${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')})!';
                                           });
                                           return;
                                         }
@@ -2318,6 +2405,48 @@ class CollaboratorScheduleScreenState
     if (s.length < 10) return s;
     final p = s.substring(0, 10).split('-');
     return p.length == 3 ? '${p[2]}/${p[1]}/${p[0]}' : s;
+  }
+
+  int _parseTimeToMinutes(String? s) {
+    if (s == null || s.isEmpty) return 0;
+    final parts = s.split(':');
+    if (parts.length < 2) return 0;
+    return (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
+  }
+
+  /// Trả về trạng thái thời gian của ca làm:
+  /// - 'TOO_EARLY': Chưa đến ngày hoặc cùng ngày nhưng trước giờ hẹn > 30 phút
+  /// - 'READY': Trong khung giờ hợp lệ (trước giờ hẹn 30 phút đến hết ca)
+  /// - 'OVERDUE': Đã qua ngày hoặc cùng ngày nhưng đã quá giờ kết thúc ca làm
+  String _getShiftTimingStatus(Map<String, dynamic> s) {
+    final rawDate = s['ngayLam']?.toString() ?? s['ngayThucHien']?.toString();
+    final diff = _daysDiff(rawDate);
+    if (diff == null) return 'READY';
+
+    if (diff < 0) return 'OVERDUE';
+    if (diff > 0) return 'TOO_EARLY';
+
+    // diff == 0: Đúng ngày hôm nay -> xét giờ (LocalTime)
+    final String startStr = _fmtTime(s['gioBatDau']?.toString());
+    final String endStr = _fmtTime(s['gioKetThuc']?.toString());
+    if (startStr.isEmpty) return 'READY';
+
+    final now = DateTime.now();
+    final int nowMins = now.hour * 60 + now.minute;
+    final int startMins = _parseTimeToMinutes(startStr);
+    int endMins = _parseTimeToMinutes(endStr);
+    if (endMins <= startMins) {
+      endMins = startMins + 120; // Mặc định 2 tiếng nếu không có giờ kết thúc
+    }
+
+    final int earlyStartMins = startMins - 30; // Mở nút sớm tối đa 30 phút
+    if (nowMins < earlyStartMins) {
+      return 'TOO_EARLY';
+    } else if (nowMins > endMins) {
+      return 'OVERDUE';
+    } else {
+      return 'READY';
+    }
   }
 
   int? _daysDiff(String? raw) {

@@ -749,6 +749,48 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     return workDay.difference(today).inDays;
   }
 
+  int _parseTimeToMinutes(String? s) {
+    if (s == null || s.isEmpty) return 0;
+    final parts = s.split(':');
+    if (parts.length < 2) return 0;
+    return (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
+  }
+
+  /// Trả về trạng thái thời gian của ca làm:
+  /// - 'TOO_EARLY': Chưa đến ngày hoặc cùng ngày nhưng trước giờ hẹn > 30 phút
+  /// - 'READY': Trong khung giờ hợp lệ (trước giờ hẹn 30 phút đến hết ca)
+  /// - 'OVERDUE': Đã qua ngày hoặc cùng ngày nhưng đã quá giờ kết thúc ca làm
+  String _getShiftTimingStatus(Map<String, dynamic> o) {
+    final rawDate = o['ngayThucHien']?.toString() ?? o['ngayLam']?.toString();
+    final diff = _daysDiff(rawDate);
+    if (diff == null) return 'READY';
+
+    if (diff < 0) return 'OVERDUE';
+    if (diff > 0) return 'TOO_EARLY';
+
+    // diff == 0: Đúng ngày hôm nay -> xét giờ (LocalTime)
+    final String startStr = _fmtTime(o['gioBatDau']?.toString());
+    final String endStr = _fmtTime(o['gioKetThuc']?.toString());
+    if (startStr.isEmpty) return 'READY';
+
+    final now = DateTime.now();
+    final int nowMins = now.hour * 60 + now.minute;
+    final int startMins = _parseTimeToMinutes(startStr);
+    int endMins = _parseTimeToMinutes(endStr);
+    if (endMins <= startMins) {
+      endMins = startMins + 120; // Mặc định 2 tiếng nếu không có giờ kết thúc
+    }
+
+    final int earlyStartMins = startMins - 30; // Mở nút sớm tối đa 30 phút
+    if (nowMins < earlyStartMins) {
+      return 'TOO_EARLY';
+    } else if (nowMins > endMins) {
+      return 'OVERDUE';
+    } else {
+      return 'READY';
+    }
+  }
+
   bool _isGoiThang(Map<String, dynamic> o) {
     final loaiHinh = (o['loaiHinh'] ?? o['loaiHinhDat'] ?? '').toString().toLowerCase();
     final ten = (o['tenDichVu'] ?? '').toString().toLowerCase();
@@ -904,30 +946,40 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     }
   }
 
-  Widget _buildCountdownBadge(String? rawDate) {
+  Widget _buildCountdownBadge(Map<String, dynamic> o) {
+    final rawDate = o['ngayThucHien']?.toString() ?? o['ngayLam']?.toString();
     final diff = _daysDiff(rawDate);
     if (diff == null) return const SizedBox.shrink();
+
+    final status = _getShiftTimingStatus(o);
 
     String text;
     Color bg;
     Color fg;
 
-    if (diff == 0) {
-      text = '🟢 HÔM NAY';
-      bg = const Color(0xFFDCFCE7);
-      fg = const Color(0xFF15803D);
-    } else if (diff == 1) {
-      text = '⏳ NGÀY MAI';
-      bg = const Color(0xFFFEF3C7);
-      fg = const Color(0xFFB45309);
-    } else if (diff > 1) {
-      text = '⏳ Còn $diff ngày';
-      bg = const Color(0xFFF1F5F9);
-      fg = const Color(0xFF475569);
-    } else {
-      text = '⚠️ Quá hạn';
+    if (status == 'OVERDUE') {
+      text = (diff < 0) ? '⚠️ Quá hạn (${diff.abs()} ngày)' : '⚠️ Quá hạn';
       bg = const Color(0xFFFEE2E2);
       fg = const Color(0xFFDC2626);
+    } else if (status == 'TOO_EARLY') {
+      if (diff == 0) {
+        text = '⏳ Chưa đến giờ';
+        bg = const Color(0xFFFEF3C7);
+        fg = const Color(0xFFB45309);
+      } else if (diff == 1) {
+        text = '⏳ Ngày mai';
+        bg = const Color(0xFFFEF3C7);
+        fg = const Color(0xFFB45309);
+      } else {
+        text = '⏳ Còn $diff ngày';
+        bg = const Color(0xFFF1F5F9);
+        fg = const Color(0xFF475569);
+      }
+    } else {
+      // READY
+      text = '🟢 Đến giờ làm';
+      bg = const Color(0xFFDCFCE7);
+      fg = const Color(0xFF15803D);
     }
 
     return Container(
@@ -1039,8 +1091,9 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     final String phone = o['khachHangPhone']?.toString() ?? o['soDienThoai']?.toString() ?? '';
     final avatar = _avatarPair(customerName);
     final diff = _daysDiff(rawDate);
-    final bool isToday = diff != null && diff == 0;
-    final bool isOverdue = diff != null && diff < 0;
+    final String timingStatus = _getShiftTimingStatus(o);
+    final bool isReady = timingStatus == 'READY';
+    final bool isOverdue = timingStatus == 'OVERDUE';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -1085,7 +1138,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                             ),
                           ],
                         ),
-                        _buildCountdownBadge(rawDate),
+                        _buildCountdownBadge(o),
                       ],
                     ),
                   )
@@ -1477,19 +1530,23 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                       child: ElevatedButton.icon(
                         onPressed: () => _handleStartJob(o),
                         icon: Icon(
-                          isToday
+                          isReady
                               ? Icons.play_arrow_rounded
                               : (isOverdue
                                   ? Icons.warning_amber_rounded
                                   : Icons.lock_outline_rounded),
                           size: 18,
                         ),
-                        label: const Text(
-                          'Bắt đầu làm',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                        label: Text(
+                          isReady
+                              ? 'Bắt đầu làm'
+                              : (isOverdue
+                                  ? 'Xử lý quá hạn'
+                                  : (diff != null && diff > 0 ? 'Chưa đến ngày' : 'Chưa đến giờ')),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isToday
+                          backgroundColor: isReady
                               ? _primary
                               : (isOverdue
                                   ? const Color(0xFFEA580C)
@@ -1837,28 +1894,54 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     final rawDate = o['ngayThucHien']?.toString() ?? o['ngayLam']?.toString();
     final diff = _daysDiff(rawDate);
     final dateStr = _fmtDate(rawDate ?? '');
+    final startStr = _fmtTime(o['gioBatDau']?.toString());
+    final status = _getShiftTimingStatus(o);
 
-    // TH1: Chưa đến ngày làm (diff > 0)
-    if (diff != null && diff > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '⚠️ Chưa đến ngày làm việc, bạn chưa thể bắt đầu ca này!\n(Lịch hẹn: $dateStr — còn $diff ngày nữa)',
+    // TH1: Chưa đến ngày làm hoặc chưa đến giờ (TOO_EARLY)
+    if (status == 'TOO_EARLY') {
+      if (diff != null && diff > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '⚠️ Chưa đến ngày làm việc, bạn chưa thể bắt đầu ca này!\n(Lịch hẹn: $dateStr — còn $diff ngày nữa)',
+            ),
+            backgroundColor: AppColors.warning,
+            duration: const Duration(seconds: 3),
           ),
-          backgroundColor: AppColors.warning,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+        );
+      } else {
+        String earlyStr = '';
+        if (startStr.isNotEmpty) {
+          final parts = startStr.split(':');
+          if (parts.length >= 2) {
+            final int sM = (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
+            final int eM = (sM - 30).clamp(0, 23 * 60 + 59);
+            final h = (eM ~/ 60).toString().padLeft(2, '0');
+            final m = (eM % 60).toString().padLeft(2, '0');
+            earlyStr = ' (bạn chỉ có thể bắt đầu từ $h:$m trở đi)';
+          }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '⚠️ Chưa đến giờ làm việc! Ca làm bắt đầu lúc $startStr$earlyStr.',
+            ),
+            backgroundColor: AppColors.warning,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
       return;
     }
 
-    // TH3: Đã quá hạn (diff < 0) -> Mở hộp thoại xử lý ca quá hạn
-    if (diff != null && diff < 0) {
-      await _showOverdueResolutionModal(o, diff.abs());
+    // TH2: Đã quá hạn (OVERDUE) -> Mở hộp thoại xử lý ca quá hạn
+    if (status == 'OVERDUE') {
+      final int overdueDays = (diff != null && diff < 0) ? diff.abs() : 0;
+      await _showOverdueResolutionModal(o, overdueDays);
       return;
     }
 
-    // TH2: Đúng ngày hôm nay (diff == 0) -> Bắt đầu làm bình thường
+    // TH3: Đúng khung giờ làm việc (READY) -> Bắt đầu làm bình thường
     final int phanCongId = o['phanCongId'] ?? o['id'] ?? 0;
     if (phanCongId == 0) {
       _showError('Không tìm thấy ID phân công');
@@ -2072,9 +2155,14 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     final bool afternoonBusyToday = checkSlotConflict(shiftsOnToday, 14 * 60, durationMins);
     final bool bothSlotsBusyToday = morningBusyToday && afternoonBusyToday;
 
+    final int nowMins = now.hour * 60 + now.minute;
+    final bool isLateNight = now.hour >= 21 || (nowMins + durationMins > 24 * 60);
+
     // Thiết lập hành động mặc định và khung giờ phù hợp
     String selectedAction = 'START_TODAY';
-    if (isGoiThang) {
+    if (isLateNight) {
+      selectedAction = 'RESCHEDULE_KEEP';
+    } else if (isGoiThang) {
       if (bothSlotsBusyToday) {
         // Cả sáng và chiều hôm nay đều bận -> tự động chuyển sang Phương án 2 (Dời sang buổi cuối)
         selectedAction = 'RESCHEDULE_KEEP';
@@ -2085,6 +2173,13 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
       } else if (!morningBusyToday && afternoonBusyToday && origStartMins >= 12 * 60) {
         selectedStartMins = 8 * 60;
         selectedAction = 'START_TODAY';
+      }
+    }
+    // Nếu chọn làm bù hôm nay mà giờ bắt đầu đang nhỏ hơn giờ hiện tại -> tự động tăng lên mốc 15 phút kế tiếp
+    if (!isLateNight && selectedAction == 'START_TODAY' && selectedStartMins < nowMins) {
+      selectedStartMins = ((nowMins + 15) ~/ 15) * 15;
+      if (selectedStartMins + durationMins > 24 * 60) {
+        selectedAction = 'RESCHEDULE_KEEP';
       }
     }
 
@@ -2303,9 +2398,13 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isGoiThang
-                                    ? 'Ca quá hạn $overdueDays ngày (Buổi $buoiThu/$soBuoi)'
-                                    : 'Ca làm đã quá hạn $overdueDays ngày',
+                                overdueDays > 0
+                                    ? (isGoiThang
+                                        ? 'Ca quá hạn $overdueDays ngày (Buổi $buoiThu/$soBuoi)'
+                                        : 'Ca làm đã quá hạn $overdueDays ngày')
+                                    : (isGoiThang
+                                        ? 'Ca làm quá hạn hôm nay (Buổi $buoiThu/$soBuoi)'
+                                        : 'Ca làm đã quá hạn hôm nay'),
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
@@ -2512,22 +2611,27 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                     buildOptionTile(
                       value: 'START_TODAY',
                       icon: Icons.play_circle_fill_rounded,
-                      color: (isGoiThang && bothSlotsBusyToday)
+                      color: isLateNight
                           ? const Color(0xFFDC2626)
-                          : (conflictingShiftToday != null
+                          : ((isGoiThang && bothSlotsBusyToday)
                               ? const Color(0xFFDC2626)
-                              : const Color(0xFF16A34A)),
-                      title: '1. Làm bù NGAY HÔM NAY ($todayStr)',
-                      enabled: !(isGoiThang && bothSlotsBusyToday),
-                      disabledReason:
-                          '⚠️ Hôm nay ($todayStr) bạn đã kín cả ca sáng lẫn ca chiều! Vui lòng chọn Phương án 2 để dời sang ngày làm bù sau buổi cuối.',
-                      subtitle: (isGoiThang && bothSlotsBusyToday)
-                          ? '⚠️ Hôm nay ($todayStr) bạn đã kín cả ca sáng và ca chiều. Hệ thống đã tự động chuyển sang Phương án 2 (Dời ngày làm bù sau buổi cuối)!'
-                          : (isGoiThang && (morningBusyToday || origBusyToday) && !afternoonBusyToday)
-                              ? '💡 Ca sáng hôm nay của bạn trùng lịch đơn khác ➔ Hệ thống đã tự động chuyển sang làm bù vào Ca chiều (14:00 - ${formatMinutes(14 * 60 + durationMins)}) hôm nay!'
                               : (conflictingShiftToday != null
-                                  ? '⚠️ Lịch hôm nay ($todayStr) của bạn đang trùng ca ${_fmtTime(conflictingShiftToday['gioBatDau']?.toString())}-${_fmtTime(conflictingShiftToday['gioKetThuc']?.toString())} (${conflictingShiftToday['maDonDat'] ?? 'Đơn khác'})! Dù khách rảnh nhưng lịch bạn trùng → Vui lòng chọn Phương án 2 (Dời ngày) hoặc đổi sang ca Sáng/Chiều trống.'
-                                  : 'Khách đồng ý làm hôm nay → Hệ thống kiểm tra khung giờ trống hôm nay ($todayStr) và bắt đầu tính giờ làm ngay.'),
+                                  ? const Color(0xFFDC2626)
+                                  : const Color(0xFF16A34A))),
+                      title: '1. Làm bù NGAY HÔM NAY ($todayStr)',
+                      enabled: !isLateNight && !(isGoiThang && bothSlotsBusyToday),
+                      disabledReason: isLateNight
+                          ? '⚠️ Đã quá muộn trong ngày (${DateFormat('HH:mm').format(now)}), không còn khung giờ phù hợp để dọn dẹp hôm nay! Vui lòng chọn Phương án 2 để dời sang ngày làm bù.'
+                          : '⚠️ Hôm nay ($todayStr) bạn đã kín cả ca sáng lẫn ca chiều! Vui lòng chọn Phương án 2 để dời sang ngày làm bù sau buổi cuối.',
+                      subtitle: isLateNight
+                          ? '⚠️ Đã quá muộn trong ngày (${DateFormat('HH:mm').format(now)}). Hệ thống tự động chuyển sang Phương án 2 (Dời sang ngày làm bù) để đảm bảo chất lượng dịch vụ!'
+                          : ((isGoiThang && bothSlotsBusyToday)
+                              ? '⚠️ Hôm nay ($todayStr) bạn đã kín cả ca sáng và ca chiều. Hệ thống đã tự động chuyển sang Phương án 2 (Dời ngày làm bù sau buổi cuối)!'
+                              : (isGoiThang && (morningBusyToday || origBusyToday) && !afternoonBusyToday)
+                                  ? '💡 Ca sáng hôm nay của bạn trùng lịch đơn khác ➔ Hệ thống đã tự động chuyển sang làm bù vào Ca chiều (14:00 - ${formatMinutes(14 * 60 + durationMins)}) hôm nay!'
+                                  : (conflictingShiftToday != null
+                                      ? '⚠️ Lịch hôm nay ($todayStr) của bạn đang trùng ca ${_fmtTime(conflictingShiftToday['gioBatDau']?.toString())}-${_fmtTime(conflictingShiftToday['gioKetThuc']?.toString())} (${conflictingShiftToday['maDonDat'] ?? 'Đơn khác'})! Dù khách rảnh nhưng lịch bạn trùng → Vui lòng chọn Phương án 2 (Dời ngày) hoặc đổi sang ca Sáng/Chiều trống.'
+                                      : 'Khách đồng ý làm hôm nay → Hệ thống kiểm tra khung giờ trống hôm nay ($todayStr) và bắt đầu tính giờ làm ngay.')),
                     ),
                     buildOptionTile(
                       value: 'RESCHEDULE_KEEP',
@@ -2737,48 +2841,51 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                               spacing: 6,
                               runSpacing: 6,
                               children: [
-                                ActionChip(
-                                  visualDensity: VisualDensity.compact,
-                                  backgroundColor: selectedStartMins == origStartMins
-                                      ? const Color(0xFFDBEAFE)
-                                      : Colors.white,
-                                  label: Text(
-                                    'Giờ gốc ($origStartStr)',
-                                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                if (selectedAction != 'START_TODAY' || origStartMins >= nowMins)
+                                  ActionChip(
+                                    visualDensity: VisualDensity.compact,
+                                    backgroundColor: selectedStartMins == origStartMins
+                                        ? const Color(0xFFDBEAFE)
+                                        : Colors.white,
+                                    label: Text(
+                                      'Giờ gốc ($origStartStr)',
+                                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                    ),
+                                    onPressed: () => setModalState(() {
+                                      selectedStartMins = origStartMins;
+                                      modalError = null;
+                                    }),
                                   ),
-                                  onPressed: () => setModalState(() {
-                                    selectedStartMins = origStartMins;
-                                    modalError = null;
-                                  }),
-                                ),
-                                ActionChip(
-                                  visualDensity: VisualDensity.compact,
-                                  backgroundColor: selectedStartMins == 8 * 60
-                                      ? const Color(0xFFDBEAFE)
-                                      : Colors.white,
-                                  label: const Text(
-                                    '☀️ Ca sáng (08:00)',
-                                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                if (selectedAction != 'START_TODAY' || 8 * 60 >= nowMins)
+                                  ActionChip(
+                                    visualDensity: VisualDensity.compact,
+                                    backgroundColor: selectedStartMins == 8 * 60
+                                        ? const Color(0xFFDBEAFE)
+                                        : Colors.white,
+                                    label: const Text(
+                                      '☀️ Ca sáng (08:00)',
+                                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                    ),
+                                    onPressed: () => setModalState(() {
+                                      selectedStartMins = 8 * 60;
+                                      modalError = null;
+                                    }),
                                   ),
-                                  onPressed: () => setModalState(() {
-                                    selectedStartMins = 8 * 60;
-                                    modalError = null;
-                                  }),
-                                ),
-                                ActionChip(
-                                  visualDensity: VisualDensity.compact,
-                                  backgroundColor: selectedStartMins == 14 * 60
-                                      ? const Color(0xFFDBEAFE)
-                                      : Colors.white,
-                                  label: const Text(
-                                    '🌤️ Ca chiều (14:00)',
-                                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                if (selectedAction != 'START_TODAY' || 14 * 60 >= nowMins)
+                                  ActionChip(
+                                    visualDensity: VisualDensity.compact,
+                                    backgroundColor: selectedStartMins == 14 * 60
+                                        ? const Color(0xFFDBEAFE)
+                                        : Colors.white,
+                                    label: const Text(
+                                      '🌤️ Ca chiều (14:00)',
+                                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                    ),
+                                    onPressed: () => setModalState(() {
+                                      selectedStartMins = 14 * 60;
+                                      modalError = null;
+                                    }),
                                   ),
-                                  onPressed: () => setModalState(() {
-                                    selectedStartMins = 14 * 60;
-                                    modalError = null;
-                                  }),
-                                ),
                                 ActionChip(
                                   visualDensity: VisualDensity.compact,
                                   avatar: const Icon(Icons.schedule_rounded, size: 14),
@@ -2927,6 +3034,20 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                                         setModalState(() {
                                           modalError =
                                               '⚠️ Vui lòng gọi điện và tích xác nhận đã được Khách hàng đồng ý trước!';
+                                        });
+                                        return;
+                                      }
+                                      if (selectedAction == 'START_TODAY' && isLateNight) {
+                                        setModalState(() {
+                                          modalError =
+                                              '⚠️ Đã quá muộn trong ngày (${DateFormat('HH:mm').format(now)}), không thể làm bù hôm nay! Vui lòng chọn Phương án 2 (Dời sang ngày mới).';
+                                        });
+                                        return;
+                                      }
+                                      if (selectedAction == 'START_TODAY' && selectedStartMins < nowMins) {
+                                        setModalState(() {
+                                          modalError =
+                                              '⚠️ Giờ làm bù hôm nay (${formatMinutes(selectedStartMins)}) không được ở trong quá khứ so với hiện tại (${DateFormat('HH:mm').format(now)})!';
                                         });
                                         return;
                                       }
