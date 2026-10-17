@@ -27,6 +27,10 @@ class AppRealtime {
   String _vaiTro = 'KhachHang';
   http.Client? _client;
   StreamSubscription<String>? _dong;
+  /// Hoàn thành để cắt hẳn kết nối SSE đang mở (http.Client.close() không cắt luồng đang đọc).
+  Completer<void>? _huyKetNoi;
+  /// Tăng mỗi lần kết nối / dừng: callback của kết nối cũ (của tài khoản trước) bị bỏ qua.
+  int _theHe = 0;
   Timer? _ketNoiLai;
   Timer? _dinhKy;
   bool _dangChay = false;
@@ -49,12 +53,21 @@ class AppRealtime {
   /// Gọi khi đăng xuất.
   void dung() {
     _dangChay = false;
+    _theHe++;
     _ketNoiLai?.cancel();
     _dinhKy?.cancel();
+    _catKetNoi();
+    _taiKhoanId = null;
+    soChuaDoc.value = 0;
+  }
+
+  void _catKetNoi() {
+    if (_huyKetNoi != null && !_huyKetNoi!.isCompleted) _huyKetNoi!.complete();
+    _huyKetNoi = null;
     _dong?.cancel();
+    _dong = null;
     _client?.close();
     _client = null;
-    soChuaDoc.value = 0;
   }
 
   Future<void> capNhatSoChuaDoc() async {
@@ -76,22 +89,29 @@ class AppRealtime {
 
   void _ketNoi() {
     if (!_dangChay || _taiKhoanId == null) return;
-    _client?.close();
+    _catKetNoi();
+    final theHe = ++_theHe;
+    final huy = Completer<void>();
+    _huyKetNoi = huy;
     final client = http.Client();
     _client = client;
-    final req = http.Request(
-        'GET', Uri.parse('${ApiConfig.baseUrl}/v1/realtime/stream?taiKhoanId=$_taiKhoanId&vaiTro=$_vaiTro'))
-      ..headers['Accept'] = 'text/event-stream';
+    final req = http.AbortableRequest(
+      'GET',
+      Uri.parse('${ApiConfig.baseUrl}/v1/realtime/stream?taiKhoanId=$_taiKhoanId&vaiTro=$_vaiTro'),
+      abortTrigger: huy.future,
+    )..headers['Accept'] = 'text/event-stream';
 
     client.send(req).then((res) {
+      if (theHe != _theHe) return; // đã đổi tài khoản / dừng trong lúc chờ
       if (res.statusCode != 200) {
-        _henKetNoiLai();
+        _henKetNoiLai(theHe);
         return;
       }
       String tenSuKien = 'message';
       final duLieu = StringBuffer();
       _dong = res.stream.transform(utf8.decoder).transform(const LineSplitter()).listen(
         (dong) {
+          if (theHe != _theHe) return;
           if (dong.isEmpty) {
             // Hết một sự kiện SSE
             _xuLy(tenSuKien, duLieu.toString());
@@ -104,17 +124,17 @@ class AppRealtime {
             duLieu.write(dong.substring(5).trimLeft());
           }
         },
-        onError: (_) => _henKetNoiLai(),
-        onDone: _henKetNoiLai,
+        onError: (_) => _henKetNoiLai(theHe),
+        onDone: () => _henKetNoiLai(theHe),
         cancelOnError: true,
       );
     }).catchError((_) {
-      _henKetNoiLai();
+      _henKetNoiLai(theHe);
     });
   }
 
-  void _henKetNoiLai() {
-    if (!_dangChay) return;
+  void _henKetNoiLai(int theHe) {
+    if (!_dangChay || theHe != _theHe) return; // kết nối của tài khoản trước: không nối lại
     _ketNoiLai?.cancel();
     _ketNoiLai = Timer(const Duration(seconds: 5), _ketNoi);
   }
@@ -122,12 +142,17 @@ class AppRealtime {
   void _xuLy(String ten, String duLieu) {
     if (ten == 'nhip' || ten == 'san-sang') return;
     if (ten == 'thong-bao-moi') {
+      String tieuDe = 'Thông báo mới';
+      String noiDung = '';
+      int? id;
       try {
         final m = jsonDecode(duLieu) as Map<String, dynamic>;
-        ThongBaoCucBo.hien(m['tieuDe']?.toString() ?? 'Thông báo mới', m['noiDung']?.toString() ?? '');
-      } catch (_) {
-        ThongBaoCucBo.hien('Thông báo mới', '');
-      }
+        tieuDe = m['tieuDe']?.toString() ?? tieuDe;
+        noiDung = m['noiDung']?.toString() ?? '';
+        id = int.tryParse('${m['id']}');
+      } catch (_) {}
+      // Thông báo đẩy lên thanh thông báo của điện thoại
+      ThongBaoCucBo.hien(tieuDe, noiDung, id: id);
       capNhatSoChuaDoc();
     }
     _suKien.add(ten);

@@ -646,6 +646,14 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     return s.length >= 5 ? s.substring(0, 5) : s;
   }
 
+  /// "2026-10-13" → "Thứ 3, 13/10/2026" (ngày thực hiện đơn).
+  String _ngayCoThu(String s) {
+    final d = DateTime.tryParse(s.length >= 10 ? s.substring(0, 10) : s);
+    if (d == null) return _fmtDate(s);
+    final thu = d.weekday == DateTime.sunday ? 'Chủ nhật' : 'Thứ ${d.weekday + 1}';
+    return '$thu, ${_fmtDate(s)}';
+  }
+
   String _fmtDate(String s) {
     if (s.length < 10) return s;
     final p = s.substring(0, 10).split('-');
@@ -985,7 +993,8 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                             const Icon(Icons.access_time_filled, size: 16, color: _primary),
                             const SizedBox(width: 4),
                             Text(
-                              timeStr,
+                              // Ngày + giờ thực hiện
+                              dateStr.isNotEmpty ? '$dateStr · $timeStr' : timeStr,
                               style: const TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w800,
@@ -1079,11 +1088,13 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
             child: Column(
               children: [
                 if (currentTab == 'new') ...[
-                  _infoRow(Icons.calendar_today_outlined, dateStr),
+                  _infoRow(Icons.calendar_today_outlined, rawDate.isNotEmpty ? _ngayCoThu(rawDate) : dateStr),
                   _infoRow(Icons.access_time_rounded, '$timeStr (Thời lượng: $durationStr)'),
                   _infoRow(Icons.location_on_outlined, address, maxLines: 2),
                   _directionsRow(o),
                 ] else if (currentTab == 'waiting' || currentTab == 'in_progress') ...[
+                  if (rawDate.isNotEmpty)
+                    _infoRow(Icons.calendar_today_outlined, 'Ngày làm: ${_ngayCoThu(rawDate)}'),
                   _infoRow(Icons.location_on_outlined, address, maxLines: 2),
                   _directionsRow(o),
                   // Thông tin khách hàng + nút gọi điện

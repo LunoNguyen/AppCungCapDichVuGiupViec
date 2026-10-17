@@ -10,13 +10,16 @@ class ThongBaoCucBo {
   static bool _daKhoiTao = false;
   static int _soThuTu = 0;
 
-  static const _kenh = AndroidNotificationDetails(
-    'thong_bao_btaskee',
-    'Thông báo bTaskee',
-    channelDescription: 'Đơn đặt, phân công, ưu đãi',
-    importance: Importance.high,
-    priority: Priority.high,
-  );
+  static AndroidNotificationDetails _kenh(String noiDung) => AndroidNotificationDetails(
+        'thong_bao_btaskee',
+        'Thông báo bTaskee',
+        channelDescription: 'Đơn đặt, phân công, ưu đãi',
+        importance: Importance.high,
+        priority: Priority.high,
+        ticker: 'Thông báo bTaskee',
+        category: AndroidNotificationCategory.message,
+        styleInformation: BigTextStyleInformation(noiDung), // nội dung dài hiện đủ khi kéo xuống
+      );
 
   static Future<void> khoiTao() async {
     if (_daKhoiTao || kIsWeb) return;
@@ -37,17 +40,18 @@ class ThongBaoCucBo {
     }
   }
 
-  static Future<void> hien(String tieuDe, String noiDung) async {
+  /// [id]: mã thông báo trên máy chủ, mỗi thông báo một mục riêng trên thanh thông báo.
+  static Future<void> hien(String tieuDe, String noiDung, {int? id}) async {
     if (!_daKhoiTao) await khoiTao();
     if (!_daKhoiTao) return;
     try {
       await _plugin.show(
-        id: _soThuTu++ & 0x7fffffff,
+        id: id ?? (_soThuTu++ & 0x7fffffff),
         title: tieuDe,
         body: noiDung,
-        notificationDetails: const NotificationDetails(
-          android: _kenh,
-          iOS: DarwinNotificationDetails(),
+        notificationDetails: NotificationDetails(
+          android: _kenh(noiDung),
+          iOS: const DarwinNotificationDetails(),
         ),
       );
     } catch (e) {

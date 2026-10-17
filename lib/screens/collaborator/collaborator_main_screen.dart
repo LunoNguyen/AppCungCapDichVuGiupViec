@@ -36,11 +36,16 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
     _screens = [
       CollaboratorOrdersScreen(key: _ordersKey),
       CollaboratorScheduleScreen(key: _scheduleKey),
-      const CollaboratorNotificationsScreen(),
+      // Gắn key để bấm vào tab Thông báo là tải lại danh sách
+      CollaboratorNotificationsScreen(key: _notifKey),
       const CollaboratorAccountScreen(),
     ];
     WidgetsBinding.instance.addObserver(this);
-    _batDauGuiViTri();
+    // Đợi khung hình đầu tiên hiện xong rồi mới bật chia sẻ vị trí: service vị trí của Geolocator
+    // khởi động trên luồng chính Android, chạy ngay lúc mở app thì máy chậm dễ bị ANR, màn hình đen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _batDauGuiViTri();
+    });
   }
 
   /// Gửi vị trí GPS lên máy chủ mỗi 5 giây khi app đang mở (CSKH theo dõi đơn đang thực hiện).
@@ -65,6 +70,8 @@ class _CollaboratorMainScreenState extends State<CollaboratorMainScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _batDauGuiViTri();
+      // Quay lại app: cập nhật thông báo (có thể đã có thông báo mới khi app ở nền)
+      _notifKey.currentState?.refresh();
     } else if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
       CtvLocationTracker.instance.stop();
     }

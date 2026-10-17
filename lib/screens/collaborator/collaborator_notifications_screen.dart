@@ -89,7 +89,9 @@ class CollaboratorNotificationsScreenState
         }
         if (mounted) setState(() => _items = loaded);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Không tải được thông báo CTV: $e');
+    }
     if (mounted) setState(() => _isLoading = false);
   }
 

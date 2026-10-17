@@ -104,7 +104,9 @@ class CustomerNotificationScreenState
           });
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Không tải được thông báo khách hàng: $e');
+    }
     if (mounted) setState(() => _isLoading = false);
   }
 
