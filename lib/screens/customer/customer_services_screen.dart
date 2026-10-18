@@ -41,7 +41,7 @@ class CustomerServicesScreen extends StatefulWidget {
 }
 
 class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
-  static const double _kMaxSliderPrice = 10000000; // 10.000.000đ
+  static const double _kMaxSliderPrice = 5000000; // 5.000.000đ
   static const double _kStepPrice = 50000; // bước nhảy 50.000đ
 
   final ServiceCatalogApiService _api = ServiceCatalogApiService();
@@ -208,11 +208,12 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
               break;
           }
 
-          _services = list;
         } else {
           _error = res.message ?? 'Không tải được danh sách dịch vụ';
         }
-      });
+      }
+      }
+      );
     } catch (e) {
       if (mounted) setState(() => _error = 'Lỗi kết nối máy chủ');
     } finally {
@@ -229,13 +230,12 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
   void _chonLoai(int? id) {
     // Chọn "Tất cả": bỏ luôn mọi lọc khác (hình thức, mức giá, sắp xếp, từ khoá) để thấy đủ dịch vụ
     final boLoc = id == null &&
-        (_loaiHinh != null || _khoangGia != 0 || _sapXep != 'phu-hop' || _searchCtrl.text.isNotEmpty);
+        (_loaiHinh != null || _sapXep != 'phu-hop' || _searchCtrl.text.isNotEmpty);
     if (_loaiId == id && !boLoc) return;
     setState(() {
       _loaiId = id;
       if (id == null) {
         _loaiHinh = null;
-        _khoangGia = 0;
         _sapXep = 'phu-hop';
         _searchCtrl.clear();
       }
@@ -786,7 +786,7 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
                             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                             decoration: const InputDecoration(
                               labelText: 'Giá tối đa',
-                              hintText: '10.000.000',
+                              hintText: '5.000.000',
                               suffixText: 'đ',
                               isDense: true,
                               border: OutlineInputBorder(),
@@ -824,7 +824,7 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
                         labels: RangeLabels(
                           CatalogUi.money(rangeVals.start),
                           rangeVals.end >= _kMaxSliderPrice
-                              ? '10.000.000đ+'
+                              ? '5.000.000đ+'
                               : CatalogUi.money(rangeVals.end),
                         ),
                         onChanged: (RangeValues values) {
@@ -845,8 +845,8 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text('0đ', style: TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
-                          Text('5.000.000đ', style: TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
-                          Text('10.000.000đ+', style: TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+                          Text('2.500.000đ', style: TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+                          Text('5.000.000đ+', style: TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
                         ],
                       ),
                     ),
