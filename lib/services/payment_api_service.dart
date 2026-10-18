@@ -35,4 +35,14 @@ class PaymentApiService {
       },
     );
   }
+
+  /// Giả lập thanh toán chuyển khoản thành công (Test miễn phí không tốn SePay quota)
+  /// POST /api/v1/sepay/mock-pay/{donDatId}
+  Future<ApiResponse<Map<String, dynamic>>> mockPay(int donDatId) async {
+    return _apiClient.post<Map<String, dynamic>>(
+      '/api/v1/sepay/mock-pay/$donDatId',
+      body: {},
+    );
+  }
 }
+
