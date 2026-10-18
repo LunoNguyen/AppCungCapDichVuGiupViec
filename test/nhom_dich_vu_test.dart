@@ -66,4 +66,13 @@ void main() {
     expect(g.nhanHinhThuc, 'Theo lần · Gói tháng');
     expect(NhomDichVu.gom(dichVus)[1].nhanHinhThuc, 'Theo lần');
   });
+
+  test('Nhãn ngắn của biến thể: phần trong ngoặc, không có thì theo thời lượng', () {
+    expect(NhomDichVu.nhanBienThe({'tenDichVu': 'Dọn dẹp nhà theo giờ (2 giờ)'}), '2 giờ');
+    expect(NhomDichVu.nhanBienThe({'tenDichVu': 'Dọn dẹp nhà theo giờ (Gói 8 buổi/tháng, 2 giờ/buổi)'}),
+        'Gói 8 buổi/tháng, 2 giờ/buổi');
+    expect(NhomDichVu.nhanBienThe({'tenDichVu': 'Đi chợ hộ', 'thoiGianThucHienPhut': 90}), '90 phút');
+    expect(NhomDichVu.nhanBienThe({'tenDichVu': 'Đi chợ hộ', 'thoiGianThucHienPhut': 120}), '2 giờ');
+    expect(NhomDichVu.nhanBienThe({'tenDichVu': 'Đi chợ hộ'}), 'Đi chợ hộ');
+  });
 }

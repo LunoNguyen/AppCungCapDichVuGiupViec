@@ -29,14 +29,14 @@ class DuLieuDat {
 }
 
 /// Quy tắc 5 bước của màn đặt (giống website):
-/// 1 Dịch vụ → 2 Hình thức → 3 Thời gian → 4 Xác nhận → 5 Thanh toán.
+/// 1 Dịch vụ → 2 Hình thức & thời lượng → 3 Thời gian → 4 Xác nhận → 5 Thanh toán.
 class BuocDat {
   BuocDat._();
 
   static const soBuoc = 5;
 
-  /// Dịch vụ chỉ có một hình thức (chỉ theo lần hoặc chỉ gói tháng) thì không cần bước 2.
-  static bool boQuaBuoc2(NhomDichVu nhom) => !(nhom.coTheoLan && nhom.coGoiThang);
+  /// Bước 2 chọn hình thức và thời lượng / gói: dịch vụ chỉ có đúng một lựa chọn thì không cần bước này.
+  static bool boQuaBuoc2(NhomDichVu nhom) => nhom.bienThe.length <= 1;
 
   static String loaiMacDinh(NhomDichVu nhom, {String? uuTien}) {
     if (uuTien == 'GoiThang' && nhom.coGoiThang) return 'GoiThang';
@@ -68,9 +68,9 @@ class BuocDat {
         final n = d.nhom;
         final hopLe = n != null &&
             ((d.loaiHinhDat == 'TheoLan' && n.coTheoLan) || (d.loaiHinhDat == 'GoiThang' && n.coGoiThang));
-        return hopLe ? null : 'Vui lòng chọn theo lần hoặc gói tháng.';
+        if (!hopLe) return 'Vui lòng chọn theo lần hoặc gói tháng.';
+        return d.dichVuId == null ? 'Vui lòng chọn thời lượng / gói.' : null;
       case 3:
-        if (d.dichVuId == null) return 'Vui lòng chọn thời lượng / gói.';
         if (!d.daChonGio) return 'Vui lòng chọn giờ bắt đầu.';
         if (d.loiNgayGio != null) return d.loiNgayGio;
         if (d.loaiHinhDat == 'GoiThang' && !d.goiDuBuoi) return 'Các thứ đã chọn chưa đủ số buổi của gói.';

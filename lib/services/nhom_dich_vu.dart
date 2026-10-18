@@ -34,6 +34,17 @@ class NhomDichVu {
   /// "Theo lần · Gói tháng" – các hình thức nhóm có.
   String get nhanHinhThuc => [if (coTheoLan) 'Theo lần', if (coGoiThang) 'Gói tháng'].join(' · ');
 
+  /// Nhãn ngắn của biến thể: phần trong ngoặc của tên ("2 giờ", "Gói 8 buổi/tháng, 2 giờ/buổi"),
+  /// không có thì theo thời lượng, cuối cùng là tên dịch vụ.
+  static String nhanBienThe(Map<String, dynamic> b) {
+    final ten = b['tenDichVu']?.toString() ?? '';
+    final m = RegExp(r'\(([^)]+)\)\s*$').firstMatch(ten);
+    if (m != null) return m.group(1)!;
+    final phut = CatalogUi.toInt(b['thoiGianThucHienPhut']);
+    if (phut > 0) return phut % 60 == 0 ? '${phut ~/ 60} giờ' : '$phut phút';
+    return ten.isEmpty ? 'Dịch vụ' : ten;
+  }
+
   /// Tên chung của nhóm: bỏ phần biến thể " (…)" ở cuối tên.
   static String tenNhom(String tenDichVu) {
     final ngoac = tenDichVu.indexOf(' (');

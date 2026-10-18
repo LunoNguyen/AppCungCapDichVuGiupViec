@@ -3,16 +3,28 @@ import '../../../core/app_colors.dart';
 import '../../../services/catalog_ui.dart';
 import '../../../services/nhom_dich_vu.dart';
 
-/// Bước 2: Theo lần / Gói tháng. Hình thức dịch vụ không có thì mờ, không bấm được.
+/// Bước 2: Theo lần / Gói tháng, rồi thời lượng / gói của hình thức đó (2 giờ, 3 giờ… hoặc gói 8 buổi…).
+/// Hình thức dịch vụ không có thì mờ, không bấm được.
 class BuocHinhThuc extends StatelessWidget {
   final NhomDichVu nhom;
   final String? loaiChon;
   final ValueChanged<String> onChon;
+  final int? dichVuId;
+  final ValueChanged<int> onChonBienThe;
 
-  const BuocHinhThuc({super.key, required this.nhom, required this.loaiChon, required this.onChon});
+  const BuocHinhThuc({
+    super.key,
+    required this.nhom,
+    required this.loaiChon,
+    required this.onChon,
+    required this.dichVuId,
+    required this.onChonBienThe,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final laGoi = loaiChon == 'GoiThang';
+    final bienThes = loaiChon == null ? const <Map<String, dynamic>>[] : nhom.bienTheTheoLoai(loaiChon!);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -39,7 +51,59 @@ class BuocHinhThuc extends StatelessWidget {
           moTa: 'Nhiều buổi trong 1 tháng theo các thứ bạn chọn, bắt đầu trong vòng 3 tháng tới.',
           khongCo: 'Dịch vụ này chưa có gói tháng',
         ),
+        if (bienThes.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            laGoi ? 'Chọn gói' : 'Chọn thời lượng',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 10),
+          for (final b in bienThes) _bienThe(b),
+        ],
       ],
+    );
+  }
+
+  /// Một dòng thời lượng / gói: nhãn ngắn + giá, chọn bằng nút tròn.
+  Widget _bienThe(Map<String, dynamic> b) {
+    final id = CatalogUi.toInt(b['id']);
+    final chon = id == dichVuId;
+    return GestureDetector(
+      onTap: () => onChonBienThe(id),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: chon ? AppColors.brandSurface : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: chon ? AppColors.brand500 : AppColors.divider, width: chon ? 1.5 : 1),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                NhomDichVu.nhanBienThe(b),
+                style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              CatalogUi.money(b['donGiaThamKhao']),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: chon ? AppColors.brand600 : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Icon(
+              chon ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              color: chon ? AppColors.brand500 : AppColors.textMuted,
+              size: 22,
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -2,6 +2,7 @@ import '../../widgets/gia_hien_thi.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/catalog_ui.dart';
+import '../../services/nhom_dich_vu.dart';
 import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
 import 'booking_screen.dart';
@@ -26,12 +27,36 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   bool _loading = true;
   String? _error;
 
+  // Các thời lượng / gói cùng mã dịch vụ (VD DV101: 2 giờ, 3 giờ, 4 giờ, gói tháng) để khách chọn trước khi đặt
+  NhomDichVu? _nhom;
+  late int _chonId = CatalogUi.toInt(widget.service['dichVuId'] ?? widget.service['id']);
+
+  /// Biến thể đang chọn (dữ liệu /v1/services); chưa tải nhóm thì là dịch vụ đang xem.
+  Map<String, dynamic> get _bienTheChon {
+    for (final b in _nhom?.bienThe ?? const <Map<String, dynamic>>[]) {
+      if (CatalogUi.toInt(b['id']) == _chonId) return b;
+    }
+    return _service;
+  }
+
   int get _dichVuId => CatalogUi.toInt(_service['dichVuId'] ?? _service['id']);
 
   @override
   void initState() {
     super.initState();
     _load();
+    _taiNhom();
+  }
+
+  /// Lấy các biến thể cùng mã dịch vụ trong danh mục (lỗi thì chỉ hiện dịch vụ đang xem).
+  Future<void> _taiNhom() async {
+    try {
+      final loaiId = CatalogUi.toInt(widget.service['loaiDichVuId']);
+      final res = await _api.getServices(loaiDichVuId: loaiId > 0 ? loaiId : null);
+      if (!mounted || !res.success) return;
+      final nhom = NhomDichVu.timTheoDichVuId(NhomDichVu.gom(res.data ?? []), _chonId);
+      if (nhom != null) setState(() => _nhom = nhom);
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -81,7 +106,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = (_service['title'] as String? ?? 'Dịch vụ').replaceAll('\n', ' ');
+    final title = _nhom?.ten ?? (_service['title'] as String? ?? 'Dịch vụ').replaceAll('\n', ' ');
     final desc = _service['description'] as String? ?? '';
     final Color accent = _service['iconColor'] as Color? ?? AppColors.brand500;
     final soDanhGia = CatalogUi.toInt(_service['soLuongDanhGia']);
@@ -126,7 +151,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                     );
                     // Ảnh dịch vụ HCNS đặt theo mã dịch vụ (hinhAnhUrl từ danh sách dịch vụ)
                     final anh = CatalogUi.fileUrl(
-                        (_service['hinhAnhUrl'] ?? _service['hinhAnh'])?.toString());
+                        (_service['hinhAnhUrl'] ?? _nhom?.anh ?? _service['hinhAnh'])?.toString());
                     return anh == null
                         ? bieuTuong
                         : Image.network(anh, fit: BoxFit.cover, errorBuilder: (_, _, _) => bieuTuong);
@@ -150,7 +175,17 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  if (_service['price'] != null) ...[
+                  if (_nhom != null && _nhom!.giaTu > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Từ ${CatalogUi.money(_nhom!.giaTu)}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.brand500,
+                      ),
+                    ),
+                  ] else if (_service['price'] != null) ...[
                     const SizedBox(height: 4),
                     GiaHienThi(
                       gia: _service['price'] as String,
@@ -228,9 +263,16 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                 ),
               )
             else ...[
+              if (_nhom != null && _nhom!.bienThe.length > 1) ...[
+                _section('Lựa chọn', _buildLuaChon()),
+                const SizedBox(height: 10),
+              ],
               _section('Thông tin dịch vụ', _buildThongTin()),
-              const SizedBox(height: 10),
-              _section('Bảng giá', _buildBangGia()),
+              // Bảng giá theo khu vực là của dịch vụ đang xem; chọn thời lượng khác thì giá đã ở mục Lựa chọn
+              if (_chonId == _dichVuId) ...[
+                const SizedBox(height: 10),
+                _section('Bảng giá', _buildBangGia()),
+              ],
               if (_danhGias.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 _section('Đánh giá của khách hàng', _buildDanhGia()),
@@ -258,18 +300,21 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
   }
 
   Widget _buildThongTin() {
-    final phut = CatalogUi.toInt(_service['thoiGianThucHienPhut']);
-    final soNguoi = CatalogUi.toInt(_service['soNguoiThucHien']);
-    final soBuoi = CatalogUi.toInt(_service['soBuoi']);
+    // Thông số theo thời lượng / gói đang chọn; số người làm chỉ có ở chi tiết dịch vụ đang xem
+    final bt = _bienTheChon;
+    final laDichVuDangXem = CatalogUi.toInt(bt['id']) == _dichVuId;
+    final phut = CatalogUi.toInt(bt['thoiGianThucHienPhut']);
+    final soNguoi = laDichVuDangXem ? CatalogUi.toInt(_service['soNguoiThucHien']) : 0;
+    final soBuoi = CatalogUi.toInt(bt['soBuoiGoi'] ?? bt['soBuoi']);
     final rows = <List<dynamic>>[
       [Icons.category_outlined, 'Loại dịch vụ', _service['tenLoaiDichVu'] ?? '—'],
-      [Icons.event_note_outlined, 'Hình thức', CatalogUi.loaiHinhLabel(_service['loaiHinhDat']?.toString())],
+      [Icons.event_note_outlined, 'Hình thức', CatalogUi.loaiHinhLabel(bt['loaiHinhDat']?.toString())],
       if (phut > 0)
         [Icons.timer_outlined, 'Thời gian', phut % 60 == 0 ? '${phut ~/ 60} giờ' : '$phut phút'],
       if (soNguoi > 0) [Icons.groups_outlined, 'Số người làm', '$soNguoi người'],
       if (soBuoi > 0) [Icons.repeat_rounded, 'Số buổi', '$soBuoi buổi'],
-      if ((_service['donViTinh']?.toString() ?? '').isNotEmpty)
-        [Icons.straighten_rounded, 'Đơn vị tính', _service['donViTinh']],
+      if ((bt['donViTinh']?.toString() ?? '').isNotEmpty)
+        [Icons.straighten_rounded, 'Đơn vị tính', bt['donViTinh']],
     ];
     return Column(
       children: rows
@@ -298,6 +343,66 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                 ),
               ))
           .toList(),
+    );
+  }
+
+  /// Các thời lượng / gói cùng mã dịch vụ, chia theo hình thức; chọn một rồi bấm Đặt dịch vụ.
+  Widget _buildLuaChon() {
+    final nhom = _nhom!;
+    Widget nhomLoai(String loai, String nhan) {
+      final ds = nhom.bienTheTheoLoai(loai);
+      if (ds.isEmpty) return const SizedBox.shrink();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(nhan,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+          const SizedBox(height: 8),
+          for (final b in ds)
+            () {
+              final id = CatalogUi.toInt(b['id']);
+              final chon = id == _chonId;
+              return GestureDetector(
+                onTap: () => setState(() => _chonId = id),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: chon ? AppColors.brandSurface : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: chon ? AppColors.brand500 : AppColors.divider, width: chon ? 1.5 : 1),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(NhomDichVu.nhanBienThe(b),
+                            style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(CatalogUi.money(b['donGiaThamKhao']),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: chon ? AppColors.brand600 : AppColors.textSecondary)),
+                      const SizedBox(width: 10),
+                      Icon(chon ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                          color: chon ? AppColors.brand500 : AppColors.textMuted, size: 22),
+                    ],
+                  ),
+                ),
+              );
+            }(),
+          const SizedBox(height: 6),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        nhomLoai('TheoLan', 'Theo lần'),
+        nhomLoai('GoiThang', 'Gói tháng'),
+      ],
     );
   }
 
@@ -427,7 +532,13 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
     if (session != null && session.isCustomer) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => BookingScreen(service: _service)),
+        MaterialPageRoute(
+          builder: (_) => BookingScreen(
+            service: CatalogUi.toInt(_bienTheChon['id']) == _dichVuId
+                ? _service
+                : CatalogUi.fromService(_bienTheChon),
+          ),
+        ),
       );
       return;
     }
