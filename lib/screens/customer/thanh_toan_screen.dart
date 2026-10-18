@@ -34,6 +34,7 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
   final _daQua = Stopwatch(); // đồng hồ đơn điệu, vẫn chạy khi app ở nền
   Timer? _dongHo;
   Timer? _hen;
+  int _demGiay = 0;
   bool _dangGui = false;
   bool _daRoi = false;
 
@@ -110,12 +111,30 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
     _dongHo = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
       setState(() {});
+      _demGiay++;
+      if (_demGiay % 3 == 0) {
+        _kiemTraThanhToanTuDong();
+      }
       if (_hetGio) {
         t.cancel();
         _henMoChiTiet();
       }
     });
   }
+
+  /// Tự động thăm dò trạng thái xem SePay webhook đã nhận được tiền chưa
+  Future<void> _kiemTraThanhToanTuDong() async {
+    if (_dangGui || _daRoi || !mounted) return;
+    try {
+      final res = await PaymentApiService().getInvoice(widget.donDatId);
+      if (!mounted || _daRoi) return;
+      if (res.success && res.data != null && res.data!['trangThaiThanhToan'] == 'DaThanhToan') {
+        _bao('Thanh toán thành công! Hệ thống đang tìm người làm.', loi: false);
+        _moChiTiet();
+      }
+    } catch (_) {}
+  }
+
 
   /// Hết hạn: chờ máy chủ tự hủy đơn (cron mỗi phút) rồi mở chi tiết đơn.
   void _henMoChiTiet() {
@@ -157,6 +176,25 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
       if (mounted) setState(() => _dangGui = false);
     }
   }
+
+  Future<void> _giaLapThanhToan() async {
+    setState(() => _dangGui = true);
+    try {
+      final res = await PaymentApiService().mockPay(widget.donDatId);
+      if (!mounted) return;
+      if (res.success) {
+        _bao('Giả lập thanh toán thành công!', loi: false);
+        _moChiTiet();
+      } else {
+        _bao(res.message ?? 'Giả lập thanh toán không thành công');
+      }
+    } catch (_) {
+      if (mounted) _bao('Không kết nối được máy chủ');
+    } finally {
+      if (mounted) setState(() => _dangGui = false);
+    }
+  }
+
 
   Future<void> _huyDon() async {
     final dongY = await showDialog<bool>(
@@ -299,8 +337,18 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
           height: 48,
           child: OutlinedButton(onPressed: _dangGui ? null : _huyDon, child: const Text('Hủy đơn')),
         ),
+        const SizedBox(height: 12),
+        TextButton.icon(
+          onPressed: _dangGui || (_giay != null && _hetGio) ? null : _giaLapThanhToan,
+          icon: const Icon(Icons.science_outlined, size: 18, color: Color(0xFF16A34A)),
+          label: const Text(
+            'Giả lập thanh toán thành công (Test miễn phí)',
+            style: TextStyle(color: Color(0xFF16A34A), fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ),
       ],
     );
+
   }
 
   Widget _dong(String nhan, String giaTri, {bool saoChep = false, bool dam = false}) => Padding(
