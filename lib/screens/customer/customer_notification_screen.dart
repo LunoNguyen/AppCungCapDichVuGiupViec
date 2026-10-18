@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
+import '../../services/app_realtime.dart';
 import '../../services/notification_api_service.dart';
 import '../../services/session_service.dart';
 import '../auth/login_screen.dart';
@@ -10,10 +12,10 @@ class CustomerNotificationScreen extends StatefulWidget {
 
   @override
   State<CustomerNotificationScreen> createState() =>
-      _CustomerNotificationScreenState();
+      CustomerNotificationScreenState();
 }
 
-class _CustomerNotificationScreenState
+class CustomerNotificationScreenState
     extends State<CustomerNotificationScreen> {
   final NotificationApiService _apiService = NotificationApiService();
   bool _isLoading = true;
@@ -22,10 +24,26 @@ class _CustomerNotificationScreenState
   bool _onlyUnread = false;
   List<Map<String, dynamic>> _items = [];
 
+  void refresh() {
+    _init();
+  }
+
+  StreamSubscription<String>? _realtime;
+
   @override
   void initState() {
     super.initState();
     _init();
+    // Có thông báo mới qua realtime: tải lại danh sách
+    _realtime = AppRealtime.instance.suKien.listen((e) {
+      if (e == 'thong-bao-moi' && mounted) _fetchNotifications();
+    });
+  }
+
+  @override
+  void dispose() {
+    _realtime?.cancel();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -62,6 +80,9 @@ class _CustomerNotificationScreenState
             thoiGian = DateTime.tryParse(raw['thoiGianGui'].toString()) ??
                 DateTime.now();
           }
+          final bool daDoc = raw['daDoc'] == true ||
+              raw['daDoc'] == 1 ||
+              raw['daDoc']?.toString().toLowerCase() == 'true';
           loaded.add({
             'id': raw['id'],
             'thongBaoId': raw['thongBaoId'],
@@ -70,7 +91,7 @@ class _CustomerNotificationScreenState
             'noiDung': raw['noiDung']?.toString() ?? '',
             'nguoiGui': raw['nguoiGui']?.toString() ?? 'Hệ thống bTaskee',
             'thoiGian': thoiGian,
-            'daDoc': raw['daDoc'] == true,
+            'daDoc': daDoc,
           });
         }
         if (mounted) {
@@ -98,6 +119,7 @@ class _CustomerNotificationScreenState
     });
     try {
       await _apiService.markAllCustomerNotificationsRead(_currentTaiKhoanId);
+      AppRealtime.instance.capNhatSoChuaDoc();
     } catch (_) {}
   }
 
@@ -111,6 +133,7 @@ class _CustomerNotificationScreenState
           id: id,
           taiKhoanId: _currentTaiKhoanId,
         );
+        AppRealtime.instance.capNhatSoChuaDoc();
       } catch (_) {}
     }
   }

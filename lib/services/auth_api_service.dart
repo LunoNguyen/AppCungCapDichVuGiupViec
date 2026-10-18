@@ -17,6 +17,10 @@ class AuthApiService {
     String? gioiTinh, // Nam | Nu | Khac
     String? diaChiChiTiet,
     int? khuVucId,
+    // Địa chỉ nơi ở: số nhà + mã tỉnh, phường (provinces.open-api.vn v2); khu vực suy ra từ phường
+    String? soNhaTenDuong,
+    int? maTinh,
+    int? maPhuong,
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/auth/customer/register',
@@ -30,6 +34,9 @@ class AuthApiService {
         if (diaChiChiTiet != null && diaChiChiTiet.isNotEmpty)
           'diaChiChiTiet': diaChiChiTiet,
         if (khuVucId != null) 'khuVucId': khuVucId,
+        if (soNhaTenDuong != null) 'soNhaTenDuong': soNhaTenDuong,
+        if (maTinh != null) 'maTinh': maTinh,
+        if (maPhuong != null) 'maPhuong': maPhuong,
       },
     );
   }
@@ -43,9 +50,15 @@ class AuthApiService {
     required String matKhau,
     required String ngaySinh, // yyyy-MM-dd
     String? gioiTinh,
-    required String noiCuTru,
-    String? tinhThanh, // dùng để xếp khu vực hoạt động (giống form web)
+    // ĐỊA CHỈ nơi ở hiện tại: số nhà + mã tỉnh, phường (provinces.open-api.vn v2)
+    String? noiCuTru,
+    String? soNhaTenDuong,
+    int? maTinh,
+    int? maPhuong,
+    String? tinhThanh,
     String? phuongXa,
+    // KHU VỰC nhận việc: 1 đến 5 quận, huyện
+    List<int>? danhSachKhuVucId,
     List<int>? danhSachDichVuId,
     List<Map<String, dynamic>>? danhSachHoSo, // [{loaiTaiLieu, duongDanFile}]
     List<Map<String, dynamic>>? danhSachChungChi, // [{loaiChungChi, tenChungChi, noiCap, ngayCap, duongDanFile}]
@@ -59,7 +72,11 @@ class AuthApiService {
         'matKhau': matKhau,
         'ngaySinh': ngaySinh,
         if (gioiTinh != null) 'gioiTinh': gioiTinh,
-        'noiCuTru': noiCuTru,
+        if (noiCuTru != null) 'noiCuTru': noiCuTru,
+        if (soNhaTenDuong != null) 'soNhaTenDuong': soNhaTenDuong,
+        if (maTinh != null) 'maTinh': maTinh,
+        if (maPhuong != null) 'maPhuong': maPhuong,
+        if (danhSachKhuVucId != null) 'danhSachKhuVucId': danhSachKhuVucId,
         if (tinhThanh != null && tinhThanh.isNotEmpty) 'tinhThanh': tinhThanh,
         if (phuongXa != null && phuongXa.isNotEmpty) 'phuongXa': phuongXa,
         if (danhSachDichVuId != null) 'danhSachDichVuId': danhSachDichVuId,

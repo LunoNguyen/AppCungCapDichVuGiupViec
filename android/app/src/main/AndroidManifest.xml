@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 13+: hiện thông báo trên thanh thông báo -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- GPS: khách lấy toạ độ địa chỉ, CTV gửi vị trí / chỉ đường -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>

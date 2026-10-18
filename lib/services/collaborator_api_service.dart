@@ -5,6 +5,24 @@ import '../models/cong_tac_vien.dart';
 class CollaboratorApiService {
   final ApiClient _apiClient = ApiClient();
 
+  /// Quận, huyện CTV đang nhận việc: [{id, tenKhuVuc}]
+  Future<ApiResponse<List<Map<String, dynamic>>>> getWorkAreas(int congTacVienId) {
+    return _apiClient.get<List<Map<String, dynamic>>>(
+      '/v1/collaborators/$congTacVienId/areas',
+      fromJsonT: (json) => json is List
+          ? json.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[],
+    );
+  }
+
+  /// Đặt lại khu vực nhận việc (1 đến 5 quận, huyện)
+  Future<ApiResponse<dynamic>> updateWorkAreas(int congTacVienId, List<int> khuVucIds) {
+    return _apiClient.put<dynamic>(
+      '/v1/collaborators/$congTacVienId/areas',
+      body: {'khuVucIds': khuVucIds},
+    );
+  }
+
   /// Lấy danh sách đơn được phân công cho CTV
   Future<ApiResponse<List<Map<String, dynamic>>>> getAssignments({
     required int congTacVienId,
@@ -36,6 +54,30 @@ class CollaboratorApiService {
   Future<ApiResponse<Map<String, dynamic>>> startAssignment(int phanCongId) async {
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/collaborators/assignments/$phanCongId/start',
+    );
+  }
+
+  /// CTV xử lý ca làm quá hạn sau khi thống nhất với Khách hàng
+  /// [action]: 'START_TODAY' | 'RESCHEDULE_KEEP' | 'RESCHEDULE_RELEASE' | 'CANCEL_ORDER'
+  Future<ApiResponse<Map<String, dynamic>>> resolveOverdueAssignment({
+    required int phanCongId,
+    required String action,
+    int? lichLamViecId,
+    String? ngayMoi,
+    String? gioBatDauMoi,
+    String? ghiChu,
+  }) async {
+    return _apiClient.put<Map<String, dynamic>>(
+      '/v1/collaborators/assignments/$phanCongId/resolve-overdue',
+      body: {
+        'action': action,
+        if (lichLamViecId != null && lichLamViecId > 0)
+          'lichLamViecId': lichLamViecId,
+        if (ngayMoi != null && ngayMoi.isNotEmpty) 'ngayMoi': ngayMoi,
+        if (gioBatDauMoi != null && gioBatDauMoi.isNotEmpty)
+          'gioBatDauMoi': gioBatDauMoi,
+        if (ghiChu != null && ghiChu.trim().isNotEmpty) 'ghiChu': ghiChu.trim(),
+      },
     );
   }
 
@@ -127,10 +169,24 @@ class CollaboratorApiService {
   /// GPS: gửi vị trí hiện tại của CTV
   /// PUT /v1/collaborators/{id}/location
   Future<ApiResponse<Map<String, dynamic>>> updateLocation(
-      int id, double viDo, double kinhDo) async {
+    int id,
+    double viDo,
+    double kinhDo, {
+    String? quanHuyen,
+    String? tinhThanh,
+    String? diaChi,
+  }) async {
+    final body = <String, dynamic>{
+      'viDo': viDo,
+      'kinhDo': kinhDo,
+    };
+    if (quanHuyen != null && quanHuyen.isNotEmpty) body['quanHuyen'] = quanHuyen;
+    if (tinhThanh != null && tinhThanh.isNotEmpty) body['tinhThanh'] = tinhThanh;
+    if (diaChi != null && diaChi.isNotEmpty) body['diaChi'] = diaChi;
+
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/collaborators/$id/location',
-      body: {'viDo': viDo, 'kinhDo': kinhDo},
+      body: body,
     );
   }
 

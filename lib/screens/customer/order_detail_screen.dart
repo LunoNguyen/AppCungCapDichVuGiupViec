@@ -5,6 +5,7 @@ import '../../core/app_colors.dart';
 import '../../services/booking_api_service.dart';
 import '../../services/session_service.dart';
 import '../../services/payment_api_service.dart';
+import '../../widgets/danh_gia_don.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final int orderId;
@@ -65,6 +66,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           _loading = false;
         });
       }
+    }
+  }
+
+  /// Tải lại đơn mà không hiện màn chờ (sau khi đánh giá / bình luận), giữ nguyên vị trí cuộn.
+  Future<void> _taiLaiDon() async {
+    final res = await _bookingApi.getBookingDetail(widget.orderId);
+    if (mounted && res.success && res.data != null) {
+      setState(() => _order = res.data);
+      widget.onOrderUpdated?.call();
     }
   }
 
@@ -770,51 +780,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ),
 
-            // Review section if available
-            if (danhGia != null) ...[
+            // Đánh giá + trao đổi với CSKH sau khi đơn hoàn thành
+            if (trangThai == 'HoanThanh' && _session != null) ...[
               const SizedBox(height: 14),
               _buildSection(
-                title: 'Đánh giá của bạn',
+                title: danhGia == null ? 'Đánh giá buổi làm' : 'Đánh giá của bạn',
                 icon: Icons.rate_review_rounded,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        ...List.generate(
-                          5,
-                          (i) => Icon(
-                            i < (danhGia['diemChatLuong'] ?? 5)
-                                ? Icons.star_rounded
-                                : Icons.star_border_rounded,
-                            color: AppColors.star,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${danhGia['diemChatLuong'] ?? 5}/5 sao',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (danhGia['nhanXet'] != null &&
-                        danhGia['nhanXet'].toString().isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        '"${danhGia['nhanXet']}"',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
-                  ],
+                child: DanhGiaDon(
+                  donDatId: widget.orderId,
+                  khachHangId: _session!.userId,
+                  danhGia: danhGia,
+                  onChanged: _taiLaiDon,
                 ),
               ),
             ],
@@ -1233,7 +1209,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _order!['trangThaiThanhToan']?.toString().toUpperCase() == 'DATHANHTOAN' ||
         _order!['trangThaiThanhToan']?.toString().toUpperCase() == 'DA_THANH_TOAN';
 
-    final canCancel = trangThai == 'ChoDuyet' || trangThai == 'DangTimCTV';
+    // Hủy được khi chưa bắt đầu làm (kể cả đã có cộng tác viên nhận); máy chủ kiểm tra giờ bắt đầu
+    final canCancel = trangThai == 'ChoDuyet' || trangThai == 'DangTimCTV' || trangThai == 'DaXacNhan';
     final canPay = !isPaid && trangThai != 'DaHuy';
 
     if (!canCancel && !canPay) return null;

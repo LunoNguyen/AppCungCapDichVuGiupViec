@@ -9,6 +9,8 @@ class CongTacVien {
   final DateTime? ngaySinh;
   final GioiTinhCTV? gioiTinh;
   final String noiCuTru;
+  /// Quận, huyện nhận việc, VD "Quận 1, Quận 3" (rỗng = chưa chọn)
+  final String khuVucNhanViec;
   final String soDienThoai;
   final double diemDanhGia;
   final double soDuVi; // Số dư ví thu nhập
@@ -24,6 +26,7 @@ class CongTacVien {
     this.ngaySinh,
     this.gioiTinh,
     required this.noiCuTru,
+    this.khuVucNhanViec = '',
     required this.soDienThoai,
     this.diemDanhGia = 0.0,
     this.soDuVi = 0.0,
@@ -51,6 +54,7 @@ class CongTacVien {
           ? _parseGioiTinh(json['gioiTinh'])
           : null,
       noiCuTru: json['noiCuTru'] ?? '',
+      khuVucNhanViec: json['khuVucNhanViec']?.toString() ?? '',
       soDienThoai: json['soDienThoai'] ?? '',
       diemDanhGia: (json['diemDanhGia'] as num?)?.toDouble() ?? 0.0,
       soDuVi: (json['soDuVi'] as num?)?.toDouble() ?? 0.0,

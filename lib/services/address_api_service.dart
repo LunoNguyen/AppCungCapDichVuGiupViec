@@ -1,9 +1,8 @@
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'api_client.dart';
 import 'api_response.dart';
 
 /// Địa chỉ đã lưu của khách hàng (khớp CustomerAddressService ở backend).
+/// Địa chỉ = số nhà, tên đường + phường, xã + tỉnh, thành; khu vực (quận, huyện) suy ra từ phường.
 class DiaChi {
   final int id;
   final String diaChiChiTiet;
@@ -13,6 +12,14 @@ class DiaChi {
   final String? luuYDacBiet;
   final bool laMacDinh;
 
+  /// Số cộng tác viên đang nhận việc trong khu vực của địa chỉ.
+  final int soCongTacVien;
+
+  /// Tách từ địa chỉ đã lưu để form sửa điền sẵn (null nếu không tách được).
+  final String? soNhaTenDuong;
+  final int? maTinh;
+  final int? maPhuong;
+
   const DiaChi({
     required this.id,
     required this.diaChiChiTiet,
@@ -21,6 +28,10 @@ class DiaChi {
     this.dienTichNha,
     this.luuYDacBiet,
     this.laMacDinh = false,
+    this.soCongTacVien = 0,
+    this.soNhaTenDuong,
+    this.maTinh,
+    this.maPhuong,
   });
 
   factory DiaChi.fromJson(Map<String, dynamic> j) => DiaChi(
@@ -31,58 +42,25 @@ class DiaChi {
         dienTichNha: double.tryParse(j['dienTichNha']?.toString() ?? ''),
         luuYDacBiet: j['luuYDacBiet']?.toString(),
         laMacDinh: j['laMacDinh'] == true,
+        soCongTacVien: int.tryParse(j['soCongTacVien']?.toString() ?? '') ?? 0,
+        soNhaTenDuong: j['soNhaTenDuong']?.toString(),
+        maTinh: int.tryParse(j['maTinh']?.toString() ?? ''),
+        maPhuong: int.tryParse(j['maPhuong']?.toString() ?? ''),
       );
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'diaChiChiTiet': diaChiChiTiet,
-        'khuVucId': khuVucId,
-        'khuVuc': khuVuc,
-        'dienTichNha': dienTichNha,
-        'luuYDacBiet': luuYDacBiet,
-        'laMacDinh': laMacDinh,
-      };
+  /// Địa chỉ nằm trong khu vực (quận, huyện) bTaskee phục vụ thì mới đặt dịch vụ được.
+  bool get coKhuVuc => khuVucId != null;
 
-  String get tieuDe =>
-      (khuVuc != null && khuVuc!.isNotEmpty) ? khuVuc! : 'Địa chỉ';
+  String get tieuDe => (khuVuc != null && khuVuc!.isNotEmpty)
+      ? 'Khu vực: ${khuVuc!.split(',').first}'
+      : 'Ngoài khu vực phục vụ';
 }
 
-/// Sổ địa chỉ: hỗ trợ đa điểm cuối Backend + tự động lưu máy (Local Storage) nếu Backend 404
+/// Sổ địa chỉ: GET/POST/PUT/DELETE /v1/customers/{khachHangId}/addresses.
 class AddressApiService {
   final ApiClient _apiClient = ApiClient();
 
-  static String _localKey(int khachHangId) => 'customer_addresses_$khachHangId';
-
-  Future<List<DiaChi>> _loadLocalAddresses(int khachHangId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? jsonStr = prefs.getString(_localKey(khachHangId));
-      if (jsonStr == null || jsonStr.isEmpty) return [];
-      final List decoded = jsonDecode(jsonStr);
-      return decoded
-          .map((e) => DiaChi.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<void> _saveLocalAddresses(int khachHangId, List<DiaChi> list) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonList = list.map((d) => d.toJson()).toList();
-      await prefs.setString(_localKey(khachHangId), jsonEncode(jsonList));
-    } catch (_) {}
-  }
-
-  bool _isNotFound(ApiResponse res) {
-    if (res.success) return false;
-    final msg = res.message ?? '';
-    return msg.contains('404') ||
-        msg.contains('static resource') ||
-        msg.contains('Phản hồi HTML') ||
-        msg.contains('3xx');
-  }
+  String _goc(int khachHangId) => '/v1/customers/$khachHangId/addresses';
 
   List<DiaChi> _parseList(dynamic json) {
     if (json is List) {
@@ -93,229 +71,64 @@ class AddressApiService {
     return <DiaChi>[];
   }
 
-  Future<ApiResponse<List<DiaChi>>> getAddresses(int khachHangId) async {
-    // Attempt 1: /v1/customers/$khachHangId/addresses
-    var res = await _apiClient.get<List<DiaChi>>(
-      '/v1/customers/$khachHangId/addresses',
-      fromJsonT: _parseList,
-    );
-    if (res.success && res.data != null) {
-      await _saveLocalAddresses(khachHangId, res.data!);
-      return res;
-    }
-    if (!_isNotFound(res)) return res;
-
-    // Attempt 2: /v1/customer/$khachHangId/addresses
-    res = await _apiClient.get<List<DiaChi>>(
-      '/v1/customer/$khachHangId/addresses',
-      fromJsonT: _parseList,
-    );
-    if (res.success && res.data != null) {
-      await _saveLocalAddresses(khachHangId, res.data!);
-      return res;
-    }
-    if (!_isNotFound(res)) return res;
-
-    // Attempt 3: /v1/customer/addresses?khachHangId=...
-    res = await _apiClient.get<List<DiaChi>>(
-      '/v1/customer/addresses',
-      queryParams: {'khachHangId': khachHangId},
-      fromJsonT: _parseList,
-    );
-    if (res.success && res.data != null) {
-      await _saveLocalAddresses(khachHangId, res.data!);
-      return res;
-    }
-    if (!_isNotFound(res)) return res;
-
-    // Fallback: Read local storage
-    final localList = await _loadLocalAddresses(khachHangId);
-    return ApiResponse.ok(localList);
+  Future<ApiResponse<List<DiaChi>>> getAddresses(int khachHangId) {
+    return _apiClient.get<List<DiaChi>>(_goc(khachHangId), fromJsonT: _parseList);
   }
 
+  /// Chỉ gửi [khuVucId] khi phường thuộc nhiều khu vực (người dùng đã chọn).
   Future<ApiResponse<Map<String, dynamic>>> createAddress(
     int khachHangId, {
-    required String diaChiChiTiet,
+    required String soNhaTenDuong,
+    required int maTinh,
+    required int maPhuong,
     int? khuVucId,
     String? luuYDacBiet,
     bool laMacDinh = false,
-  }) async {
-    final payload = {
-      'khachHangId': khachHangId,
-      'diaChiChiTiet': diaChiChiTiet,
-      if (khuVucId != null) 'khuVucId': khuVucId,
-      if (luuYDacBiet != null) 'luuYDacBiet': luuYDacBiet,
-      'laMacDinh': laMacDinh,
-    };
-
-    var res = await _apiClient.post<Map<String, dynamic>>(
-      '/v1/customers/$khachHangId/addresses',
-      body: payload,
+  }) {
+    return _apiClient.post<Map<String, dynamic>>(
+      _goc(khachHangId),
+      body: {
+        'soNhaTenDuong': soNhaTenDuong,
+        'maTinh': maTinh,
+        'maPhuong': maPhuong,
+        if (khuVucId != null) 'khuVucId': khuVucId,
+        if (luuYDacBiet != null) 'luuYDacBiet': luuYDacBiet,
+        'laMacDinh': laMacDinh,
+      },
     );
-    if (res.success) return res;
-    if (!_isNotFound(res)) return res;
-
-    res = await _apiClient.post<Map<String, dynamic>>(
-      '/v1/customer/$khachHangId/addresses',
-      body: payload,
-    );
-    if (res.success) return res;
-    if (!_isNotFound(res)) return res;
-
-    res = await _apiClient.post<Map<String, dynamic>>(
-      '/v1/customer/addresses',
-      body: payload,
-    );
-    if (res.success) return res;
-    if (!_isNotFound(res)) return res;
-
-    // Fallback: Create locally in SharedPreferences
-    final currentList = await _loadLocalAddresses(khachHangId);
-    final newId = DateTime.now().millisecondsSinceEpoch % 1000000;
-    final isDefault = laMacDinh || currentList.isEmpty;
-
-    final updatedList = <DiaChi>[];
-    for (final item in currentList) {
-      if (isDefault) {
-        updatedList.add(DiaChi(
-          id: item.id,
-          diaChiChiTiet: item.diaChiChiTiet,
-          khuVucId: item.khuVucId,
-          khuVuc: item.khuVuc,
-          dienTichNha: item.dienTichNha,
-          luuYDacBiet: item.luuYDacBiet,
-          laMacDinh: false,
-        ));
-      } else {
-        updatedList.add(item);
-      }
-    }
-
-    final newDiaChi = DiaChi(
-      id: newId,
-      diaChiChiTiet: diaChiChiTiet,
-      khuVucId: khuVucId,
-      luuYDacBiet: luuYDacBiet,
-      laMacDinh: isDefault,
-    );
-    updatedList.add(newDiaChi);
-    await _saveLocalAddresses(khachHangId, updatedList);
-
-    return ApiResponse.ok({'id': newId, 'message': 'Đã lưu địa chỉ thành công'});
   }
 
+  /// Gửi đủ các trường: backend ghi đè toàn bộ địa chỉ (lưu ý bỏ trống = xóa lưu ý).
   Future<ApiResponse<Map<String, dynamic>>> updateAddress(
     int khachHangId,
     int id, {
-    required String diaChiChiTiet,
+    required String soNhaTenDuong,
+    required int maTinh,
+    required int maPhuong,
     int? khuVucId,
+    double? dienTichNha,
     String? luuYDacBiet,
     bool? laMacDinh,
-  }) async {
-    final payload = {
-      'khachHangId': khachHangId,
-      'diaChiChiTiet': diaChiChiTiet,
-      if (khuVucId != null) 'khuVucId': khuVucId,
-      if (luuYDacBiet != null) 'luuYDacBiet': luuYDacBiet,
-      if (laMacDinh != null) 'laMacDinh': laMacDinh,
-    };
-
-    var res = await _apiClient.put<Map<String, dynamic>>(
-      '/v1/customers/$khachHangId/addresses/$id',
-      body: payload,
+  }) {
+    return _apiClient.put<Map<String, dynamic>>(
+      '${_goc(khachHangId)}/$id',
+      body: {
+        'soNhaTenDuong': soNhaTenDuong,
+        'maTinh': maTinh,
+        'maPhuong': maPhuong,
+        if (khuVucId != null) 'khuVucId': khuVucId,
+        if (dienTichNha != null) 'dienTichNha': dienTichNha,
+        if (luuYDacBiet != null) 'luuYDacBiet': luuYDacBiet,
+        if (laMacDinh != null) 'laMacDinh': laMacDinh,
+      },
     );
-    if (res.success) return res;
-    if (!_isNotFound(res)) return res;
-
-    res = await _apiClient.put<Map<String, dynamic>>(
-      '/v1/customer/$khachHangId/addresses/$id',
-      body: payload,
-    );
-    if (res.success) return res;
-    if (!_isNotFound(res)) return res;
-
-    // Fallback: Update locally in SharedPreferences
-    final currentList = await _loadLocalAddresses(khachHangId);
-    final isDefault = laMacDinh == true;
-
-    final updatedList = currentList.map((item) {
-      if (item.id == id) {
-        return DiaChi(
-          id: id,
-          diaChiChiTiet: diaChiChiTiet,
-          khuVucId: khuVucId ?? item.khuVucId,
-          khuVuc: item.khuVuc,
-          dienTichNha: item.dienTichNha,
-          luuYDacBiet: luuYDacBiet ?? item.luuYDacBiet,
-          laMacDinh: isDefault ? true : item.laMacDinh,
-        );
-      } else {
-        return isDefault
-            ? DiaChi(
-                id: item.id,
-                diaChiChiTiet: item.diaChiChiTiet,
-                khuVucId: item.khuVucId,
-                khuVuc: item.khuVuc,
-                dienTichNha: item.dienTichNha,
-                luuYDacBiet: item.luuYDacBiet,
-                laMacDinh: false,
-              )
-            : item;
-      }
-    }).toList();
-
-    await _saveLocalAddresses(khachHangId, updatedList);
-    return ApiResponse.ok({'id': id, 'message': 'Cập nhật địa chỉ thành công'});
   }
 
-  Future<ApiResponse<Map<String, dynamic>>> setDefault(
-      int khachHangId, int id) async {
-    var res = await _apiClient.put<Map<String, dynamic>>(
-        '/v1/customers/$khachHangId/addresses/$id/default');
-    if (res.success) return res;
-    if (!_isNotFound(res)) return res;
-
-    // Fallback: Set default locally in SharedPreferences
-    final currentList = await _loadLocalAddresses(khachHangId);
-    final updatedList = currentList.map((item) {
-      return DiaChi(
-        id: item.id,
-        diaChiChiTiet: item.diaChiChiTiet,
-        khuVucId: item.khuVucId,
-        khuVuc: item.khuVuc,
-        dienTichNha: item.dienTichNha,
-        luuYDacBiet: item.luuYDacBiet,
-        laMacDinh: item.id == id,
-      );
-    }).toList();
-
-    await _saveLocalAddresses(khachHangId, updatedList);
-    return ApiResponse.ok({'id': id, 'message': 'Đã đặt địa chỉ mặc định'});
+  Future<ApiResponse<Map<String, dynamic>>> setDefault(int khachHangId, int id) {
+    return _apiClient.put<Map<String, dynamic>>('${_goc(khachHangId)}/$id/default');
   }
 
-  Future<ApiResponse<Map<String, dynamic>>> deleteAddress(
-      int khachHangId, int id) async {
-    var res = await _apiClient.delete<Map<String, dynamic>>(
-        '/v1/customers/$khachHangId/addresses/$id');
-    if (res.success) return res;
-    if (!_isNotFound(res)) return res;
-
-    // Fallback: Delete locally in SharedPreferences
-    final currentList = await _loadLocalAddresses(khachHangId);
-    final updatedList = currentList.where((item) => item.id != id).toList();
-    if (updatedList.isNotEmpty && !updatedList.any((e) => e.laMacDinh)) {
-      updatedList[0] = DiaChi(
-        id: updatedList[0].id,
-        diaChiChiTiet: updatedList[0].diaChiChiTiet,
-        khuVucId: updatedList[0].khuVucId,
-        khuVuc: updatedList[0].khuVuc,
-        dienTichNha: updatedList[0].dienTichNha,
-        luuYDacBiet: updatedList[0].luuYDacBiet,
-        laMacDinh: true,
-      );
-    }
-
-    await _saveLocalAddresses(khachHangId, updatedList);
-    return ApiResponse.ok({'id': id, 'message': 'Đã xoá địa chỉ'});
+  Future<ApiResponse<Map<String, dynamic>>> deleteAddress(int khachHangId, int id) {
+    return _apiClient.delete<Map<String, dynamic>>('${_goc(khachHangId)}/$id');
   }
 }

@@ -11,6 +11,7 @@ import '../auth/login_screen.dart';
 import '../customer/customer_main_screen.dart';
 import '../../services/session_service.dart';
 import '../collaborator/collaborator_notifications_screen.dart';
+import 'collaborator_areas_screen.dart';
 
 class CollaboratorAccountScreen extends StatefulWidget {
   const CollaboratorAccountScreen({super.key});
@@ -197,7 +198,15 @@ class _CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                         _MenuItem(Icons.handyman_outlined, 'Dịch vụ đã đăng ký',
                             '5 dịch vụ', AppColors.partner500, () {}),
                         _MenuItem(Icons.map_outlined, 'Khu vực nhận việc',
-                            _profile!.noiCuTru.isNotEmpty ? _profile!.noiCuTru : 'Chưa cập nhật', const Color(0xFF2F80ED), () {}),
+                            _profile!.khuVucNhanViec.isNotEmpty ? _profile!.khuVucNhanViec : 'Chưa chọn quận, huyện',
+                            const Color(0xFF2F80ED), () async {
+                          final daLuu = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => CollaboratorAreasScreen(congTacVienId: _currentUserId)),
+                          );
+                          if (daLuu == true) await _fetchProfileData();
+                        }),
                       ]),
                       const SizedBox(height: 16),
                       _buildMenuSection('TÀI CHÍNH', [

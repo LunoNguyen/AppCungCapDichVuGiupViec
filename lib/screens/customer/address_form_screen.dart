@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/address_api_service.dart';
 import '../../services/location_service.dart';
-import '../../services/service_catalog_api_service.dart';
+import '../../widgets/dia_chi_fields.dart';
 
-/// Thêm / sửa một địa chỉ của khách hàng. Có thể điền địa chỉ từ vị trí GPS hiện tại.
+/// Thêm / sửa một địa chỉ của khách hàng: tỉnh, thành → phường, xã (provinces.open-api.vn v2) + số nhà.
+/// Khu vực (quận, huyện) tự suy ra từ phường. Có thể điền địa chỉ từ vị trí GPS hiện tại.
 /// Trả về `true` khi đã lưu.
 class AddressFormScreen extends StatefulWidget {
   final int khachHangId;
@@ -20,12 +21,12 @@ class AddressFormScreen extends StatefulWidget {
 
 class _AddressFormScreenState extends State<AddressFormScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _fieldsKey = GlobalKey<DiaChiFieldsState>();
   final AddressApiService _api = AddressApiService();
-  late final TextEditingController _diaChiCtrl;
+  late final TextEditingController _soNhaCtrl;
   late final TextEditingController _luuYCtrl;
+  final DiaChiDangChon _diaChi = DiaChiDangChon();
 
-  List<Map<String, dynamic>> _khuVucs = [];
-  int? _khuVucId;
   bool _laMacDinh = false;
   bool _saving = false;
   bool _locating = false;
@@ -36,11 +37,12 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
   void initState() {
     super.initState();
     final d = widget.diaChi;
-    _diaChiCtrl = TextEditingController(text: d?.diaChiChiTiet ?? '');
+    // Địa chỉ cũ không tách được tỉnh, phường: để cả chuỗi vào ô số nhà, người dùng chọn lại tỉnh, phường
+    _soNhaCtrl = TextEditingController(text: d?.soNhaTenDuong ?? d?.diaChiChiTiet ?? '');
     _luuYCtrl = TextEditingController(text: d?.luuYDacBiet ?? '');
-    _khuVucId = d?.khuVucId;
+    if (d?.maTinh != null) _diaChi.maTinh = d!.maTinh;
+    _diaChi.khuVucId = d?.khuVucId;
     _laMacDinh = d?.laMacDinh ?? false;
-    _loadAreas();
     if (widget.autoLocate) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _useCurrentLocation());
     }
@@ -48,23 +50,9 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
 
   @override
   void dispose() {
-    _diaChiCtrl.dispose();
+    _soNhaCtrl.dispose();
     _luuYCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadAreas() async {
-    final res = await ServiceCatalogApiService().getAreas();
-    if (!mounted || !res.success || res.data == null) return;
-    setState(() {
-      _khuVucs = res.data!
-          .where((k) => k['trangThai'] == null || k['trangThai'] == 'HoatDong'
-              || k['id'] == _khuVucId)
-          .toList();
-      if (_khuVucId != null && !_khuVucs.any((k) => k['id'] == _khuVucId)) {
-        _khuVucId = null;
-      }
-    });
   }
 
   void _showSnack(String msg, Color color) {
@@ -90,9 +78,14 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
             AppColors.error);
         return;
       }
-      setState(() => _diaChiCtrl.text = text);
+      // Chọn sẵn phường nếu đọc được tên phường; ô số nhà lấy phần đầu của địa chỉ
+      final timDuoc = _fieldsKey.currentState?.doanPhuong(text) ?? false;
+      final phan = text.split(',').map((e) => e.trim()).toList();
+      setState(() => _soNhaCtrl.text = phan.length > 2 ? phan.take(2).join(', ') : text);
       _showSnack(
-          'Đã điền địa chỉ theo vị trí hiện tại. Bạn có thể bổ sung số nhà, tầng, căn hộ.',
+          timDuoc
+              ? 'Đã điền địa chỉ theo vị trí hiện tại. Kiểm tra lại số nhà, tầng, căn hộ.'
+              : 'Đã điền số nhà, đường theo vị trí. Vui lòng chọn phường, xã.',
           AppColors.success);
     } finally {
       if (mounted) setState(() => _locating = false);
@@ -105,19 +98,27 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
     setState(() => _saving = true);
     try {
       final luuY = _luuYCtrl.text.trim();
+      // Chỉ gửi khu vực khi phường thuộc nhiều khu vực (người dùng đã chọn)
+      final nhieuKv = (_diaChi.phuong?.khuVuc.length ?? 0) > 1;
+      final khuVucId = nhieuKv ? _diaChi.khuVuc?.id : null;
       final res = _isEdit
           ? await _api.updateAddress(
               widget.khachHangId,
               widget.diaChi!.id,
-              diaChiChiTiet: _diaChiCtrl.text.trim(),
-              khuVucId: _khuVucId,
+              soNhaTenDuong: _soNhaCtrl.text.trim(),
+              maTinh: _diaChi.maTinh!,
+              maPhuong: _diaChi.phuong!.ma,
+              khuVucId: khuVucId,
+              dienTichNha: widget.diaChi!.dienTichNha,
               luuYDacBiet: luuY.isEmpty ? null : luuY,
               laMacDinh: _laMacDinh ? true : null,
             )
           : await _api.createAddress(
               widget.khachHangId,
-              diaChiChiTiet: _diaChiCtrl.text.trim(),
-              khuVucId: _khuVucId,
+              soNhaTenDuong: _soNhaCtrl.text.trim(),
+              maTinh: _diaChi.maTinh!,
+              maPhuong: _diaChi.phuong!.ma,
+              khuVucId: khuVucId,
               luuYDacBiet: luuY.isEmpty ? null : luuY,
               laMacDinh: _laMacDinh,
             );
@@ -161,43 +162,14 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _diaChiCtrl,
-                maxLines: 2,
-                maxLength: 300,
-                decoration: const InputDecoration(
-                  labelText: 'Địa chỉ chi tiết *',
-                  hintText: 'Số nhà, đường, phường/xã, tỉnh/thành',
-                  prefixIcon: Icon(Icons.home_outlined),
-                ),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Vui lòng nhập địa chỉ'
-                    : null,
+              DiaChiFields(
+                key: _fieldsKey,
+                giaTri: _diaChi,
+                soNhaCtrl: _soNhaCtrl,
+                maPhuongBanDau: widget.diaChi?.maPhuong,
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<int?>(
-                initialValue: _khuVucId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Khu vực (không bắt buộc)',
-                  prefixIcon: Icon(Icons.map_outlined),
-                ),
-                items: [
-                  const DropdownMenuItem<int?>(
-                      value: null, child: Text('Chưa chọn')),
-                  ..._khuVucs.map((k) => DropdownMenuItem<int?>(
-                        value: int.tryParse(k['id'].toString()),
-                        child: Text(
-                          [k['tenKhuVuc'], k['tinhThanh']]
-                              .where((e) => e != null)
-                              .join(', '),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      )),
-                ],
-                onChanged: (v) => setState(() => _khuVucId = v),
-              ),
-              const SizedBox(height: 16),
               TextFormField(
                 controller: _luuYCtrl,
                 maxLines: 2,

@@ -25,6 +25,38 @@ class ReviewApiService {
     );
   }
 
+  /// Sửa đánh giá (trong 7 ngày sau khi gửi). PUT /v1/reviews/order/{donDatId}
+  Future<ApiResponse<Map<String, dynamic>>> updateReview({
+    required int donDatId,
+    required int khachHangId,
+    required int diemChatLuong,
+    required int diemThaiDo,
+    String? nhanXet,
+  }) {
+    return _apiClient.put<Map<String, dynamic>>(
+      '/v1/reviews/order/$donDatId',
+      body: {
+        'donDatId': donDatId,
+        'khachHangId': khachHangId,
+        'diemChatLuong': diemChatLuong,
+        'diemThaiDo': diemThaiDo,
+        if (nhanXet != null) 'nhanXet': nhanXet,
+      },
+    );
+  }
+
+  /// Khách bình luận / phản hồi thêm dưới đánh giá. POST /v1/reviews/order/{donDatId}/comments
+  Future<ApiResponse<Map<String, dynamic>>> comment({
+    required int donDatId,
+    required int khachHangId,
+    required String noiDung,
+  }) {
+    return _apiClient.post<Map<String, dynamic>>(
+      '/v1/reviews/order/$donDatId/comments',
+      body: {'khachHangId': khachHangId, 'noiDung': noiDung},
+    );
+  }
+
   /// Xem các đánh giá công khai của một dịch vụ
   /// GET /v1/reviews/service/{dichVuId}
   Future<ApiResponse<List<Map<String, dynamic>>>> getReviewsByService(

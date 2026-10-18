@@ -1,3 +1,5 @@
+import '../../widgets/gia_hien_thi.dart';
+import '../../widgets/chuong_thong_bao.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
@@ -236,10 +238,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Bạn cần gì? Ví dụ: dọn nhà, máy lạnh',
+                        'Tìm theo tên dịch vụ, mô tả, giá tiền (vd: 216k)...',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 13.5),
                       ),
                     ),
                     Icon(Icons.tune_rounded, color: AppColors.textSecondary, size: 20),
@@ -326,7 +328,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ),
               ),
               _headerIcon(Icons.headset_mic_outlined, _showSupportBottomSheet),
-              _headerIcon(Icons.notifications_none_rounded, () {
+              IconButton(
+                splashRadius: 22,
+                icon: const ChuongThongBao(color: Colors.white, size: 24),
+                onPressed: () {
                 if (widget.onSwitchTab != null) {
                   widget.onSwitchTab!(2);
                 } else {
@@ -795,10 +800,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    s['price'] as String,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  GiaHienThi(
+                    gia: s['price'] as String,
+                    giaGoc: s['priceGoc'] as String?,
                     style: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w800,

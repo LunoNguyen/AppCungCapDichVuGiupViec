@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/app_colors.dart';
+import '../../services/app_realtime.dart';
 import '../../services/notification_api_service.dart';
 import 'collaborator_main_screen.dart';
 
@@ -10,10 +12,10 @@ class CollaboratorNotificationsScreen extends StatefulWidget {
 
   @override
   State<CollaboratorNotificationsScreen> createState() =>
-      _CollaboratorNotificationsScreenState();
+      CollaboratorNotificationsScreenState();
 }
 
-class _CollaboratorNotificationsScreenState
+class CollaboratorNotificationsScreenState
     extends State<CollaboratorNotificationsScreen> {
   final NotificationApiService _apiService = NotificationApiService();
   bool _isLoading = true;
@@ -22,15 +24,31 @@ class _CollaboratorNotificationsScreenState
   int _currentUserId = 0;
   List<Map<String, dynamic>> _items = [];
 
+  void refresh() {
+    _init();
+  }
+
   // Màu theo phong cách bTaskee Partner
   static const _primary = AppColors.partner500;
   static const _ink = AppColors.textPrimary;
   static const _headerTop = AppColors.partner500;
 
+  StreamSubscription<String>? _realtime;
+
   @override
   void initState() {
     super.initState();
     _init();
+    // Có thông báo mới qua realtime: tải lại danh sách
+    _realtime = AppRealtime.instance.suKien.listen((e) {
+      if (e == 'thong-bao-moi' && mounted) _fetchNotifications();
+    });
+  }
+
+  @override
+  void dispose() {
+    _realtime?.cancel();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -55,6 +73,9 @@ class _CollaboratorNotificationsScreenState
             thoiGian =
                 DateTime.tryParse(raw['thoiGianGui'].toString()) ?? DateTime.now();
           }
+          final bool daDoc = raw['daDoc'] == true ||
+              raw['daDoc'] == 1 ||
+              raw['daDoc']?.toString().toLowerCase() == 'true';
           loaded.add({
             'id': raw['id'],
             'thongBaoId': raw['thongBaoId'],
@@ -63,7 +84,7 @@ class _CollaboratorNotificationsScreenState
             'noiDung': raw['noiDung']?.toString() ?? '',
             'nguoiGui': raw['nguoiGui']?.toString() ?? 'Hệ thống',
             'thoiGian': thoiGian,
-            'daDoc': raw['daDoc'] == true,
+            'daDoc': daDoc,
           });
         }
         if (mounted) setState(() => _items = loaded);
@@ -85,6 +106,7 @@ class _CollaboratorNotificationsScreenState
     });
     try {
       await _apiService.markAllCollaboratorNotificationsRead(_currentUserId);
+      AppRealtime.instance.capNhatSoChuaDoc();
     } catch (_) {}
   }
 
@@ -98,6 +120,7 @@ class _CollaboratorNotificationsScreenState
           id: id,
           taiKhoanId: _currentUserId,
         );
+        AppRealtime.instance.capNhatSoChuaDoc();
       } catch (_) {}
     }
   }
@@ -674,11 +697,9 @@ class _CollaboratorNotificationsScreenState
           ),
           Row(
             children: [
-              _segment('Tất cả', !_onlyUnread,
+              _segment('Tất cả (${_items.length})', !_onlyUnread,
                   () => setState(() => _onlyUnread = false)),
-              _segment(
-                  'Chưa đọc${_unreadCount > 0 ? ' ($_unreadCount)' : ''}',
-                  _onlyUnread,
+              _segment('Chưa đọc (${_unreadCount})', _onlyUnread,
                   () => setState(() => _onlyUnread = true)),
             ],
           ),

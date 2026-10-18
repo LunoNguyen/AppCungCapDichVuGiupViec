@@ -97,6 +97,10 @@ class CatalogUi {
           ? 'Từ ${money(gia)}${donVi != null && donVi.isNotEmpty ? '/${donVi.toLowerCase()}' : ''}'
           : 'Liên hệ báo giá',
       'donGia': _num(gia),
+      // Giá trước đợt tăng/giảm tạm (máy chủ trả giaGoc), hiện gạch ngang dưới giá
+      'priceGoc': _num(j['giaGoc']) > 0 && _num(j['giaGoc']) != _num(gia)
+          ? '${money(j['giaGoc'])}${donVi != null && donVi.isNotEmpty ? '/${donVi.toLowerCase()}' : ''}'
+          : null,
       'description': j['moTaChiTiet']?.toString() ?? '',
       'icon': iconFor('$ten $tenLoai'),
       'iconColor': colorFor(loaiId),

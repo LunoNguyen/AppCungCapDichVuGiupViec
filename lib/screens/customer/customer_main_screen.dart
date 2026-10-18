@@ -4,6 +4,9 @@ import 'customer_home_screen.dart';
 import 'booking_history_screen.dart';
 import 'customer_notification_screen.dart';
 import 'customer_account_screen.dart';
+import '../../services/app_realtime.dart';
+import '../../services/session_service.dart';
+import '../../widgets/chuong_thong_bao.dart';
 
 /// Khung chính app Khách hàng - bố cục tab giống bTaskee:
 /// Trang chủ / Hoạt động / Thông báo / Tài khoản
@@ -17,14 +20,24 @@ class CustomerMainScreen extends StatefulWidget {
 
 class _CustomerMainScreenState extends State<CustomerMainScreen> {
   late int _currentIndex;
+  final GlobalKey<CustomerNotificationScreenState> _notifKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    // Realtime: thông báo mới hiện lên điện thoại + số chưa đọc trên chuông
+    SessionService.load().then((s) {
+      if (s != null && s.taiKhoanId > 0) {
+        AppRealtime.instance.batDau(taiKhoanId: s.taiKhoanId, laCongTacVien: false);
+      }
+    });
   }
 
   void _switchTab(int index) {
+    if (index == 2) {
+      _notifKey.currentState?.refresh();
+    }
     setState(() {
       _currentIndex = index;
     });
@@ -35,7 +48,7 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
     final screens = [
       CustomerHomeScreen(onSwitchTab: _switchTab),
       BookingHistoryScreen(onSwitchTab: _switchTab),
-      const CustomerNotificationScreen(),
+      CustomerNotificationScreen(key: _notifKey),
       const CustomerAccountScreen(),
     ];
 
@@ -77,8 +90,9 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
               label: 'Hoạt động',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.notifications_none_rounded),
-              activeIcon: Icon(Icons.notifications_rounded),
+              // Số thông báo chưa đọc, cập nhật theo realtime
+              icon: ChuongThongBao(),
+              activeIcon: ChuongThongBao(icon: Icons.notifications_rounded),
               label: 'Thông báo',
             ),
             BottomNavigationBarItem(

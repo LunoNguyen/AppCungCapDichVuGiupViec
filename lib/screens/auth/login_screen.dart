@@ -694,7 +694,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: AppColors.textPrimary,
                   ),
                   decoration: const InputDecoration(
-                    hintText: 'Nhập số điện thoại',
+                    hintText: 'Số điện thoại',
                     hintStyle: TextStyle(
                       color: AppColors.textMuted,
                       fontSize: 14.5,
