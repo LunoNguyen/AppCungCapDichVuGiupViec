@@ -49,6 +49,30 @@ class CollaboratorApiService {
     );
   }
 
+  /// CTV xử lý ca làm quá hạn sau khi thống nhất với Khách hàng
+  /// [action]: 'START_TODAY' | 'RESCHEDULE_KEEP' | 'RESCHEDULE_RELEASE' | 'CANCEL_ORDER'
+  Future<ApiResponse<Map<String, dynamic>>> resolveOverdueAssignment({
+    required int phanCongId,
+    required String action,
+    int? lichLamViecId,
+    String? ngayMoi,
+    String? gioBatDauMoi,
+    String? ghiChu,
+  }) async {
+    return _apiClient.put<Map<String, dynamic>>(
+      '/v1/collaborators/assignments/$phanCongId/resolve-overdue',
+      body: {
+        'action': action,
+        if (lichLamViecId != null && lichLamViecId > 0)
+          'lichLamViecId': lichLamViecId,
+        if (ngayMoi != null && ngayMoi.isNotEmpty) 'ngayMoi': ngayMoi,
+        if (gioBatDauMoi != null && gioBatDauMoi.isNotEmpty)
+          'gioBatDauMoi': gioBatDauMoi,
+        if (ghiChu != null && ghiChu.trim().isNotEmpty) 'ghiChu': ghiChu.trim(),
+      },
+    );
+  }
+
   /// CTV từ chối đơn
   Future<ApiResponse<Map<String, dynamic>>> rejectAssignment({
     required int id,
@@ -137,17 +161,24 @@ class CollaboratorApiService {
   /// GPS: gửi vị trí hiện tại của CTV
   /// PUT /v1/collaborators/{id}/location
   Future<ApiResponse<Map<String, dynamic>>> updateLocation(
-      int id, double viDo, double kinhDo,
-      {String? quanHuyen, String? tinhThanh, String? diaChi}) async {
+    int id,
+    double viDo,
+    double kinhDo, {
+    String? quanHuyen,
+    String? tinhThanh,
+    String? diaChi,
+  }) async {
+    final body = <String, dynamic>{
+      'viDo': viDo,
+      'kinhDo': kinhDo,
+    };
+    if (quanHuyen != null && quanHuyen.isNotEmpty) body['quanHuyen'] = quanHuyen;
+    if (tinhThanh != null && tinhThanh.isNotEmpty) body['tinhThanh'] = tinhThanh;
+    if (diaChi != null && diaChi.isNotEmpty) body['diaChi'] = diaChi;
+
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/collaborators/$id/location',
-      body: {
-        'viDo': viDo,
-        'kinhDo': kinhDo,
-        if (quanHuyen != null) 'quanHuyen': quanHuyen,
-        if (tinhThanh != null) 'tinhThanh': tinhThanh,
-        if (diaChi != null) 'diaChi': diaChi,
-      },
+      body: body,
     );
   }
 

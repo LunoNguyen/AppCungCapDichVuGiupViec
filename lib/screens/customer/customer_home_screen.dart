@@ -239,10 +239,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Bạn cần gì? Ví dụ: dọn nhà, máy lạnh',
+                        'Tìm theo tên dịch vụ, mô tả, giá tiền (vd: 216k)...',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 13.5),
                       ),
                     ),
                     Icon(Icons.tune_rounded, color: AppColors.textSecondary, size: 20),

@@ -72,22 +72,36 @@ class LocationService {
     }
   }
 
-  /// Quận/huyện, tỉnh/thành và địa chỉ của toạ độ (geocoder của máy, cần mạng). Null nếu không tra được.
-  static Future<({String? quanHuyen, String? tinhThanh, String? diaChi})?> traQuan(
-      double lat, double lng) async {
+  /// Lấy chi tiết thông tin hành chính (quận huyện, tỉnh thành, địa chỉ) từ toạ độ GPS.
+  static Future<Map<String, String>> getAddressDetails(double lat, double lng) async {
     try {
       final marks = await Geocoding(locale: const Locale('vi', 'VN'))
           .placemarkFromCoordinates(lat, lng);
-      if (marks.isEmpty) return null;
+      if (marks.isEmpty) return {};
       final p = marks.first;
-      String? khongRong(String? s) => s == null || s.trim().isEmpty ? null : s.trim();
-      return (
-        quanHuyen: khongRong(p.subAdministrativeArea) ?? khongRong(p.locality),
-        tinhThanh: khongRong(p.administrativeArea),
-        diaChi: await reverseGeocode(lat, lng),
-      );
+      String quanHuyen = p.subAdministrativeArea ?? '';
+      if (quanHuyen.isEmpty && p.locality != null && p.locality!.isNotEmpty) {
+        quanHuyen = p.locality!;
+      }
+      final parts = <String?>[
+        <String?>[p.subThoroughfare, p.thoroughfare]
+            .where((s) => s != null && s.isNotEmpty)
+            .join(' '),
+        p.subLocality,
+        quanHuyen,
+        p.administrativeArea,
+      ].where((s) => s != null && s.trim().isNotEmpty).cast<String>();
+      final out = <String>[];
+      for (final s in parts) {
+        if (out.isEmpty || out.last != s) out.add(s);
+      }
+      return {
+        'quanHuyen': quanHuyen,
+        'tinhThanh': p.administrativeArea ?? '',
+        'diaChi': out.join(', '),
+      };
     } catch (_) {
-      return null;
+      return {};
     }
   }
 
