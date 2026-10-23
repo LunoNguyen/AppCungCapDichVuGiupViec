@@ -80,6 +80,7 @@ class AddressApiService {
     int khachHangId, {
     required String soNhaTenDuong,
     required int maTinh,
+    int? maQuan,
     required int maPhuong,
     int? khuVucId,
     String? luuYDacBiet,
@@ -90,6 +91,7 @@ class AddressApiService {
       body: {
         'soNhaTenDuong': soNhaTenDuong,
         'maTinh': maTinh,
+        if (maQuan != null) 'maQuan': maQuan,
         'maPhuong': maPhuong,
         if (khuVucId != null) 'khuVucId': khuVucId,
         if (luuYDacBiet != null) 'luuYDacBiet': luuYDacBiet,
@@ -104,6 +106,7 @@ class AddressApiService {
     int id, {
     required String soNhaTenDuong,
     required int maTinh,
+    int? maQuan,
     required int maPhuong,
     int? khuVucId,
     double? dienTichNha,
@@ -115,6 +118,7 @@ class AddressApiService {
       body: {
         'soNhaTenDuong': soNhaTenDuong,
         'maTinh': maTinh,
+        if (maQuan != null) 'maQuan': maQuan,
         'maPhuong': maPhuong,
         if (khuVucId != null) 'khuVucId': khuVucId,
         if (dienTichNha != null) 'dienTichNha': dienTichNha,

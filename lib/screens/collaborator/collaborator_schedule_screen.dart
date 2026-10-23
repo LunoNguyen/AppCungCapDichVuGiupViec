@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
 import '../../services/collaborator_api_service.dart';
 import '../../services/location_service.dart';
+import '../../widgets/app_time_picker.dart';
 
 class CollaboratorScheduleScreen extends StatefulWidget {
   const CollaboratorScheduleScreen({super.key});
@@ -2124,12 +2125,13 @@ class CollaboratorScheduleScreenState
                                             style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
                                           ),
                                           onPressed: () async {
-                                            final pickedTime = await showTimePicker(
+                                            final pickedTime = await showAppTimePicker(
                                               context: ctx,
                                               initialTime: TimeOfDay(
                                                 hour: selectedStartMins ~/ 60,
                                                 minute: selectedStartMins % 60,
                                               ),
+                                              title: 'Chọn giờ bắt đầu ca làm',
                                             );
                                             if (pickedTime != null) {
                                               setModalState(() {

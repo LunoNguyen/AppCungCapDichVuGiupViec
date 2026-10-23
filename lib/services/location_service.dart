@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart' show Locale;
+﻿import 'package:flutter/widgets.dart' show Locale;
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -72,36 +72,125 @@ class LocationService {
     }
   }
 
+  static const List<({String ten, double viDo, double kinhDo})> _tamQuanHcm = [
+    (ten: 'Quận 1', viDo: 10.7769, kinhDo: 106.7009),
+    (ten: 'Quận 3', viDo: 10.7843, kinhDo: 106.6844),
+    (ten: 'Quận 4', viDo: 10.7578, kinhDo: 106.7013),
+    (ten: 'Quận 5', viDo: 10.7540, kinhDo: 106.6634),
+    (ten: 'Quận 6', viDo: 10.7480, kinhDo: 106.6352),
+    (ten: 'Quận 7', viDo: 10.7340, kinhDo: 106.7215),
+    (ten: 'Quận 8', viDo: 10.7240, kinhDo: 106.6286),
+    (ten: 'Quận 10', viDo: 10.7746, kinhDo: 106.6670),
+    (ten: 'Quận 11', viDo: 10.7629, kinhDo: 106.6505),
+    (ten: 'Quận 12', viDo: 10.8672, kinhDo: 106.6413),
+    (ten: 'Quận Bình Thạnh', viDo: 10.8106, kinhDo: 106.7091),
+    (ten: 'Quận Bình Tân', viDo: 10.7653, kinhDo: 106.6036),
+    (ten: 'Quận Gò Vấp', viDo: 10.8387, kinhDo: 106.6653),
+    (ten: 'Quận Phú Nhuận', viDo: 10.7991, kinhDo: 106.6803),
+    (ten: 'Quận Tân Bình', viDo: 10.8015, kinhDo: 106.6527),
+    (ten: 'Quận Tân Phú', viDo: 10.7901, kinhDo: 106.6281),
+    (ten: 'Thành phố Thủ Đức', viDo: 10.8231, kinhDo: 106.7710),
+    (ten: 'Huyện Bình Chánh', viDo: 10.6874, kinhDo: 106.5939),
+    (ten: 'Huyện Cần Giờ', viDo: 10.4113, kinhDo: 106.9547),
+    (ten: 'Huyện Củ Chi', viDo: 11.0067, kinhDo: 106.5135),
+    (ten: 'Huyện Hóc Môn', viDo: 10.8862, kinhDo: 106.5923),
+    (ten: 'Huyện Nhà Bè', viDo: 10.6950, kinhDo: 106.7400),
+  ];
+
+  /// Đoán quận/huyện TP.HCM từ toạ độ (chọn tâm gần nhất trong bán kính 30km).
+  static String? doanQuanTheoToaDo(double lat, double lng) {
+    ({String ten, double viDo, double kinhDo})? gan;
+    double min = double.infinity;
+    for (int i = 0; i < _tamQuanHcm.length; i++) {
+      final t = _tamQuanHcm[i];
+      final d = distanceKm(lat, lng, t.viDo, t.kinhDo);
+      if (d < min) {
+        min = d;
+        gan = t;
+      }
+    }
+    return (gan != null && min <= 30) ? gan.ten : null;
+  }
+
+  /// Tìm tên quận từ danh sách các trường địa chỉ của Geocoder.
+  static String? _timTenQuan(Iterable<String?> texts) {
+    for (final raw in texts) {
+      if (raw == null || raw.trim().isEmpty) continue;
+      final t = raw.trim().toLowerCase();
+      if (t == 'thành phố hồ chí minh' ||
+          t == 'thành phố hcm' ||
+          t == 'tp. hcm' ||
+          t == 'tp.hcm' ||
+          t == 'ho chi minh city' ||
+          t == 'hồ chí minh') {
+        continue;
+      }
+      for (final q in _tamQuanHcm) {
+        final qTen = q.ten.toLowerCase();
+        final qRutGon = qTen.replaceFirst(RegExp(r'^(quận|huyện|thành phố)\s+'), '');
+        if (t == qTen || t.contains(qTen) || t.contains(qRutGon)) {
+          return q.ten;
+        }
+      }
+    }
+    return null;
+  }
+
   /// Lấy chi tiết thông tin hành chính (quận huyện, tỉnh thành, địa chỉ) từ toạ độ GPS.
   static Future<Map<String, String>> getAddressDetails(double lat, double lng) async {
     try {
       final marks = await Geocoding(locale: const Locale('vi', 'VN'))
           .placemarkFromCoordinates(lat, lng);
-      if (marks.isEmpty) return {};
-      final p = marks.first;
-      String quanHuyen = p.subAdministrativeArea ?? '';
-      if (quanHuyen.isEmpty && p.locality != null && p.locality!.isNotEmpty) {
-        quanHuyen = p.locality!;
+      Placemark? p = marks.isNotEmpty ? marks.first : null;
+
+      String? quanHuyen;
+      if (p != null) {
+        quanHuyen = _timTenQuan([
+          p.subAdministrativeArea,
+          p.subLocality,
+          p.locality,
+          p.thoroughfare,
+          p.street,
+          p.name,
+        ]);
       }
+
+      quanHuyen ??= doanQuanTheoToaDo(lat, lng);
+      quanHuyen ??= '';
+
+      String tinhThanh = p?.administrativeArea ?? '';
+      if (tinhThanh.isEmpty && quanHuyen.isNotEmpty) {
+        tinhThanh = 'Thành phố Hồ Chí Minh';
+      }
+
       final parts = <String?>[
-        <String?>[p.subThoroughfare, p.thoroughfare]
-            .where((s) => s != null && s.isNotEmpty)
-            .join(' '),
-        p.subLocality,
-        quanHuyen,
-        p.administrativeArea,
+        p != null
+            ? <String?>[p.subThoroughfare, p.thoroughfare]
+                .where((s) => s != null && s.isNotEmpty)
+                .join(' ')
+            : null,
+        p?.subLocality,
+        quanHuyen.isNotEmpty ? quanHuyen : null,
+        tinhThanh.isNotEmpty ? tinhThanh : null,
       ].where((s) => s != null && s.trim().isNotEmpty).cast<String>();
+
       final out = <String>[];
       for (final s in parts) {
         if (out.isEmpty || out.last != s) out.add(s);
       }
+
       return {
         'quanHuyen': quanHuyen,
-        'tinhThanh': p.administrativeArea ?? '',
+        'tinhThanh': tinhThanh,
         'diaChi': out.join(', '),
       };
     } catch (_) {
-      return {};
+      final q = doanQuanTheoToaDo(lat, lng) ?? '';
+      return {
+        'quanHuyen': q,
+        'tinhThanh': q.isNotEmpty ? 'Thành phố Hồ Chí Minh' : '',
+        'diaChi': q,
+      };
     }
   }
 

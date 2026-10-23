@@ -9,6 +9,7 @@ import '../../services/collaborator_api_service.dart';
 import '../../services/app_realtime.dart';
 import '../../services/location_service.dart';
 import '../../services/ctv_location_tracker.dart';
+import '../../widgets/app_time_picker.dart';
 
 class CollaboratorOrdersScreen extends StatefulWidget {
   const CollaboratorOrdersScreen({super.key});
@@ -1132,21 +1133,29 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.access_time_filled, size: 16, color: _primary),
-                            const SizedBox(width: 4),
-                            Text(
-                              // Ngày + giờ thực hiện
-                              dateStr.isNotEmpty ? '$dateStr · $timeStr' : timeStr,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w800,
-                                color: _primary,
+                        Expanded(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.access_time_filled, size: 16, color: _primary),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  // Ngày + giờ thực hiện
+                                  dateStr.isNotEmpty ? '$dateStr · $timeStr' : timeStr,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: _primary,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         _buildCountdownBadge(o),
                       ],
                     ),
@@ -1181,14 +1190,19 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Đã làm: $dateStr ($timeStr)',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
+                        Expanded(
+                          child: Text(
+                            'Đã làm: $dateStr ($timeStr)',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
@@ -1520,9 +1534,12 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                           _handleMapButton(address, lat: lat, lng: lng);
                         },
                         icon: const Icon(Icons.map_outlined, size: 16),
-                        label: const Text(
-                          'Xem bản đồ',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Xem bản đồ',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                          ),
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _primary,
@@ -1549,13 +1566,16 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                                   : Icons.lock_outline_rounded),
                           size: 18,
                         ),
-                        label: Text(
-                          isReady
-                              ? 'Bắt đầu làm'
-                              : (isOverdue
-                                  ? 'Xử lý quá hạn'
-                                  : (diff != null && diff > 0 ? 'Chưa đến ngày' : 'Chưa đến giờ')),
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                        label: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            isReady
+                                ? 'Bắt đầu làm'
+                                : (isOverdue
+                                    ? 'Xử lý quá hạn'
+                                    : (diff != null && diff > 0 ? 'Chưa đến ngày' : 'Chưa đến giờ')),
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                          ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isReady
@@ -2906,12 +2926,13 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                                     style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
                                   ),
                                   onPressed: () async {
-                                    final pickedTime = await showTimePicker(
+                                    final pickedTime = await showAppTimePicker(
                                       context: context,
                                       initialTime: TimeOfDay(
                                         hour: selectedStartMins ~/ 60,
                                         minute: selectedStartMins % 60,
                                       ),
+                                      title: 'Chọn giờ bắt đầu ca làm',
                                     );
                                     if (pickedTime != null) {
                                       setModalState(() {

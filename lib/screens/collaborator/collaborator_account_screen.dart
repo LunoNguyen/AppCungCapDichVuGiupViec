@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,8 +23,11 @@ class CollaboratorAccountScreen extends StatefulWidget {
 class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   /// Tải ngầm lại hồ sơ khi mở tab Tài khoản (khu vực nhận việc có thể vừa đổi theo GPS), không hiện vòng xoay.
   Future<void> reload() async {
-    if (_currentUserId == 0 || _isLoading) return;
+    if (_currentUserId == 0) return;
     try {
+      if (CtvLocationTracker.instance.isRunning) {
+        await CtvLocationTracker.instance.forceSend();
+      }
       final response = await _apiService.getProfile(_currentUserId);
       if (mounted && response.success && response.data != null) {
         setState(() => _profile = response.data);
@@ -67,9 +70,17 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     CtvLocationTracker.instance.stop();
     final loi = await CtvLocationTracker.instance.start(_currentUserId);
     if (!mounted) return;
+    // Chờ 1.2s để toạ độ GPS gửi lên server và đồng bộ CSDL, sau đó tải lại hồ sơ ngay lập tức
+    await Future.delayed(const Duration(milliseconds: 1200));
+    await reload();
+    if (!mounted) return;
     setState(() => _dangGuiViTri = false);
+    final quan = _profile?.khuVucNhanViec;
+    final msg = loi ?? (quan != null && quan.isNotEmpty
+        ? 'Đã cập nhật vị trí GPS: '
+        : 'Đang chia sẻ vị trí của bạn (cập nhật mỗi 5 giây).');
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(loi ?? 'Đang chia sẻ vị trí của bạn (cập nhật mỗi 5 giây).'),
+      content: Text(msg),
       backgroundColor: loi == null ? AppColors.success : AppColors.error,
     ));
   }

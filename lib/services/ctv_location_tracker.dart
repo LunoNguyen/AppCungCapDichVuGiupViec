@@ -30,12 +30,6 @@ class CtvLocationTracker {
   bool _sending = false;
   String? _currentDistrict;
 
-  // Quận đã tra gần nhất và toạ độ / thời điểm tra
-  ({String? quanHuyen, String? tinhThanh, String? diaChi})? _quan;
-  double? _viDoTra;
-  double? _kinhDoTra;
-  DateTime? _lucTra;
-
   bool get isRunning => _timer != null;
   String? get currentDistrict => _currentDistrict;
 
@@ -68,15 +62,20 @@ class CtvLocationTracker {
     return null;
   }
 
+  /// Gửi ngay lập tức vị trí GPS hiện tại lên server.
+  Future<void> forceSend() async {
+    final pos = await LocationService.getCurrentPosition();
+    if (pos.ok && pos.position != null) {
+      _latest = pos.position;
+      await _send();
+    }
+  }
+
   void stop() {
     _timer?.cancel();
     _timer = null;
     _sub?.cancel();
     _sub = null;
-    _quan = null;
-    _viDoTra = null;
-    _kinhDoTra = null;
-    _lucTra = null;
   }
 
   Future<void> _send() async {
