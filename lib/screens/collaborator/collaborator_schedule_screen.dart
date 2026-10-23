@@ -538,8 +538,8 @@ class CollaboratorScheduleScreenState
 
     String dateRangeText = 'Chọn khoảng ngày';
     if (_allScheduleDateRange != null) {
-      final s = DateFormat('dd/MM/yy').format(_allScheduleDateRange!.start);
-      final e = DateFormat('dd/MM/yy').format(_allScheduleDateRange!.end);
+      final s = DateFormat('dd/MM/yyyy').format(_allScheduleDateRange!.start);
+      final e = DateFormat('dd/MM/yyyy').format(_allScheduleDateRange!.end);
       dateRangeText = s == e ? s : '$s - $e';
     }
 

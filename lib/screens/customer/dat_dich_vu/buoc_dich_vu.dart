@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/app_colors.dart';
 import '../../../services/catalog_ui.dart';
 import '../../../services/nhom_dich_vu.dart';
+import '../../../widgets/anh_khong_cat.dart';
 
 /// Bước 1: các dịch vụ cùng danh mục, mỗi mã dịch vụ một thẻ (ảnh, tên, "Từ …đ").
 class BuocDichVu extends StatelessWidget {
@@ -86,7 +87,7 @@ class BuocDichVu extends StatelessWidget {
                 height: 64,
                 child: anh == null
                     ? _anhThay(g)
-                    : Image.network(anh, fit: BoxFit.cover, errorBuilder: (_, _, _) => _anhThay(g)),
+                    : AnhKhongCat(url: anh, thayThe: _anhThay(g)),
               ),
             ),
             const SizedBox(width: 12),
