@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../chinh_sach_screen.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
 import '../auth/change_password_screen.dart';
@@ -104,6 +105,14 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
                   icon: Icons.info_outline_rounded,
                   title: 'Giới thiệu bTaskee',
                   onTap: () => _showAboutDialog(context),
+                ),
+                _OptionItem(
+                  icon: Icons.policy_outlined,
+                  title: 'Chính sách',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ChinhSachScreen()),
+                  ),
                 ),
               ]),
               if (_loggedIn) ...[
