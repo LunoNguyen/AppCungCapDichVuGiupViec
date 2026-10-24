@@ -1038,11 +1038,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
               DiaChiFields(
                 giaTri: _diaChiCtv,
                 soNhaCtrl: _ctvAddressController,
-                ghiChuKhuVuc: (d) => d.phuong == null
-                    ? ''
-                    : d.phuong!.khuVuc.isEmpty
+                ghiChuKhuVuc: (d) {
+                  if (d.isV1) {
+                    if (d.quanV1 == null) return '';
+                    return d.quanV1!.khuVucId == null
                         ? 'Nơi ở ngoài khu vực bTaskee đang phục vụ'
-                        : 'Thuộc khu vực: ${d.phuong!.khuVuc.map((k) => k.ten).join(' / ')}',
+                        : 'Thuộc khu vực: ${d.quanV1!.tenKhuVuc ?? d.quanV1!.ten}';
+                  }
+                  return d.phuong == null
+                      ? ''
+                      : d.phuong!.khuVuc.isEmpty
+                          ? 'Nơi ở ngoài khu vực bTaskee đang phục vụ'
+                          : 'Thuộc khu vực: ${d.phuong!.khuVuc.map((k) => k.ten).join(' / ')}';
+                },
               ),
 
               const SizedBox(height: 12),

@@ -4,22 +4,36 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Quy tắc chuyển giữa 5 bước của màn đặt (giống website).
 void main() {
-  NhomDichVu nhom({required bool theoLan, required bool goi}) => NhomDichVu(
+  // Biến thể mặc định: theo lần 2 giờ + gói tháng (tuỳ cờ)
+  NhomDichVu nhom({required bool theoLan, required bool goi, List<Map<String, dynamic>>? bienThe}) => NhomDichVu(
         ma: 'DV101',
         ten: 'Dọn dẹp nhà theo giờ',
         giaTu: 216000,
         coTheoLan: theoLan,
         coGoiThang: goi,
-        bienThe: const [],
+        bienThe: bienThe ??
+            [
+              if (theoLan) {'id': 1, 'loaiHinhDat': 'TheoLan'},
+              if (goi) {'id': 2, 'loaiHinhDat': 'GoiThang'},
+            ],
       );
 
-  test('Dịch vụ chỉ có gói tháng: bỏ qua bước 2, mở ở bước 3', () {
+  test('Dịch vụ chỉ một lựa chọn (một gói tháng): bỏ qua bước 2, mở ở bước 3', () {
     final n = nhom(theoLan: false, goi: true);
     expect(BuocDat.boQuaBuoc2(n), isTrue);
     expect(BuocDat.buocMoDau(n), 3);
     expect(BuocDat.loaiMacDinh(n), 'GoiThang');
     expect(BuocDat.buocKe(1, n), 3);
     expect(BuocDat.buocLui(3, n), 1);
+  });
+
+  test('Một hình thức nhưng nhiều thời lượng: vẫn có bước 2 để chọn thời lượng', () {
+    final n = nhom(theoLan: true, goi: false, bienThe: [
+      {'id': 1, 'loaiHinhDat': 'TheoLan'},
+      {'id': 3, 'loaiHinhDat': 'TheoLan'},
+    ]);
+    expect(BuocDat.boQuaBuoc2(n), isFalse);
+    expect(BuocDat.buocMoDau(n), 2);
   });
 
   test('Dịch vụ có đủ hai hình thức: đi đủ 5 bước', () {
@@ -37,7 +51,9 @@ void main() {
     final n = nhom(theoLan: true, goi: true);
     expect(BuocDat.loiBuoc(1, DuLieuDat()), 'Vui lòng chọn dịch vụ.');
     expect(BuocDat.loiBuoc(2, DuLieuDat(nhom: n)), 'Vui lòng chọn theo lần hoặc gói tháng.');
-    expect(BuocDat.loiBuoc(3, DuLieuDat(nhom: n, loaiHinhDat: 'TheoLan')), 'Vui lòng chọn thời lượng / gói.');
+    // Thời lượng / gói chọn ở bước 2, cùng hình thức
+    expect(BuocDat.loiBuoc(2, DuLieuDat(nhom: n, loaiHinhDat: 'TheoLan')), 'Vui lòng chọn thời lượng / gói.');
+    expect(BuocDat.loiBuoc(2, DuLieuDat(nhom: n, loaiHinhDat: 'TheoLan', dichVuId: 1)), isNull);
     expect(BuocDat.loiBuoc(3, DuLieuDat(nhom: n, loaiHinhDat: 'TheoLan', dichVuId: 1)), 'Vui lòng chọn giờ bắt đầu.');
     expect(
         BuocDat.loiBuoc(3, DuLieuDat(nhom: n, loaiHinhDat: 'GoiThang', dichVuId: 1, daChonGio: true,

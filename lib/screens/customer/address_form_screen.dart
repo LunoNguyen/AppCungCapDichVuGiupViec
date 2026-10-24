@@ -98,16 +98,18 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
     setState(() => _saving = true);
     try {
       final luuY = _luuYCtrl.text.trim();
-      // Chỉ gửi khu vực khi phường thuộc nhiều khu vực (người dùng đã chọn)
-      final nhieuKv = (_diaChi.phuong?.khuVuc.length ?? 0) > 1;
-      final khuVucId = nhieuKv ? _diaChi.khuVuc?.id : null;
+      final maPhuong = _diaChi.isV1 ? _diaChi.phuongV1!.ma : _diaChi.phuong!.ma;
+      final maQuan = _diaChi.isV1 ? _diaChi.quanV1?.ma : null;
+      final nhieuKv = !_diaChi.isV1 && (_diaChi.phuong?.khuVuc.length ?? 0) > 1;
+      final khuVucId = _diaChi.isV1 ? _diaChi.quanV1?.khuVucId : (nhieuKv ? _diaChi.khuVuc?.id : null);
       final res = _isEdit
           ? await _api.updateAddress(
               widget.khachHangId,
               widget.diaChi!.id,
               soNhaTenDuong: _soNhaCtrl.text.trim(),
               maTinh: _diaChi.maTinh!,
-              maPhuong: _diaChi.phuong!.ma,
+              maQuan: maQuan,
+              maPhuong: maPhuong,
               khuVucId: khuVucId,
               dienTichNha: widget.diaChi!.dienTichNha,
               luuYDacBiet: luuY.isEmpty ? null : luuY,
@@ -117,7 +119,8 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
               widget.khachHangId,
               soNhaTenDuong: _soNhaCtrl.text.trim(),
               maTinh: _diaChi.maTinh!,
-              maPhuong: _diaChi.phuong!.ma,
+              maQuan: maQuan,
+              maPhuong: maPhuong,
               khuVucId: khuVucId,
               luuYDacBiet: luuY.isEmpty ? null : luuY,
               laMacDinh: _laMacDinh,

@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../core/app_colors.dart';
 import '../../../services/address_api_service.dart';
-import '../../../services/catalog_ui.dart';
 import '../../../services/lich_goi_thang.dart';
 import '../../../widgets/lich_thang.dart';
 
-/// Bước 3: thời lượng / gói, ngày, giờ bắt đầu, các thứ của gói tháng, địa chỉ, ghi chú.
+/// Bước 3: ngày, giờ bắt đầu, các thứ của gói tháng, địa chỉ, ghi chú.
 /// Trạng thái nằm ở BookingScreen; widget này chỉ hiển thị và báo lựa chọn lên.
 class BuocThoiGian extends StatelessWidget {
   final String loai;
-  final List<Map<String, dynamic>> bienThes;
-  final int? dichVuId;
-  final ValueChanged<int> onChonBienThe;
 
   final DateTime? ngay;
   final DateTime ngayDau;
@@ -38,9 +34,6 @@ class BuocThoiGian extends StatelessWidget {
   const BuocThoiGian({
     super.key,
     required this.loai,
-    required this.bienThes,
-    required this.dichVuId,
-    required this.onChonBienThe,
     required this.ngay,
     required this.ngayDau,
     required this.ngayCuoi,
@@ -68,23 +61,11 @@ class BuocThoiGian extends StatelessWidget {
   static String ddmm(DateTime d) =>
       '${LichGoiThang.nhanThu[d.weekday - 1]} ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
 
-  /// Nhãn ngắn của biến thể: phần trong ngoặc của tên ("2 giờ", "4 buổi/tháng"), không có thì theo thời lượng.
-  static String nhanBienThe(Map<String, dynamic> b) {
-    final ten = b['tenDichVu']?.toString() ?? '';
-    final m = RegExp(r'\(([^)]+)\)\s*$').firstMatch(ten);
-    if (m != null) return m.group(1)!;
-    final phut = CatalogUi.toInt(b['thoiGianThucHienPhut']);
-    if (phut > 0) return phut % 60 == 0 ? '${phut ~/ 60} giờ' : '$phut phút';
-    return ten.isEmpty ? 'Dịch vụ' : ten;
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.only(bottom: 16),
       children: [
-        _khoi(_laGoi ? 'Gói dịch vụ' : 'Thời lượng', _luoiBienThe()),
-        const SizedBox(height: 10),
         _khoi(
           _laGoi ? 'Ngày bắt đầu gói' : 'Ngày làm việc',
           Column(
@@ -124,49 +105,6 @@ class BuocThoiGian extends StatelessWidget {
             decoration: const InputDecoration(hintText: 'VD: Nhà có thú cưng, cần lau kính kỹ...'),
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _luoiBienThe() {
-    if (bienThes.isEmpty) {
-      return const Text('Chưa có lựa chọn cho hình thức này.',
-          style: TextStyle(color: AppColors.textSecondary));
-    }
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final b in bienThes)
-          () {
-            final id = CatalogUi.toInt(b['id']);
-            final chon = id == dichVuId;
-            return GestureDetector(
-              onTap: () => onChonBienThe(id),
-              child: Container(
-                constraints: const BoxConstraints(minWidth: 96),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: chon ? AppColors.brandSurface : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: chon ? AppColors.brand500 : AppColors.divider, width: chon ? 1.5 : 1),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(nhanBienThe(b),
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                    const SizedBox(height: 2),
-                    Text(CatalogUi.money(b['donGiaThamKhao']),
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: chon ? AppColors.brand600 : AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-            );
-          }(),
       ],
     );
   }

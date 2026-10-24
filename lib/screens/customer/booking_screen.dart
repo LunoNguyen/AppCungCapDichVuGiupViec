@@ -605,13 +605,16 @@ class _BookingScreenState extends State<BookingScreen> {
           onThuLai: _taiDichVu,
         );
       case 2:
-        return BuocHinhThuc(nhom: _nhom!, loaiChon: _loai, onChon: _chonLoai);
+        return BuocHinhThuc(
+          nhom: _nhom!,
+          loaiChon: _loai,
+          onChon: _chonLoai,
+          dichVuId: _dichVuId,
+          onChonBienThe: _chonBienThe,
+        );
       case 3:
         return BuocThoiGian(
           loai: _loai,
-          bienThes: _nhom?.bienTheTheoLoai(_loai) ?? const [],
-          dichVuId: _dichVuId,
-          onChonBienThe: _chonBienThe,
           ngay: _ngay,
           ngayDau: _homNay,
           ngayCuoi: RangBuocNgayDat.ngayToiDa(_loai, _homNay),
@@ -667,7 +670,7 @@ class _BookingScreenState extends State<BookingScreen> {
     return [
       ('Dịch vụ', _nhom?.ten ?? '—'),
       ('Hình thức', CatalogUi.loaiHinhLabel(_loai)),
-      (_laGoi ? 'Gói' : 'Thời lượng', bt == null ? '—' : BuocThoiGian.nhanBienThe(bt)),
+      (_laGoi ? 'Gói' : 'Thời lượng', bt == null ? '—' : NhomDichVu.nhanBienThe(bt)),
       if (_laGoi && _loiLichGoi == null) ...[
         ('Thứ trong tuần', LichGoiThang.nhan(_thuGoi)),
         ('Lịch', '$_soBuoiGoi buổi, ${_ddmmyyyy(lich.first)} → ${_ddmmyyyy(lich.last)}'),
