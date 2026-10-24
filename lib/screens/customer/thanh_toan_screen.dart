@@ -18,13 +18,18 @@ class ThanhToanScreen extends StatefulWidget {
   /// Mở từ chi tiết đơn: xong thì quay về màn đó (pop) thay vì mở chồng thêm một chi tiết đơn.
   final bool moTuChiTiet;
 
-  const ThanhToanScreen({super.key, required this.donDatId, this.moTuChiTiet = false});
+  const ThanhToanScreen({
+    super.key,
+    required this.donDatId,
+    this.moTuChiTiet = false,
+  });
 
   @override
   State<ThanhToanScreen> createState() => _ThanhToanScreenState();
 }
 
-class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingObserver {
+class _ThanhToanScreenState extends State<ThanhToanScreen>
+    with WidgetsBindingObserver {
   final _bookingApi = BookingApiService();
 
   Map<String, dynamic>? _hoaDon;
@@ -81,7 +86,8 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
         return;
       }
       // Đã trả hoặc đơn đã hủy: không còn gì để thanh toán
-      if (hd.data!['trangThaiThanhToan'] == 'DaThanhToan' || ct.data?['trangThai'] == 'DaHuy') {
+      if (hd.data!['trangThaiThanhToan'] == 'DaThanhToan' ||
+          ct.data?['trangThai'] == 'DaHuy') {
         _moChiTiet();
         return;
       }
@@ -128,13 +134,14 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
     try {
       final res = await PaymentApiService().getInvoice(widget.donDatId);
       if (!mounted || _daRoi) return;
-      if (res.success && res.data != null && res.data!['trangThaiThanhToan'] == 'DaThanhToan') {
+      if (res.success &&
+          res.data != null &&
+          res.data!['trangThaiThanhToan'] == 'DaThanhToan') {
         _bao('Thanh toán thành công! Hệ thống đang tìm người làm.', loi: false);
         _moChiTiet();
       }
     } catch (_) {}
   }
-
 
   /// Hết hạn: chờ máy chủ tự hủy đơn (cron mỗi phút) rồi mở chi tiết đơn.
   void _henMoChiTiet() {
@@ -152,12 +159,19 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
     }
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: widget.donDatId)),
+      MaterialPageRoute(
+        builder: (_) => OrderDetailScreen(orderId: widget.donDatId),
+      ),
     );
   }
 
-  void _bao(String msg, {bool loi = true}) => ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(msg), backgroundColor: loi ? AppColors.error : AppColors.success));
+  void _bao(String msg, {bool loi = true}) =>
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: loi ? AppColors.error : AppColors.success,
+        ),
+      );
 
   Future<void> _daChuyenKhoan() async {
     setState(() => _dangGui = true);
@@ -171,7 +185,8 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
       }
       final msg = res.message ?? 'Không ghi nhận được thanh toán';
       _bao(msg.startsWith('Lỗi kết nối') ? 'Không kết nối được máy chủ' : msg);
-      if (msg.contains('đã được thanh toán') || msg.contains('đã bị hủy')) _moChiTiet();
+      if (msg.contains('đã được thanh toán') || msg.contains('đã bị hủy'))
+        _moChiTiet();
     } finally {
       if (mounted) setState(() => _dangGui = false);
     }
@@ -195,7 +210,6 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
     }
   }
 
-
   Future<void> _huyDon() async {
     final dongY = await showDialog<bool>(
       context: context,
@@ -203,8 +217,14 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
         title: const Text('Hủy đơn?'),
         content: const Text('Đơn chưa thanh toán sẽ bị hủy.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Không')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Hủy đơn')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Không'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hủy đơn'),
+          ),
         ],
       ),
     );
@@ -250,24 +270,28 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
         ],
       ),
       body: _dangTai
-          ? const Center(child: CircularProgressIndicator(color: AppColors.brand500))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.brand500),
+            )
           : _loi != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_loi!, style: const TextStyle(color: AppColors.error)),
-                      TextButton(onPressed: _tai, child: const Text('Thử lại')),
-                    ],
-                  ),
-                )
-              : _noiDung(),
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_loi!, style: const TextStyle(color: AppColors.error)),
+                  TextButton(onPressed: _tai, child: const Text('Thử lại')),
+                ],
+              ),
+            )
+          : _noiDung(),
     );
   }
 
   Widget _noiDung() {
     final hd = _hoaDon!;
-    final nh = Map<String, dynamic>.from((hd['thongTinNganHang'] as Map?) ?? const {});
+    final nh = Map<String, dynamic>.from(
+      (hd['thongTinNganHang'] as Map?) ?? const {},
+    );
     final qr = nh['qrCodeUrl']?.toString();
     final soTien = nh['soTien'] ?? hd['tongThanhToan'];
     return ListView(
@@ -276,7 +300,9 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: _hetGio && _giay != null ? AppColors.orangeLight : AppColors.brandSurface,
+            color: _hetGio && _giay != null
+                ? AppColors.orangeLight
+                : AppColors.brandSurface,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -288,9 +314,12 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
                   _giay == null
                       ? 'Đơn ${hd['maDonDat'] ?? ''}'
                       : _hetGio
-                          ? 'Đã hết thời gian thanh toán'
-                          : 'Còn ${DongHo.mmss(_giay)} để thanh toán',
-                  style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.brand600),
+                      ? 'Đã hết thời gian thanh toán'
+                      : 'Còn ${DongHo.mmss(_giay)} để thanh toán',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.brand600,
+                  ),
                 ),
               ),
             ],
@@ -299,7 +328,10 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Column(
             children: [
               if (qr != null && qr.isNotEmpty)
@@ -310,15 +342,28 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
                   fit: BoxFit.contain,
                   errorBuilder: (_, _, _) => const SizedBox(
                     height: 80,
-                    child: Center(child: Text('Không tải được mã QR', style: TextStyle(color: AppColors.textSecondary))),
+                    child: Center(
+                      child: Text(
+                        'Không tải được mã QR',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
                   ),
                 ),
               const SizedBox(height: 12),
               _dong('Số tiền', CatalogUi.money(soTien), dam: true),
               _dong('Ngân hàng', nh['nganHang']?.toString() ?? '—'),
-              _dong('Số tài khoản', nh['soTaiKhoan']?.toString() ?? '—', saoChep: true),
+              _dong(
+                'Số tài khoản',
+                nh['soTaiKhoan']?.toString() ?? '—',
+                saoChep: true,
+              ),
               _dong('Chủ tài khoản', nh['chuTaiKhoan']?.toString() ?? '—'),
-              _dong('Nội dung', nh['noiDungChuyenKhoan']?.toString() ?? '—', saoChep: true),
+              _dong(
+                'Nội dung',
+                nh['noiDungChuyenKhoan']?.toString() ?? '—',
+                saoChep: true,
+              ),
             ],
           ),
         ),
@@ -326,58 +371,75 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> with WidgetsBindingOb
         SizedBox(
           height: 50,
           child: ElevatedButton(
-            onPressed: _dangGui || (_giay != null && _hetGio) ? null : _daChuyenKhoan,
+            onPressed: _dangGui || (_giay != null && _hetGio)
+                ? null
+                : _daChuyenKhoan,
             child: _dangGui
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                 : const Text('Tôi đã chuyển khoản'),
           ),
         ),
         const SizedBox(height: 10),
         SizedBox(
           height: 48,
-          child: OutlinedButton(onPressed: _dangGui ? null : _huyDon, child: const Text('Hủy đơn')),
-        ),
-        const SizedBox(height: 12),
-        TextButton.icon(
-          onPressed: _dangGui || (_giay != null && _hetGio) ? null : _giaLapThanhToan,
-          icon: const Icon(Icons.science_outlined, size: 18, color: Color(0xFF16A34A)),
-          label: const Text(
-            'Giả lập thanh toán thành công (Test miễn phí)',
-            style: TextStyle(color: Color(0xFF16A34A), fontSize: 13, fontWeight: FontWeight.w600),
+          child: OutlinedButton(
+            onPressed: _dangGui ? null : _huyDon,
+            child: const Text('Hủy đơn'),
           ),
         ),
       ],
     );
-
   }
 
-  Widget _dong(String nhan, String giaTri, {bool saoChep = false, bool dam = false}) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 105,
-              child: Text(nhan, style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary)),
+  Widget _dong(
+    String nhan,
+    String giaTri, {
+    bool saoChep = false,
+    bool dam = false,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 105,
+          child: Text(
+            nhan,
+            style: const TextStyle(
+              fontSize: 13.5,
+              color: AppColors.textSecondary,
             ),
-            Expanded(
-              child: Text(
-                giaTri,
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  fontSize: dam ? 16 : 14,
-                  fontWeight: dam ? FontWeight.w800 : FontWeight.w600,
-                  color: dam ? AppColors.brand600 : AppColors.textPrimary,
-                ),
-              ),
-            ),
-            if (saoChep)
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                tooltip: 'Sao chép',
-                onPressed: () => _saoChep(nhan.toLowerCase(), giaTri),
-                icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.brand500),
-              ),
-          ],
+          ),
         ),
-      );
+        Expanded(
+          child: Text(
+            giaTri,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: dam ? 16 : 14,
+              fontWeight: dam ? FontWeight.w800 : FontWeight.w600,
+              color: dam ? AppColors.brand600 : AppColors.textPrimary,
+            ),
+          ),
+        ),
+        if (saoChep)
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Sao chép',
+            onPressed: () => _saoChep(nhan.toLowerCase(), giaTri),
+            icon: const Icon(
+              Icons.copy_rounded,
+              size: 18,
+              color: AppColors.brand500,
+            ),
+          ),
+      ],
+    ),
+  );
 }
