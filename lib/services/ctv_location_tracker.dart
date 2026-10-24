@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'collaborator_api_service.dart';
 import 'location_service.dart';
+import 'session_service.dart';
 
 /// Tra lại quận từ toạ độ khi đã đi xa hơn 200 m hoặc sau 60 giây (geocoder tốn mạng, không tra mỗi 5 giây).
 bool canTraLaiDiaChi(double? viDoCu, double? kinhDoCu, DateTime? luc, double viDo, double kinhDo, DateTime bayGio) {
@@ -16,7 +18,7 @@ bool canTraLaiDiaChi(double? viDoCu, double? kinhDoCu, DateTime? luc, double viD
 /// Gửi vị trí GPS của CTV lên máy chủ (lưu Redis) mỗi [interval] khi app đang mở, kèm quận đang đứng.
 /// Máy chủ chỉ ghi CSDL khi CTV sang quận khác: khu vực nhận việc được thay bằng quận đó.
 /// Nghe luồng vị trí của Geolocator và gửi điểm mới nhất theo chu kỳ, không xin GPS mỗi lần.
-class CtvLocationTracker {
+class CtvLocationTracker extends ChangeNotifier {
   CtvLocationTracker._();
   static final CtvLocationTracker instance = CtvLocationTracker._();
 
@@ -33,6 +35,12 @@ class CtvLocationTracker {
   bool get isRunning => _timer != null;
   String? get currentDistrict => _currentDistrict;
 
+  @visibleForTesting
+  void setDistrictForTest(String district) {
+    _currentDistrict = district;
+    notifyListeners();
+  }
+
   /// Bắt đầu theo dõi. Trả về null nếu chạy được, ngược lại là thông điệp lỗi (chưa cấp quyền...).
   Future<String?> start(int congTacVienId) async {
     if (congTacVienId == 0) return 'Chưa có hồ sơ cộng tác viên.';
@@ -42,28 +50,41 @@ class CtvLocationTracker {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      _currentDistrict ??= prefs.getString('ctv_last_district_$_ctvId');
+      final cached = prefs.getString('ctv_last_district_$_ctvId');
+      if (cached != null && cached.isNotEmpty && _currentDistrict == null) {
+        _currentDistrict = cached;
+        notifyListeners();
+      }
     } catch (_) {}
 
     // Xin quyền + lấy điểm đầu tiên với độ chính xác cao
     final first = await LocationService.getCurrentPosition();
-    if (!first.ok) return first.error;
-    _latest = first.position;
+    if (first.ok && first.position != null) {
+      _latest = first.position;
+      _send();
+    }
 
     _sub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 0,
       ),
-    ).listen((p) => _latest = p, onError: (_) {});
+    ).listen((p) {
+      _latest = p;
+    }, onError: (_) {});
 
     _timer = Timer.periodic(interval, (_) => _send());
-    _send();
-    return null;
+    return first.ok ? null : first.error;
   }
 
-  /// Gửi ngay lập tức vị trí GPS hiện tại lên server.
+  /// Gửi ngay lập tức vị trí GPS hiện tại lên server và làm mới quận trên màn hình.
   Future<void> forceSend() async {
+    if (_ctvId == 0) {
+      final s = await SessionService.load();
+      if (s != null && s.isCollaborator && s.userId > 0) {
+        _ctvId = s.userId;
+      }
+    }
     final pos = await LocationService.getCurrentPosition();
     if (pos.ok && pos.position != null) {
       _latest = pos.position;
@@ -83,12 +104,23 @@ class CtvLocationTracker {
     if (p == null || _sending) return;
     _sending = true;
     try {
-      // Phân giải địa giới hành chính (Quận/Huyện, Tỉnh/Thành)
+      // 1. Phân giải địa giới hành chính (Quận/Huyện, Tỉnh/Thành) từ GPS điện thoại
       final geo = await LocationService.getAddressDetails(p.latitude, p.longitude);
       final quanHuyen = geo['quanHuyen'];
       final tinhThanh = geo['tinhThanh'];
       final diaChi = geo['diaChi'];
 
+      // 2. Cập nhật ngay tại máy và báo UI nếu quận đã đổi (không phụ thuộc vào server)
+      if (quanHuyen != null && quanHuyen.isNotEmpty && quanHuyen != _currentDistrict) {
+        _currentDistrict = quanHuyen;
+        notifyListeners();
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('ctv_last_district_$_ctvId', quanHuyen);
+        } catch (_) {}
+      }
+
+      // 3. Gửi đồng bộ lên Backend Server
       final res = await _api.updateLocation(
         _ctvId,
         p.latitude,
@@ -101,8 +133,9 @@ class CtvLocationTracker {
       if (res.success && res.data != null) {
         final kv = res.data!['khuVucHienTai']?.toString();
         final finalDistrict = (kv != null && kv.isNotEmpty) ? kv : quanHuyen;
-        if (finalDistrict != null && finalDistrict.isNotEmpty) {
+        if (finalDistrict != null && finalDistrict.isNotEmpty && finalDistrict != _currentDistrict) {
           _currentDistrict = finalDistrict;
+          notifyListeners();
           try {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString('ctv_last_district_$_ctvId', finalDistrict);
