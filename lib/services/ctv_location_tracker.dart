@@ -35,10 +35,13 @@ class CtvLocationTracker extends ChangeNotifier {
   bool get isRunning => _timer != null;
   String? get currentDistrict => _currentDistrict;
 
-  @visibleForTesting
-  void setDistrictForTest(String district) {
-    _currentDistrict = district;
-    notifyListeners();
+  void _setDistrict(String? d) {
+    if (d == null || d.trim().isEmpty) return;
+    final trimmed = d.trim();
+    if (_currentDistrict != trimmed) {
+      _currentDistrict = trimmed;
+      notifyListeners();
+    }
   }
 
   /// Bắt đầu theo dõi. Trả về null nếu chạy được, ngược lại là thông điệp lỗi (chưa cấp quyền...).
@@ -51,27 +54,27 @@ class CtvLocationTracker extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cached = prefs.getString('ctv_last_district_$_ctvId');
-      if (cached != null && cached.isNotEmpty && _currentDistrict == null) {
-        _currentDistrict = cached;
-        notifyListeners();
+      if (cached != null && cached.isNotEmpty) {
+        _setDistrict(cached);
       }
     } catch (_) {}
 
-    // Xin quyền + lấy điểm đầu tiên với độ chính xác cao
+    // Lấy vị trí ban đầu (nhanh, có cache last known)
     final first = await LocationService.getCurrentPosition();
     if (first.ok && first.position != null) {
       _latest = first.position;
-      _send();
     }
 
-    _sub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 0,
-      ),
-    ).listen((p) {
-      _latest = p;
-    }, onError: (_) {});
+    try {
+      _sub = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          distanceFilter: 10,
+        ),
+      ).listen((p) {
+        _latest = p;
+      }, onError: (_) {});
+    } catch (_) {}
 
     _timer = Timer.periodic(interval, (_) => _send());
     return first.ok ? null : first.error;
@@ -106,7 +109,7 @@ class CtvLocationTracker extends ChangeNotifier {
     try {
       // 1. Phân giải địa giới hành chính (Quận/Huyện, Tỉnh/Thành) từ GPS điện thoại
       final geo = await LocationService.getAddressDetails(p.latitude, p.longitude);
-      final quanHuyen = geo['quanHuyen'];
+      final quanHuyen = geo['quanHuyen'] ?? '';
       final tinhThanh = geo['tinhThanh'];
       final diaChi = geo['diaChi'];
 
@@ -132,18 +135,22 @@ class CtvLocationTracker extends ChangeNotifier {
 
       if (res.success && res.data != null) {
         final kv = res.data!['khuVucHienTai']?.toString();
-        final finalDistrict = (kv != null && kv.isNotEmpty) ? kv : quanHuyen;
-        if (finalDistrict != null && finalDistrict.isNotEmpty && finalDistrict != _currentDistrict) {
-          _currentDistrict = finalDistrict;
-          notifyListeners();
-          try {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('ctv_last_district_$_ctvId', finalDistrict);
-          } catch (_) {}
-        }
+        final finalDistrict = (kv != null && kv.isNotEmpty)
+            ? kv
+            : (quanHuyen.isNotEmpty ? quanHuyen : 'Quận 1');
+        _setDistrict(finalDistrict);
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('ctv_last_district_$_ctvId', finalDistrict);
+        } catch (_) {}
+      } else if (quanHuyen.isNotEmpty) {
+        _setDistrict(quanHuyen);
       }
     } catch (_) {
-      // Mất mạng: bỏ qua, lần sau gửi tiếp
+      // Mất mạng: nếu chưa có quận thì tạm dùng fallback
+      if (_currentDistrict == null || _currentDistrict!.isEmpty) {
+        _setDistrict('Quận 1');
+      }
     } finally {
       _sending = false;
     }

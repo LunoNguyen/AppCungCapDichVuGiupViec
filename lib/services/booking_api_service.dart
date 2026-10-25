@@ -8,6 +8,7 @@ class BookingApiService {
   /// POST /v1/bookings/calculate-price — khớp CalculatePriceRequest
   Future<ApiResponse<Map<String, dynamic>>> calculatePrice({
     required int dichVuId,
+    List<int>? dichVuIds,
     int? bangGiaId,
     String loaiHinhDat = 'TheoLan', // TheoLan | GoiThang
     String? codeKhuyenMai,
@@ -19,6 +20,7 @@ class BookingApiService {
       '/v1/bookings/calculate-price',
       body: {
         'dichVuId': dichVuId,
+        if (dichVuIds != null && dichVuIds.isNotEmpty) 'dichVuIds': dichVuIds,
         if (bangGiaId != null) 'bangGiaId': bangGiaId,
         'loaiHinhDat': loaiHinhDat,
         if (ngayThucHien != null) 'ngayThucHien': ngayThucHien,
@@ -52,6 +54,7 @@ class BookingApiService {
   static Map<String, dynamic> bodyTaoDon({
     required int khachHangId,
     required int dichVuId,
+    List<int>? dichVuIds,
     int? bangGiaId,
     required String ngayThucHien, // yyyy-MM-dd
     required String gioBatDau, // HH:mm
@@ -70,6 +73,7 @@ class BookingApiService {
     return {
       'khachHangId': khachHangId,
       'dichVuId': dichVuId,
+      if (dichVuIds != null && dichVuIds.isNotEmpty) 'dichVuIds': dichVuIds,
       if (bangGiaId != null) 'bangGiaId': bangGiaId,
       'ngayThucHien': ngayThucHien,
       'gioBatDau': gio(gioBatDau),
@@ -90,6 +94,7 @@ class BookingApiService {
   Future<ApiResponse<Map<String, dynamic>>> createBooking({
     required int khachHangId,
     required int dichVuId,
+    List<int>? dichVuIds,
     int? bangGiaId,
     required String ngayThucHien,
     required String gioBatDau,
@@ -109,6 +114,7 @@ class BookingApiService {
       body: bodyTaoDon(
         khachHangId: khachHangId,
         dichVuId: dichVuId,
+        dichVuIds: dichVuIds,
         bangGiaId: bangGiaId,
         ngayThucHien: ngayThucHien,
         gioBatDau: gioBatDau,

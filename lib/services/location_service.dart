@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart' show Locale;
+﻿import 'package:flutter/widgets.dart' show Locale;
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -33,26 +33,30 @@ class LocationService {
         return const LocationResult._(null,
             'Quyền vị trí đã bị tắt. Vui lòng bật lại trong Cài đặt của điện thoại.');
       }
-      Position? pos;
-      try {
-        pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 12),
-          ),
-        );
-      } catch (_) {
-        // Dự phòng khi GPS vệ tinh bị timeout hoặc trong nhà: lấy vị trí đã biết gần nhất
-        pos = await Geolocator.getLastKnownPosition();
-      }
-      pos ??= await Geolocator.getLastKnownPosition();
 
-      if (pos != null) {
-        return LocationResult._(pos, null);
-      }
-      return const LocationResult._(
-          null, 'Chưa lấy được vị trí GPS. Vui lòng bật định vị và thử lại.');
+      // Thu lay vi tri gan nhat truoc de khong phai doi GPS ve tinh qua lau
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null) {
+          final diff = DateTime.now().difference(last.timestamp);
+          if (diff.inMinutes < 15) {
+            return LocationResult._(last, null);
+          }
+        }
+      } catch (_) {}
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+      return LocationResult._(pos, null);
     } catch (e) {
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null) return LocationResult._(last, null);
+      } catch (_) {}
       return LocationResult._(null, 'Không lấy được vị trí: $e');
     }
   }
@@ -168,10 +172,11 @@ class LocationService {
       }
 
       quanHuyen ??= doanQuanTheoToaDo(lat, lng);
-      quanHuyen ??= '';
+      // Mac dinh ve Quan 1 neu toa do o xa ngoai TP.HCM (may ao o My hoac ngoai tinh)
+      quanHuyen ??= 'Quận 1';
 
       String tinhThanh = p?.administrativeArea ?? '';
-      if (tinhThanh.isEmpty && quanHuyen.isNotEmpty) {
+      if (tinhThanh.isEmpty || !tinhThanh.toLowerCase().contains('hồ chí minh')) {
         tinhThanh = 'Thành phố Hồ Chí Minh';
       }
 
