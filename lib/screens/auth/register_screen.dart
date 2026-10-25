@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/password_rules.dart';
 import '../../services/auth_api_service.dart';
 import '../../services/auth_flow.dart';
 import '../../services/session_service.dart';
 import '../../widgets/dia_chi_fields.dart';
+import '../../widgets/password_checklist.dart';
 import '../customer/customer_main_screen.dart';
 import 'login_screen.dart';
 import 'otp_verification_screen.dart';
@@ -53,7 +55,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   };
 
   bool _obscurePassword = true;
+  // SĐT đã có tài khoản vai trò khác: nhập mật khẩu hiện tại để dùng chung, không áp quy tắc mật khẩu mới
+  bool _dungChungTaiKhoan = false;
   bool _agreeTerms = true;
+
+  bool get _matKhauHopLe =>
+      _dungChungTaiKhoan ||
+      PasswordRules.isValid(_passwordController.text, _phoneController.text);
   bool _isLoading = false;
 
   final TextEditingController _ctvAddressController = TextEditingController(); // Số nhà, tên đường hiện tại
@@ -333,8 +341,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 SizedBox(
                   width: double.infinity,
                   height: 52,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _submitRegister,
+                  // Chưa đạt quy tắc mật khẩu thì khóa nút
+                  child: ListenableBuilder(
+                  listenable: Listenable.merge([_passwordController, _phoneController]),
+                  builder: (_, __) => ElevatedButton(
+                    onPressed: _isLoading || !_matKhauHopLe ? null : _submitRegister,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: roleColor,
                       foregroundColor: isCustomer ? Colors.white : AppColors.neutral800,
@@ -360,6 +371,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               color: isCustomer ? Colors.white : AppColors.neutral800,
                             ),
                           ),
+                  ),
                   ),
                 ),
 
@@ -610,13 +622,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _buildFieldLabel('Mật khẩu', isRequired: true),
         const SizedBox(height: 6),
         _buildPasswordField(),
-        const Padding(
-          padding: EdgeInsets.only(top: 6),
-          child: Text(
-            'Nếu số điện thoại đã đăng ký vai trò khác (khách hàng / cộng tác viên), hãy nhập đúng mật khẩu đó để dùng chung tài khoản.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-        ),
 
         const SizedBox(height: 18),
 
@@ -986,17 +991,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               // Mật khẩu (để đăng nhập lần sau) - Image 3
               _buildFieldLabel('Mật khẩu (để đăng nhập lần sau)', isRequired: true),
-              const SizedBox(height: 3),
-              const Text(
-                'Mật khẩu phải chứa 6-12 ký tự và không có khoảng cách',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontStyle: FontStyle.italic,
-                  color: AppColors.textSecondary,
-                ),
-              ),
               const SizedBox(height: 6),
-              _buildPasswordField(hintText: 'Ít nhất 6 ký tự'),
+              _buildPasswordField(),
 
               const SizedBox(height: 18),
 
@@ -1437,7 +1433,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildPasswordField({String hintText = 'Nhập mật khẩu'}) {
+  /// Ô mật khẩu + danh sách tiêu chí + ô đánh dấu dùng chung tài khoản đã có.
+  Widget _buildPasswordField({String hintText = 'Ít nhất 8 ký tự, có chữ và số'}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildPasswordInput(hintText),
+        ListenableBuilder(
+          listenable: Listenable.merge([_passwordController, _phoneController]),
+          builder: (_, __) => _dungChungTaiKhoan
+              ? const SizedBox.shrink()
+              : PasswordChecklist(
+                  password: _passwordController.text,
+                  phone: _phoneController.text,
+                ),
+        ),
+        CheckboxListTile(
+          value: _dungChungTaiKhoan,
+          onChanged: (v) => setState(() => _dungChungTaiKhoan = v ?? false),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          visualDensity: VisualDensity.compact,
+          title: Text(
+            isCustomer
+                ? 'Số này đã là cộng tác viên (nhập đúng mật khẩu đó để dùng chung tài khoản)'
+                : 'Số này đã có tài khoản khách hàng (nhập đúng mật khẩu đó để dùng chung tài khoản)',
+            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPasswordInput(String hintText) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1468,8 +1497,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         validator: (val) {
           if (val == null || val.isEmpty) return 'Vui lòng nhập mật khẩu';
-          if (val.length < 6) return 'Mật khẩu phải từ 6 ký tự trở lên';
-          return null;
+          if (_dungChungTaiKhoan) return null;
+          return PasswordRules.validate(val, _phoneController.text);
         },
       ),
     );

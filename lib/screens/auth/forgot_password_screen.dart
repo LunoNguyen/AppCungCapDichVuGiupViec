@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/app_colors.dart';
+import '../../core/password_rules.dart';
 import '../../services/auth_api_service.dart';
 import '../../services/session_service.dart';
+import '../../widgets/password_checklist.dart';
 
 /// Quên mật khẩu: nhập SĐT -> nhận mã OTP qua tin nhắn SMS -> nhập OTP + mật khẩu mới.
 /// Dùng chung cho Khách hàng và Cộng tác viên (cùng bảng tài khoản).
@@ -224,9 +226,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                     ),
-                    validator: (v) => (v == null || v.trim().length < 6)
-                        ? 'Mật khẩu cần ít nhất 6 ký tự'
-                        : null,
+                    validator: (v) => PasswordRules.validate(v, _phone),
+                  ),
+                  ListenableBuilder(
+                    listenable: _passCtrl,
+                    builder: (_, __) =>
+                        PasswordChecklist(password: _passCtrl.text, phone: _phone),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -269,18 +274,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 50,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _resetPassword,
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: widget.roleColor),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2.5),
-                            )
-                          : const Text('Đặt lại mật khẩu'),
+                    // Chưa đạt quy tắc mật khẩu thì khóa nút
+                    child: ListenableBuilder(
+                      listenable: _passCtrl,
+                      builder: (_, __) => ElevatedButton(
+                        onPressed: _isLoading ||
+                                !PasswordRules.isValid(_passCtrl.text, _phone)
+                            ? null
+                            : _resetPassword,
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: widget.roleColor),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2.5),
+                              )
+                            : const Text('Đặt lại mật khẩu'),
+                      ),
                     ),
                   ),
                 ],

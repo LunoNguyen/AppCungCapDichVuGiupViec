@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/password_rules.dart';
 import '../../services/auth_api_service.dart';
 import '../../services/session_service.dart';
+import '../../widgets/password_checklist.dart';
 import 'forgot_password_screen.dart';
 
 /// Đổi mật khẩu khi đã đăng nhập: nhập mật khẩu hiện tại + mật khẩu mới.
@@ -24,6 +26,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _obscureOld = true;
   bool _obscureNew = true;
   bool _isLoading = false;
+  String? _phone; // số điện thoại của tài khoản, để kiểm tra mật khẩu không chứa số này
+
+  @override
+  void initState() {
+    super.initState();
+    SessionService.load().then((s) {
+      if (mounted) setState(() => _phone = s?.soDienThoai);
+    });
+  }
 
   @override
   void dispose() {
@@ -125,14 +136,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   obscure: _obscureNew,
                   onToggle: () => setState(() => _obscureNew = !_obscureNew),
                   validator: (v) {
-                    if (v == null || v.trim().length < 6) {
-                      return 'Mật khẩu mới cần ít nhất 6 ký tự';
-                    }
+                    final loi = PasswordRules.validate(v, _phone);
+                    if (loi != null) return loi;
                     if (v == _oldCtrl.text) {
                       return 'Mật khẩu mới phải khác mật khẩu hiện tại';
                     }
                     return null;
                   },
+                ),
+                ListenableBuilder(
+                  listenable: _newCtrl,
+                  builder: (_, __) =>
+                      PasswordChecklist(password: _newCtrl.text, phone: _phone),
                 ),
                 const SizedBox(height: 16),
                 _passwordField(
@@ -165,18 +180,25 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 const SizedBox(height: 16),
                 SizedBox(
                   height: 50,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: widget.roleColor),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2.5),
-                          )
-                        : const Text('Đổi mật khẩu'),
+                  // Chưa đạt quy tắc mật khẩu thì khóa nút
+                  child: ListenableBuilder(
+                    listenable: _newCtrl,
+                    builder: (_, __) => ElevatedButton(
+                      onPressed: _isLoading ||
+                              !PasswordRules.isValid(_newCtrl.text, _phone)
+                          ? null
+                          : _submit,
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: widget.roleColor),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2.5),
+                            )
+                          : const Text('Đổi mật khẩu'),
+                    ),
                   ),
                 ),
               ],
