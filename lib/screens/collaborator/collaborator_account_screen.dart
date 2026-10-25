@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +11,7 @@ import '../auth/login_screen.dart';
 import '../customer/customer_main_screen.dart';
 import '../../services/session_service.dart';
 import '../collaborator/collaborator_notifications_screen.dart';
+import 'collaborator_location_screen.dart';
 
 class CollaboratorAccountScreen extends StatefulWidget {
   const CollaboratorAccountScreen({super.key});
@@ -225,7 +226,10 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                             _profile!.khuVucNhanViec.isNotEmpty
                                 ? '${_profile!.khuVucNhanViec} · theo GPS'
                                 : 'Đang chờ vị trí GPS',
-                            const Color(0xFF2F80ED), () {}),
+                            const Color(0xFF2F80ED), () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const CollaboratorLocationScreen()),
+                            ).then((_) => reload())),
                       ]),
                       const SizedBox(height: 16),
                       _buildMenuSection('TÀI CHÍNH', [
@@ -266,8 +270,11 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                             const Color(0xFFF2A100),
                                 () {}),
                         _MenuItem(Icons.my_location, 'Cập nhật vị trí (GPS)',
-                            _dangGuiViTri ? 'Đang gửi...' : '', _coral,
-                            _guiViTri),
+                            '', _coral,
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const CollaboratorLocationScreen()),
+                            ).then((_) => reload())),
                         _MenuItem(Icons.lock_outline, 'Đổi mật khẩu', '',
                             _coral, () => Navigator.push(
                               context,

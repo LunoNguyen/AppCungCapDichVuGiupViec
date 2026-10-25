@@ -56,6 +56,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     super.initState();
     // 4 Tab: Mới (0), Chờ làm (1), Đang làm (2), Đã xong (3)
     _tabController = TabController(length: 4, vsync: this);
+    CtvLocationTracker.instance.addListener(_onTrackerLocationChanged);
     _loadUserAndFetchData();
     // Được phân công / đơn bị hủy / đơn mới... → tải lại danh sách đơn
     _realtime = AppRealtime.instance.suKien.listen((_) {
@@ -69,10 +70,17 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     });
   }
 
+  void _onTrackerLocationChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   StreamSubscription<String>? _realtime;
 
   @override
   void dispose() {
+    CtvLocationTracker.instance.removeListener(_onTrackerLocationChanged);
     _realtime?.cancel();
     _tabController.dispose();
     super.dispose();
@@ -99,6 +107,11 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
+      // Kích hoạt quét lại GPS ngay khi vuốt làm mới để cập nhật khu vực thực tế
+      try {
+        await CtvLocationTracker.instance.forceSend();
+      } catch (_) {}
+
       final results = await Future.wait([
         _apiService.getAvailableOrders(congTacVienId: _currentUserId),
         _apiService.getAssignments(congTacVienId: _currentUserId),
@@ -124,6 +137,9 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
 
   Future<void> _refreshPool() async {
     try {
+      try {
+        await CtvLocationTracker.instance.forceSend();
+      } catch (_) {}
       final res = await _apiService.getAvailableOrders(congTacVienId: _currentUserId);
       if (mounted && res.success && res.data != null) {
         setState(() => _poolOrders = List<Map<String, dynamic>>.from(res.data!));
@@ -339,77 +355,93 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
       final district = CtvLocationTracker.instance.currentDistrict;
       final bool hasDistrict = district != null && district.trim().isNotEmpty;
 
-      locationHeader = Container(
-        margin: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
+      locationHeader = Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Đang định vị lại khu vực theo GPS...'),
+                duration: Duration(milliseconds: 1200),
+              ),
+            );
+            await CtvLocationTracker.instance.forceSend();
+          },
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _primary.withValues(alpha: 0.2)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _primary.withValues(alpha: 0.2)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: hasDistrict
-                  ? const Icon(Icons.my_location_rounded, size: 18, color: _primary)
-                  : const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
-                    ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text.rich(
-                    TextSpan(
-                      children: [
-                        const TextSpan(
-                          text: 'Khu vực hiện tại: ',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w500,
-                          ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: hasDistrict
+                      ? const Icon(Icons.my_location_rounded, size: 18, color: _primary)
+                      : const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
                         ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text.rich(
                         TextSpan(
-                          text: hasDistrict ? district : 'Đang lấy vị trí GPS...',
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: hasDistrict ? _primary : const Color(0xFFD97706),
-                          ),
+                          children: [
+                            const TextSpan(
+                              text: 'Khu vực hiện tại: ',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            TextSpan(
+                              text: hasDistrict ? district : 'Đang lấy vị trí GPS...',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: hasDistrict ? _primary : const Color(0xFFD97706),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        hasDistrict
+                            ? 'Đang tự động lọc các đơn việc mới quanh khu vực này (Chạm để quét lại)'
+                            : 'Hệ thống sẽ tự động cập nhật đơn quanh vị trí của bạn',
+                        style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    hasDistrict
-                        ? 'Đang tự động lọc các đơn việc mới quanh khu vực này'
-                        : 'Hệ thống sẽ tự động cập nhật đơn quanh vị trí của bạn',
-                    style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       );
     }
