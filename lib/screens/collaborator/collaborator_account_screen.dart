@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -22,16 +23,32 @@ class CollaboratorAccountScreen extends StatefulWidget {
 }
 
 class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
-  /// Tải ngầm lại hồ sơ khi mở tab Tài khoản (khu vực nhận việc có thể vừa đổi theo GPS), không hiện vòng xoay.
+  String get _currentKhuVuc {
+    final live = CtvLocationTracker.instance.currentDistrict?.trim() ?? '';
+    if (live.isNotEmpty) return live;
+    return _profile?.khuVucNhanViec.trim() ?? '';
+  }
+
+  void _onLocationChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  /// Tải ngầm lại hồ sơ & thống kê thu nhập khi mở tab Tài khoản, không hiện vòng xoay.
   Future<void> reload() async {
     if (_currentUserId == 0) return;
     try {
       if (CtvLocationTracker.instance.isRunning) {
-        await CtvLocationTracker.instance.forceSend();
+        unawaited(CtvLocationTracker.instance.forceSend());
       }
       final response = await _apiService.getProfile(_currentUserId);
-      if (mounted && response.success && response.data != null) {
-        setState(() => _profile = response.data);
+      if (response.success && response.data != null) {
+        _profile = response.data;
+      }
+      await _fetchStats();
+      if (mounted) {
+        setState(() {});
       }
     } catch (e) {
       debugPrint('Lỗi tải lại hồ sơ: $e');
@@ -43,9 +60,17 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   CongTacVien? _profile;
   final CollaboratorApiService _apiService = CollaboratorApiService();
 
-  // Số liệu tính từ danh sách đơn
+  // Số liệu tính từ danh sách đơn hoàn thành (theo công thức 80% CTV - 20% nền tảng)
   int _completedCount = 0;
   num _totalIncome = 0;
+  num _totalGrossIncome = 0;
+  num _totalPlatformFee = 0;
+  List<Map<String, dynamic>> _completedOrders = [];
+
+  num get _effectiveWalletBalance {
+    final profileWallet = _profile?.soDuVi ?? 0;
+    return _totalIncome > profileWallet ? _totalIncome : profileWallet;
+  }
 
   final NumberFormat _currencyFormat =
   NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
@@ -59,7 +84,14 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   @override
   void initState() {
     super.initState();
+    CtvLocationTracker.instance.addListener(_onLocationChanged);
     _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    CtvLocationTracker.instance.removeListener(_onLocationChanged);
+    super.dispose();
   }
 
   bool _dangGuiViTri = false;
@@ -115,27 +147,66 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
     }
   }
 
-  // Đếm đơn hoàn thành + tổng thu nhập từ API đơn
+  num _getGrossPrice(Map<String, dynamic> a) {
+    return num.tryParse(a['thanhTien']?.toString() ??
+            a['tongTienDon']?.toString() ??
+            a['tongTien']?.toString() ??
+            '') ??
+        0;
+  }
+
+  num _getPlatformFee(Map<String, dynamic> a) {
+    final fromApi = num.tryParse(a['phiNenTang']?.toString() ?? '');
+    if (fromApi != null && fromApi > 0) return fromApi.round();
+    final gross = _getGrossPrice(a);
+    final net = (gross * 0.80).round();
+    return gross.round() - net;
+  }
+
+  num _getNetIncome(Map<String, dynamic> a) {
+    final fromApi = num.tryParse(a['tienThucNhan']?.toString() ?? '');
+    if (fromApi != null && fromApi > 0) return fromApi.round();
+    final gross = _getGrossPrice(a);
+    return (gross * 0.80).round();
+  }
+
+  // Đếm đơn hoàn thành + tổng thu nhập thực nhận (80%) từ API đơn
   Future<void> _fetchStats() async {
     try {
       final res =
-      await _apiService.getAssignments(congTacVienId: _currentUserId);
+          await _apiService.getAssignments(congTacVienId: _currentUserId);
       if (res.success && res.data != null) {
         int count = 0;
-        num income = 0;
+        num netSum = 0;
+        num grossSum = 0;
+        num feeSum = 0;
+        final List<Map<String, dynamic>> doneList = [];
         for (final a in res.data!) {
-          final st = (a['trangThai']?.toString() ??
-                  a['trangThaiDon']?.toString() ??
-                  a['trangThaiPhanCong']?.toString() ??
-                  '')
-              .toLowerCase();
-          if (st == 'hoanthanh' || st == 'hoan_thanh' || st == 'completed') {
+          final s1 = (a['trangThaiDon'] ?? '').toString().toLowerCase();
+          final s2 = (a['trangThaiPhanCong'] ?? '').toString().toLowerCase();
+          final s3 = (a['trangThai'] ?? '').toString().toLowerCase();
+          final isDone = s1 == 'hoanthanh' ||
+              s1 == 'hoan_thanh' ||
+              s1 == 'completed' ||
+              s2 == 'hoanthanh' ||
+              s2 == 'hoan_thanh' ||
+              s2 == 'completed' ||
+              s3 == 'hoanthanh' ||
+              s3 == 'hoan_thanh' ||
+              s3 == 'completed';
+          if (isDone) {
             count++;
-            income += num.tryParse(a['thanhTien']?.toString() ?? '') ?? 0;
+            grossSum += _getGrossPrice(a);
+            feeSum += _getPlatformFee(a);
+            netSum += _getNetIncome(a);
+            doneList.add(Map<String, dynamic>.from(a));
           }
         }
         _completedCount = count;
-        _totalIncome = income;
+        _totalGrossIncome = grossSum;
+        _totalPlatformFee = feeSum;
+        _totalIncome = netSum;
+        _completedOrders = doneList;
       }
     } catch (e) {
       debugPrint('Lỗi tải thống kê: $e');
@@ -223,8 +294,8 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                             '5 dịch vụ', AppColors.partner500, () {}),
                         // Khu vực nhận việc tự cập nhật theo quận CTV đang đứng (GPS), không chọn tay
                         _MenuItem(Icons.map_outlined, 'Khu vực nhận việc',
-                            _profile!.khuVucNhanViec.isNotEmpty
-                                ? '${_profile!.khuVucNhanViec} · theo GPS'
+                            _currentKhuVuc.isNotEmpty
+                                ? '$_currentKhuVuc · theo GPS'
                                 : 'Đang chờ vị trí GPS',
                             const Color(0xFF2F80ED), () => Navigator.push(
                               context,
@@ -239,8 +310,12 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                             'Vietcombank',
                             AppColors.partner500,
                                 () {}),
-                        _MenuItem(Icons.receipt_long_outlined,
-                            'Lịch sử thu nhập', '', const Color(0xFFC77700), () {}),
+                        _MenuItem(
+                            Icons.receipt_long_outlined,
+                            'Lịch sử thu nhập',
+                            '$_completedCount đơn (80%)',
+                            const Color(0xFFC77700),
+                            _showIncomeHistorySheet),
                       ]),
                       const SizedBox(height: 16),
                       _buildMenuSection('TÀI KHOẢN', [
@@ -270,7 +345,7 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                             const Color(0xFFF2A100),
                                 () {}),
                         _MenuItem(Icons.my_location, 'Cập nhật vị trí (GPS)',
-                            '', _coral,
+                            _currentKhuVuc.isNotEmpty ? _currentKhuVuc : 'Chạm để định vị', _coral,
                             () => Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const CollaboratorLocationScreen()),
@@ -484,8 +559,11 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
           ),
           Container(width: 1, height: 36, color: Colors.black.withValues(alpha: 0.08)),
           Expanded(
-            child: _statItem(_compactMoney(_totalIncome), 'Tổng thu nhập',
-                Icons.trending_up_rounded, _coral),
+            child: InkWell(
+              onTap: _showIncomeHistorySheet,
+              child: _statItem(_compactMoney(_effectiveWalletBalance), 'Tổng thu nhập',
+                  Icons.trending_up_rounded, _coral),
+            ),
           ),
         ],
       ),
@@ -493,25 +571,34 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   }
 
   Widget _statItem(String value, String label, IconData icon, Color color) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.14),
-            shape: BoxShape.circle,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 18),
           ),
-          child: Icon(icon, color: color, size: 18),
-        ),
-        const SizedBox(height: 8),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
-        const SizedBox(height: 2),
-        Text(label,
-            style: const TextStyle(
-                fontSize: 11, color: AppColors.textSecondary)),
-      ],
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(value,
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w800, color: _ink)),
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -528,79 +615,383 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   // ===================== VÍ =====================
 
   Widget _buildWalletCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.partner500, AppColors.partner400],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: _coral.withValues(alpha: 0.3),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+    final num balance = _effectiveWalletBalance;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: _showIncomeHistorySheet,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.partner500, AppColors.partner400],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.22),
-              shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: _coral.withValues(alpha: 0.3),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
             ),
-            child: const Icon(Icons.account_balance_wallet_outlined,
-                color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Ví thu nhập',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    _currencyFormat.format(_profile?.soDuVi ?? 0),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.22),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.account_balance_wallet_outlined,
+                  color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ví thu nhập (Thực nhận 80%)',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _currencyFormat.format(balance),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Đã trừ 20% phí nền tảng • $_completedCount đơn hoàn thành',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: _coral,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: _showIncomeHistorySheet,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: _coral,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Chi tiết',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              ),
             ),
-            child: const Text('Rút tiền',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Future<void> _showIncomeHistorySheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext ctx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.82,
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCFCE7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.account_balance_wallet_rounded,
+                        color: Color(0xFF16A34A), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Chi tiết Ví & Lịch sử thu nhập',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: _ink,
+                          ),
+                        ),
+                        Text(
+                          'Tỷ lệ phân chia: CTV nhận 80% • Phí nền tảng 20%',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Color(0xFF94A3B8)),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Bảng tổng hợp
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF86EFAC)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Tổng giá trị đơn hoàn thành (100%)',
+                            style: TextStyle(
+                                fontSize: 12.5, color: Color(0xFF334155)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _currencyFormat.format(_totalGrossIncome),
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: _ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Tổng chiết khấu nền tảng (20%)',
+                            style: TextStyle(
+                                fontSize: 12.5, color: Color(0xFF64748B)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '-${_currencyFormat.format(_totalPlatformFee)}',
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Divider(height: 1, color: Color(0xFFBBF7D0)),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Số dư thực nhận trong Ví (80%)',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF14532D),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              '+${_currencyFormat.format(_effectiveWalletBalance)}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF15803D),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'DANH SÁCH ĐƠN ĐÃ CỘNG TIỀN ($_completedCount ĐƠN)',
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: _completedOrders.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Chưa có đơn hoàn thành nào',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: _completedOrders.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final item = _completedOrders[index];
+                          final String maDon =
+                              (item['maDonDat'] ?? 'N/A').toString();
+                          final String tenDv =
+                              (item['tenDichVu'] ?? 'Dịch vụ').toString();
+                          final String ngay =
+                              (item['ngayThucHien'] ?? item['ngayLam'] ?? '')
+                                  .toString();
+                          final num gross = _getGrossPrice(item);
+                          final num fee = _getPlatformFee(item);
+                          final num net = _getNetIncome(item);
+
+                          return Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border:
+                                  Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        tenDv,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: _ink,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '+${_currencyFormat.format(net)}',
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
+                                        color: Color(0xFF15803D),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        'Mã: $maDon${ngay.isNotEmpty ? ' • $ngay' : ''}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          'Gốc: ${_currencyFormat.format(gross)} (-20%: ${_currencyFormat.format(fee)})',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Color(0xFF64748B),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

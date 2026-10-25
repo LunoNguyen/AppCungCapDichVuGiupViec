@@ -42,10 +42,25 @@ class CollaboratorApiService {
     );
   }
 
-  /// CTV bắt đầu thực hiện đơn
-  Future<ApiResponse<Map<String, dynamic>>> startAssignment(int phanCongId) async {
+  /// CTV bắt đầu thực hiện đơn (kèm ảnh tài sản Trước khi thực hiện dịch vụ)
+  Future<ApiResponse<Map<String, dynamic>>> startAssignment(
+    int phanCongId, {
+    List<String>? danhSachHinhAnh,
+    String? khuVucVatDung,
+    String? moTaHienTrang,
+    String? ghiChuTaiSan,
+  }) async {
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/collaborators/assignments/$phanCongId/start',
+      body: {
+        if (danhSachHinhAnh != null) 'danhSachHinhAnh': danhSachHinhAnh,
+        if (khuVucVatDung != null && khuVucVatDung.trim().isNotEmpty)
+          'khuVucVatDung': khuVucVatDung.trim(),
+        if (moTaHienTrang != null && moTaHienTrang.trim().isNotEmpty)
+          'moTaHienTrang': moTaHienTrang.trim(),
+        if (ghiChuTaiSan != null && ghiChuTaiSan.trim().isNotEmpty)
+          'ghiChuTaiSan': ghiChuTaiSan.trim(),
+      },
     );
   }
 
@@ -58,6 +73,10 @@ class CollaboratorApiService {
     String? ngayMoi,
     String? gioBatDauMoi,
     String? ghiChu,
+    List<String>? danhSachHinhAnh,
+    String? khuVucVatDung,
+    String? moTaHienTrang,
+    String? ghiChuTaiSan,
   }) async {
     return _apiClient.put<Map<String, dynamic>>(
       '/v1/collaborators/assignments/$phanCongId/resolve-overdue',
@@ -69,6 +88,14 @@ class CollaboratorApiService {
         if (gioBatDauMoi != null && gioBatDauMoi.isNotEmpty)
           'gioBatDauMoi': gioBatDauMoi,
         if (ghiChu != null && ghiChu.trim().isNotEmpty) 'ghiChu': ghiChu.trim(),
+        if (danhSachHinhAnh != null && danhSachHinhAnh.isNotEmpty)
+          'danhSachHinhAnh': danhSachHinhAnh,
+        if (khuVucVatDung != null && khuVucVatDung.trim().isNotEmpty)
+          'khuVucVatDung': khuVucVatDung.trim(),
+        if (moTaHienTrang != null && moTaHienTrang.trim().isNotEmpty)
+          'moTaHienTrang': moTaHienTrang.trim(),
+        if (ghiChuTaiSan != null && ghiChuTaiSan.trim().isNotEmpty)
+          'ghiChuTaiSan': ghiChuTaiSan.trim(),
       },
     );
   }
@@ -91,28 +118,28 @@ class CollaboratorApiService {
     );
   }
 
-  /// CTV hoàn thành đơn
+  /// CTV hoàn thành đơn (bắt buộc kèm ảnh tài sản Sau khi thực hiện dịch vụ)
   Future<ApiResponse<Map<String, dynamic>>> completeAssignment({
     required int id,
     String? ghiChu,
+    List<String>? danhSachHinhAnh,
+    String? khuVucVatDung,
+    String? moTaHienTrang,
+    String? ghiChuTaiSan,
   }) async {
     final cleanGhiChu = ghiChu?.trim().replaceAll(RegExp(r'\s+'), ' ');
-    try {
-      final res = await _apiClient.put<Map<String, dynamic>>(
-        '/v1/collaborators/assignments/$id/complete',
-        body: {
-          'ketQuaThucHien': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
-          'ghiChu': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
-        },
-      );
-      if (res.success) return res;
-    } catch (_) {}
-
     return _apiClient.put<Map<String, dynamic>>(
-      '/v1/customer/bookings/$id',
+      '/v1/collaborators/assignments/$id/complete',
       body: {
-        'trangThai': 'HoanThanh',
+        'ketQuaThucHien': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
         'ghiChu': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
+        if (danhSachHinhAnh != null) 'danhSachHinhAnh': danhSachHinhAnh,
+        if (khuVucVatDung != null && khuVucVatDung.trim().isNotEmpty)
+          'khuVucVatDung': khuVucVatDung.trim(),
+        if (moTaHienTrang != null && moTaHienTrang.trim().isNotEmpty)
+          'moTaHienTrang': moTaHienTrang.trim(),
+        if (ghiChuTaiSan != null && ghiChuTaiSan.trim().isNotEmpty)
+          'ghiChuTaiSan': ghiChuTaiSan.trim(),
       },
     );
   }

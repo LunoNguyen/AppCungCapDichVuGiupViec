@@ -7,6 +7,7 @@ import '../../core/app_colors.dart';
 import '../../services/collaborator_api_service.dart';
 import '../../services/location_service.dart';
 import '../../widgets/app_time_picker.dart';
+import '../../widgets/tai_san_capture_sheet.dart';
 
 class CollaboratorScheduleScreen extends StatefulWidget {
   const CollaboratorScheduleScreen({super.key});
@@ -1086,17 +1087,23 @@ class CollaboratorScheduleScreenState
                                 ),
                               ),
                             ),
-                            if (s['thanhTien'] != null)
-                              Text(
-                                _formatPrice(s['thanhTien']),
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                  color: _money,
+                            if (s['thanhTien'] != null || s['tienThucNhan'] != null)
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    '${_formatPrice(_getNetIncome(s))} (80%)',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: _money,
+                                    ),
+                                  ),
                                 ),
                               ),
                           ],
                         ),
+                        TaiSanBeforeAfterSection(orderData: s, compact: true),
                       ],
                     ),
                   ),
@@ -1278,18 +1285,52 @@ class CollaboratorScheduleScreenState
       return;
     }
 
-    // 3. Trường hợp ĐÚNG KHUNG GIỜ HỢP LỆ (READY)
+    // 3. Trường hợp ĐÚNG KHUNG GIỜ HỢP LỆ (READY) -> Yêu cầu chụp ảnh tài sản trước khi làm
     final int phanCongId = s['phanCongId'] ?? s['id'] ?? 0;
     if (phanCongId == 0) return;
 
+    final TaiSanCaptureResult? captureBefore = await TaiSanCaptureSheet.show(
+      context,
+      isBeforeService: true,
+      maDon: (s['maDonDat'] ?? s['maLichLamViec'] ?? 'N/A').toString(),
+      tenDichVu: (s['tenDichVu'] ?? s['dichVuTitle'] ?? 'Dịch vụ giúp việc')
+          .toString(),
+      diaChi: (s['diaChi'] ?? '').toString(),
+    );
+
+    if (!mounted) return;
+    if (captureBefore == null || captureBefore.danhSachHinhAnh.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '⚠️ Bạn cần chụp và gửi ảnh hiện trạng tài sản khu vực thực hiện trước khi bắt đầu dịch vụ!',
+          ),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
-      final res = await _apiService.startAssignment(phanCongId);
+      final res = await _apiService.startAssignment(
+        phanCongId,
+        danhSachHinhAnh: captureBefore.danhSachHinhAnh,
+        khuVucVatDung: captureBefore.khuVucVatDung,
+        moTaHienTrang: captureBefore.moTaHienTrang,
+        ghiChuTaiSan: captureBefore.ghiChuTaiSan,
+      );
       if (res.success) {
+        s['anhTruocDichVu'] = captureBefore.danhSachHinhAnh;
+        s['daChupTruocDichVu'] = true;
+        s['thoiGianChupTruoc'] =
+            DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('▶️ Đã bắt đầu ca làm việc! Chúc bạn làm việc tốt.'),
+            content: Text(
+              '▶️ Đã gửi ảnh tài sản trước khi làm và bắt đầu thực hiện dịch vụ!',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -2370,14 +2411,431 @@ class CollaboratorScheduleScreenState
     final int phanCongId = s['phanCongId'] ?? s['id'] ?? 0;
     if (phanCongId == 0) return;
 
+    final String serviceName = (s['tenDichVu'] ?? s['dichVuTitle'] ?? 'Dịch vụ giúp việc').toString();
+    final String maDon = (s['maDonDat'] ?? s['maLichLamViec'] ?? 'N/A').toString();
+    final String customerName = (s['khachHangTen'] ?? 'Khách hàng').toString();
+    final String rawDate = (s['ngayLam'] ?? s['ngayThucHien'] ?? '').toString();
+    final String dateStr = _fmtDate(rawDate);
+    final String timeStr =
+        '${_fmtTime(s['gioBatDau']?.toString())} - ${_fmtTime(s['gioKetThuc']?.toString())}';
+
+    // BƯỚC 1 (BẮT BUỘC): Yêu cầu CTV chụp lại tài sản ở khu vực thực hiện SAU KHI LÀM XONG
+    final TaiSanCaptureResult? captureAfter = await TaiSanCaptureSheet.show(
+      context,
+      isBeforeService: false,
+      maDon: maDon,
+      tenDichVu: serviceName,
+      diaChi: (s['diaChi'] ?? '').toString(),
+    );
+
+    if (!mounted) return;
+    if (captureAfter == null || captureAfter.danhSachHinhAnh.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '⚠️ Chưa chụp ảnh tài sản sau khi thực hiện! Đơn chưa được chuyển sang trạng thái Hoàn thành.',
+          ),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    final num gross = _getGrossPrice(s);
+    final num fee = _getPlatformFee(s);
+    final num net = _getNetIncome(s);
+
+    final String grossStr = _formatPrice(gross);
+    final String feeStr = _formatPrice(fee);
+    final String netStr = _formatPrice(net);
+
+    final bool? confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext ctx) {
+        return Container(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 14,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.payments_rounded,
+                        color: Color(0xFF16A34A),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Xác nhận hoàn thành ca làm',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: _ink,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Mã đơn: $maDon • KH: $customerName',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Color(0xFF94A3B8)),
+                      onPressed: () => Navigator.pop(ctx, false),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        serviceName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _ink,
+                        ),
+                      ),
+                      if (dateStr.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.schedule_rounded,
+                                size: 15, color: Color(0xFF64748B)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Ca làm: $dateStr ($timeStr)',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  color: Color(0xFF475569),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF86EFAC), width: 1.2),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.receipt_long_rounded,
+                              size: 17, color: Color(0xFF15803D)),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'CHI TIẾT DÒNG TIỀN THU NHẬP CA LÀM',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF166534),
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Tổng giá trị đơn dịch vụ (100%)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF334155),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            grossStr,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: _ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Chiết khấu chi phí nền tảng (20%)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '-$feeStr',
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFDC2626),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 10),
+                        child: Divider(height: 1, color: Color(0xFFBBF7D0)),
+                      ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Số tiền bạn thực nhận (80%)',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF14532D),
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Cộng trực tiếp vào Ví thu nhập & Tài khoản',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: Color(0xFF15803D),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF16A34A),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '+$netStr',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline_rounded,
+                          size: 18, color: Color(0xFFD97706)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Bạn có xác nhận đã hoàn thành công việc và đồng ý nhận $netStr (sau khi trừ 20% phí nền tảng) vào Ví thu nhập không?',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF92400E),
+                            fontWeight: FontWeight.w600,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 46,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF475569),
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Từ chối / Quay lại',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: SizedBox(
+                        height: 46,
+                        child: ElevatedButton.icon(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          icon: const Icon(Icons.check_circle_rounded, size: 19),
+                          label: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Xác nhận (+$netStr)',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
     setState(() => _isLoading = true);
     try {
-      final res = await _apiService.completeAssignment(id: phanCongId);
+      final res = await _apiService.completeAssignment(
+        id: phanCongId,
+        ghiChu: captureAfter.ghiChuTaiSan.isNotEmpty
+            ? captureAfter.ghiChuTaiSan
+            : 'Hoàn thành qua ứng dụng',
+        danhSachHinhAnh: captureAfter.danhSachHinhAnh,
+        khuVucVatDung: captureAfter.khuVucVatDung,
+        moTaHienTrang: captureAfter.moTaHienTrang,
+        ghiChuTaiSan: captureAfter.ghiChuTaiSan,
+      );
+      if (res.success) {
+        s['anhSauDichVu'] = captureAfter.danhSachHinhAnh;
+        s['daChupSauDichVu'] = true;
+        s['thoiGianChupSau'] =
+            DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
+      }
       if (res.success) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Đã hoàn thành ca làm việc!'),
+          SnackBar(
+            content: Text('✅ Đã hoàn thành ca làm việc! +$netStr (80% tiền công) đã được cộng vào Ví thu nhập.'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -2389,6 +2847,29 @@ class CollaboratorScheduleScreenState
   }
 
   // ===================== HÀM HỖ TRỢ =====================
+
+  num _getGrossPrice(Map<String, dynamic> s) {
+    return num.tryParse(s['thanhTien']?.toString() ??
+            s['tongTienDon']?.toString() ??
+            s['tongTien']?.toString() ??
+            '') ??
+        0;
+  }
+
+  num _getPlatformFee(Map<String, dynamic> s) {
+    final fromApi = num.tryParse(s['phiNenTang']?.toString() ?? '');
+    if (fromApi != null && fromApi > 0) return fromApi.round();
+    final gross = _getGrossPrice(s);
+    final net = (gross * 0.80).round();
+    return gross.round() - net;
+  }
+
+  num _getNetIncome(Map<String, dynamic> s) {
+    final fromApi = num.tryParse(s['tienThucNhan']?.toString() ?? '');
+    if (fromApi != null && fromApi > 0) return fromApi.round();
+    final gross = _getGrossPrice(s);
+    return (gross * 0.80).round();
+  }
 
   String _formatPrice(dynamic v) {
     final n = num.tryParse(v?.toString() ?? '')?.round() ?? 0;
