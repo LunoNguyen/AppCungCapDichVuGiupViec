@@ -9,6 +9,7 @@ import '../../services/booking_api_service.dart';
 import '../../services/dong_ho.dart';
 import '../../services/session_service.dart';
 import '../../widgets/danh_gia_don.dart';
+import '../../widgets/tai_san_capture_sheet.dart';
 import 'thanh_toan_screen.dart';
 
 class OrderDetailScreen extends StatefulWidget {
@@ -811,6 +812,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with WidgetsBindi
                       ),
                     ),
             ),
+            TaiSanBeforeAfterSection(orderData: _order!),
             const SizedBox(height: 14),
 
             // Invoice & Payment Section

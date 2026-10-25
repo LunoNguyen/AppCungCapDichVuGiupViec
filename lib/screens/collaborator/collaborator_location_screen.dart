@@ -18,6 +18,7 @@ class _CollaboratorLocationScreenState extends State<CollaboratorLocationScreen>
   @override
   void initState() {
     super.initState();
+    _addressText = CtvLocationTracker.instance.currentAddress;
     CtvLocationTracker.instance.addListener(_onTrackerUpdated);
     _loadCurrentAddress();
   }
@@ -30,23 +31,33 @@ class _CollaboratorLocationScreenState extends State<CollaboratorLocationScreen>
 
   void _onTrackerUpdated() {
     if (mounted) {
-      setState(() {});
+      final addr = CtvLocationTracker.instance.currentAddress;
+      setState(() {
+        if (addr != null && addr.isNotEmpty) {
+          _addressText = addr;
+        }
+      });
     }
   }
 
   Future<void> _loadCurrentAddress() async {
-    final pos = await LocationService.getCurrentPosition();
-    if (pos.ok && pos.position != null) {
-      final details = await LocationService.getAddressDetails(
-        pos.position!.latitude,
-        pos.position!.longitude,
-      );
-      if (mounted) {
-        setState(() {
-          _addressText = details['diaChi'];
-        });
+    try {
+      final cachedPos = CtvLocationTracker.instance.latestPosition;
+      final pos = cachedPos != null
+          ? cachedPos
+          : (await LocationService.getCurrentPosition()).position;
+      if (pos != null) {
+        final details = await LocationService.getAddressDetails(
+          pos.latitude,
+          pos.longitude,
+        );
+        if (mounted) {
+          setState(() {
+            _addressText = details['diaChi'];
+          });
+        }
       }
-    }
+    } catch (_) {}
   }
 
   Future<void> _refreshLocation() async {
@@ -85,13 +96,25 @@ class _CollaboratorLocationScreenState extends State<CollaboratorLocationScreen>
     final district = CtvLocationTracker.instance.currentDistrict;
     final address = (_addressText != null && _addressText!.isNotEmpty)
         ? _addressText!
-        : (district != null && district.isNotEmpty ? '$district, TP. Hồ Chí Minh' : 'Hồ Chí Minh');
+        : (district != null && district.isNotEmpty ? '$district, TP. Hồ Chí Minh' : 'Thành phố Hồ Chí Minh');
 
-    final pos = await LocationService.getCurrentPosition();
-    if (pos.ok && pos.position != null) {
-      await LocationService.openMap(pos.position!.latitude, pos.position!.longitude);
-    } else {
-      await LocationService.openDirections(address: address);
+    final pos = CtvLocationTracker.instance.latestPosition;
+    bool opened = false;
+    if (pos != null) {
+      opened = await LocationService.openMap(pos.latitude, pos.longitude);
+    }
+    if (!opened) {
+      opened = await LocationService.openDirections(address: address);
+    }
+
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể mở ứng dụng bản đồ trên thiết bị này.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 

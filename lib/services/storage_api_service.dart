@@ -149,6 +149,58 @@ class StorageApiService {
     }
   }
 
+  /// Upload ảnh hiện trạng tài sản (Trước / Sau khi thực hiện dịch vụ)
+  /// POST /api/storage/upload/tai-san
+  Future<ApiResponse<Map<String, dynamic>>> uploadTaiSanImage({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    try {
+      final uri = Uri.parse('${ApiConfig.storageUrl}/upload/tai-san');
+      final request = http.MultipartRequest('POST', uri)
+        ..files.add(
+          http.MultipartFile.fromBytes(
+            'file',
+            bytes,
+            filename: fileName,
+          ),
+        );
+
+      final streamedResponse =
+          await request.send().timeout(ApiConfig.connectTimeout);
+      final response = await http.Response.fromStream(streamedResponse);
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return ApiResponse.ok(
+          Map<String, dynamic>.from(data as Map),
+          'Tải ảnh tài sản thành công',
+        );
+      } else {
+        return ApiResponse.err(
+            data['error']?.toString() ?? 'Lỗi tải ảnh tài sản lên hệ thống');
+      }
+    } catch (e) {
+      return ApiResponse.err('Lỗi kết nối khi tải ảnh tài sản: $e');
+    }
+  }
+
+  /// Chuẩn hóa đường dẫn ảnh từ Backend / MinIO để hiển thị trên Mobile App
+  static String resolveImageUrl(String? rawUrl) {
+    if (rawUrl == null) return '';
+    final s = rawUrl.trim();
+    if (s.isEmpty) return '';
+    if (s.startsWith('http://') ||
+        s.startsWith('https://') ||
+        s.startsWith('data:image/')) {
+      return s;
+    }
+    if (s.startsWith('/')) {
+      return '${ApiConfig.baseUrl}$s';
+    }
+    return '${ApiConfig.baseUrl}/xem-file?object=${Uri.encodeComponent(s)}';
+  }
+
   /// Lấy presigned URL để xem hoặc tải ảnh từ MinIO
   /// GET /api/storage/url?object=...
   Future<String?> getPresignedUrl(String objectName) async {

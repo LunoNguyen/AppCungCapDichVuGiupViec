@@ -31,9 +31,12 @@ class CtvLocationTracker extends ChangeNotifier {
   int _ctvId = 0;
   bool _sending = false;
   String? _currentDistrict;
+  String? _currentAddress;
 
   bool get isRunning => _timer != null;
   String? get currentDistrict => _currentDistrict;
+  String? get currentAddress => _currentAddress;
+  Position? get latestPosition => _latest ?? LocationService.lastKnownPosition;
 
   void _setDistrict(String? d) {
     if (d == null || d.trim().isEmpty) return;
@@ -107,11 +110,22 @@ class CtvLocationTracker extends ChangeNotifier {
     if (p == null || _sending) return;
     _sending = true;
     try {
-      // 1. Phân giải địa giới hành chính (Quận/Huyện, Tỉnh/Thành) từ GPS điện thoại
+      // Nhận diện nhanh quận theo toạ độ ngay lập tức để UI không phải chờ Geocoder mạng
+      final quickDistrict = LocationService.doanQuanTheoToaDo(p.latitude, p.longitude);
+      if (quickDistrict != null && quickDistrict.isNotEmpty && quickDistrict != _currentDistrict) {
+        _currentDistrict = quickDistrict;
+        notifyListeners();
+      }
+
+      // 1. Phân giải địa giới hành chính (Quận/Huyện, Tỉnh/Thành) từ GPS điện thoại & 2 API
       final geo = await LocationService.getAddressDetails(p.latitude, p.longitude);
-      final quanHuyen = geo['quanHuyen'] ?? '';
+      final quanHuyen = (geo['quanHuyen']?.isNotEmpty == true) ? geo['quanHuyen'] : quickDistrict;
       final tinhThanh = geo['tinhThanh'];
       final diaChi = geo['diaChi'];
+      if (diaChi != null && diaChi.isNotEmpty && diaChi != _currentAddress) {
+        _currentAddress = diaChi;
+        notifyListeners();
+      }
 
       // 2. Cập nhật ngay tại máy và báo UI nếu quận đã đổi (không phụ thuộc vào server)
       if (quanHuyen != null && quanHuyen.isNotEmpty && quanHuyen != _currentDistrict) {
