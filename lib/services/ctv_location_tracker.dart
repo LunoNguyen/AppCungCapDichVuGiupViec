@@ -35,6 +35,9 @@ class CtvLocationTracker extends ChangeNotifier {
   bool get isRunning => _timer != null;
   String? get currentDistrict => _currentDistrict;
 
+  @visibleForTesting
+  void setDistrictForTest(String district) => _setDistrict(district);
+
   void _setDistrict(String? d) {
     if (d == null || d.trim().isEmpty) return;
     final trimmed = d.trim();
