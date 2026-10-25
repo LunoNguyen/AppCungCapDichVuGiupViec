@@ -1,27 +1,26 @@
 import 'package:flutter/material.dart';
 import '../../../core/app_colors.dart';
+import '../../../services/buoc_dat.dart';
 
-/// Thanh 5 bước ở đầu màn đặt (giống website). Bước đã tới thì bấm được để quay lại sửa;
-/// bước sau [daToi] bị khoá; bước 2 ẩn khi dịch vụ chỉ có một hình thức.
+/// Thanh bước ở đầu màn đặt (giống website): Thời gian → Xác nhận → Thanh toán, đánh số 1–3.
+/// Bước đã tới thì bấm được để quay lại sửa; bước sau [daToi] bị khoá.
 class ThanhBuoc extends StatelessWidget {
-  static const nhan = ['Dịch vụ', 'Hình thức', 'Thời gian', 'Xác nhận', 'Thanh toán'];
+  static const nhan = {3: 'Thời gian', 4: 'Xác nhận', 5: 'Thanh toán'};
 
   final int buoc;
   final int daToi;
-  final bool boQuaBuoc2;
   final ValueChanged<int> onChon;
 
   const ThanhBuoc({
     super.key,
     required this.buoc,
     required this.daToi,
-    required this.boQuaBuoc2,
     required this.onChon,
   });
 
   @override
   Widget build(BuildContext context) {
-    final cacBuoc = [for (int b = 1; b <= nhan.length; b++) if (!(b == 2 && boQuaBuoc2)) b];
+    const cacBuoc = BuocDat.cacBuoc;
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
@@ -69,7 +68,7 @@ class ThanhBuoc extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              nhan[b - 1],
+              nhan[b]!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

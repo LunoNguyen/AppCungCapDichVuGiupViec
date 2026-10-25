@@ -28,15 +28,15 @@ class DuLieuDat {
   });
 }
 
-/// Quy tắc 5 bước của màn đặt (giống website):
-/// 1 Dịch vụ → 2 Hình thức & thời lượng → 3 Thời gian → 4 Xác nhận → 5 Thanh toán.
+/// Quy tắc các bước của màn đặt (giống website). Dịch vụ (bước 1) và hình thức & thời lượng (bước 2)
+/// đã chọn ở trang chi tiết dịch vụ nên màn đặt chỉ hiện: 3 Thời gian → 4 Xác nhận → 5 Thanh toán
+/// (đánh số 1–3 trên thanh bước). Bước 1, 2 vẫn được kiểm trong [loiBuoc] để chặn dữ liệu thiếu.
 class BuocDat {
   BuocDat._();
 
   static const soBuoc = 5;
-
-  /// Bước 2 chọn hình thức và thời lượng / gói: dịch vụ chỉ có đúng một lựa chọn thì không cần bước này.
-  static bool boQuaBuoc2(NhomDichVu nhom) => nhom.bienThe.length <= 1;
+  static const buocDau = 3;
+  static const cacBuoc = [3, 4, 5];
 
   static String loaiMacDinh(NhomDichVu nhom, {String? uuTien}) {
     if (uuTien == 'GoiThang' && nhom.coGoiThang) return 'GoiThang';
@@ -44,20 +44,10 @@ class BuocDat {
     return nhom.coTheoLan ? 'TheoLan' : 'GoiThang';
   }
 
-  /// Mở màn đặt từ trang chi tiết dịch vụ: dịch vụ đã chọn sẵn nên bắt đầu ở bước 2 (hoặc 3).
-  static int buocMoDau(NhomDichVu nhom) => boQuaBuoc2(nhom) ? 3 : 2;
+  static int buocKe(int buoc) => buoc >= soBuoc ? soBuoc : buoc + 1;
 
-  static int buocKe(int buoc, NhomDichVu nhom) {
-    var ke = buoc + 1;
-    if (ke == 2 && boQuaBuoc2(nhom)) ke = 3;
-    return ke > soBuoc ? soBuoc : ke;
-  }
-
-  static int buocLui(int buoc, NhomDichVu nhom) {
-    var lui = buoc - 1;
-    if (lui == 2 && boQuaBuoc2(nhom)) lui = 1;
-    return lui < 1 ? 1 : lui;
-  }
+  /// Ở bước đầu thì giữ nguyên: màn hình tự quay về trang chi tiết dịch vụ.
+  static int buocLui(int buoc) => buoc <= buocDau ? buocDau : buoc - 1;
 
   /// Câu lỗi chặn bước [buoc] (giống website), null nếu được sang bước sau.
   static String? loiBuoc(int buoc, DuLieuDat d) {

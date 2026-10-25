@@ -31,8 +31,12 @@ class BuocThoiGian extends StatelessWidget {
 
   final TextEditingController ghiChu;
 
+  /// Khối hiện trên cùng (thẻ "Dịch vụ đã chọn"), cuộn cùng nội dung bước.
+  final Widget? dau;
+
   const BuocThoiGian({
     super.key,
+    this.dau,
     required this.loai,
     required this.ngay,
     required this.ngayDau,
@@ -66,6 +70,7 @@ class BuocThoiGian extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 16),
       children: [
+        if (dau != null) ...[dau!, const SizedBox(height: 10)],
         _khoi(
           _laGoi ? 'Ngày bắt đầu gói' : 'Ngày làm việc',
           Column(

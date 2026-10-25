@@ -2,7 +2,7 @@ import 'package:app_cung_cap_dich_vu_giup_viec/services/buoc_dat.dart';
 import 'package:app_cung_cap_dich_vu_giup_viec/services/nhom_dich_vu.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Quy tắc chuyển giữa 5 bước của màn đặt (giống website).
+/// Quy tắc chuyển giữa các bước của màn đặt (giống website).
 void main() {
   // Biến thể mặc định: theo lần 2 giờ + gói tháng (tuỳ cờ)
   NhomDichVu nhom({required bool theoLan, required bool goi, List<Map<String, dynamic>>? bienThe}) => NhomDichVu(
@@ -18,33 +18,22 @@ void main() {
             ],
       );
 
-  test('Dịch vụ chỉ một lựa chọn (một gói tháng): bỏ qua bước 2, mở ở bước 3', () {
-    final n = nhom(theoLan: false, goi: true);
-    expect(BuocDat.boQuaBuoc2(n), isTrue);
-    expect(BuocDat.buocMoDau(n), 3);
-    expect(BuocDat.loaiMacDinh(n), 'GoiThang');
-    expect(BuocDat.buocKe(1, n), 3);
-    expect(BuocDat.buocLui(3, n), 1);
+  test('Màn đặt chỉ còn 3 bước: Thời gian → Xác nhận → Thanh toán (dịch vụ chọn ở trang chi tiết)', () {
+    expect(BuocDat.buocDau, 3);
+    expect(BuocDat.cacBuoc, [3, 4, 5]);
+    expect(BuocDat.buocKe(3), 4);
+    expect(BuocDat.buocKe(4), 5);
+    expect(BuocDat.buocKe(5), 5);
+    expect(BuocDat.buocLui(5), 4);
+    expect(BuocDat.buocLui(4), 3);
+    expect(BuocDat.buocLui(3), 3); // bước đầu: màn hình tự quay về trang chi tiết
   });
 
-  test('Một hình thức nhưng nhiều thời lượng: vẫn có bước 2 để chọn thời lượng', () {
-    final n = nhom(theoLan: true, goi: false, bienThe: [
-      {'id': 1, 'loaiHinhDat': 'TheoLan'},
-      {'id': 3, 'loaiHinhDat': 'TheoLan'},
-    ]);
-    expect(BuocDat.boQuaBuoc2(n), isFalse);
-    expect(BuocDat.buocMoDau(n), 2);
-  });
-
-  test('Dịch vụ có đủ hai hình thức: đi đủ 5 bước', () {
+  test('Hình thức mặc định theo biến thể đã chọn', () {
     final n = nhom(theoLan: true, goi: true);
-    expect(BuocDat.buocMoDau(n), 2);
-    expect(BuocDat.buocKe(1, n), 2);
-    expect(BuocDat.buocLui(3, n), 2);
-    expect(BuocDat.buocKe(5, n), 5);
-    expect(BuocDat.buocLui(1, n), 1);
     expect(BuocDat.loaiMacDinh(n, uuTien: 'GoiThang'), 'GoiThang');
     expect(BuocDat.loaiMacDinh(n), 'TheoLan');
+    expect(BuocDat.loaiMacDinh(nhom(theoLan: false, goi: true)), 'GoiThang');
   });
 
   test('Điều kiện chặn từng bước', () {

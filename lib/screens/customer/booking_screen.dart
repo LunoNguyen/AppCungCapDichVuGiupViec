@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/address_api_service.dart';
@@ -7,23 +9,21 @@ import '../../services/catalog_ui.dart';
 import '../../services/lich_goi_thang.dart';
 import '../../services/nhom_dich_vu.dart';
 import '../../services/rang_buoc_ngay_dat.dart';
-import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/lich_thang.dart';
 import 'address_book_screen.dart';
 import 'dat_dich_vu/bang_khuyen_mai.dart';
-import 'dat_dich_vu/buoc_dich_vu.dart';
-import 'dat_dich_vu/buoc_hinh_thuc.dart';
 import 'dat_dich_vu/buoc_thanh_toan.dart';
 import 'dat_dich_vu/buoc_thoi_gian.dart';
 import 'dat_dich_vu/buoc_xac_nhan.dart';
+import 'dat_dich_vu/dich_vu_da_chon.dart';
 import 'dat_dich_vu/thanh_buoc.dart';
 import 'order_detail_screen.dart';
 import 'thanh_toan_screen.dart';
 
-/// Màn đặt dịch vụ 5 bước, giống website:
-/// 1 Dịch vụ → 2 Hình thức → 3 Thời gian → 4 Xác nhận → 5 Thanh toán.
-/// Mở từ trang chi tiết dịch vụ nên dịch vụ đã chọn sẵn, bắt đầu ở bước 2 (bước 3 nếu chỉ có một hình thức).
+/// Màn đặt dịch vụ, giống website: Thời gian → Xác nhận → Thanh toán.
+/// Mở từ trang chi tiết dịch vụ với biến thể (hình thức + thời lượng / gói) đã chọn ở đó;
+/// muốn đổi dịch vụ thì bấm "Đổi" hoặc Quay lại ở bước đầu để về trang chi tiết.
 class BookingScreen extends StatefulWidget {
   final Map<String, dynamic> service;
 
@@ -37,14 +37,8 @@ class _BookingScreenState extends State<BookingScreen> {
   late int _buoc;
   late int _daToi;
 
-  // Bước 1: dịch vụ cùng danh mục, gom theo mã dịch vụ
-  List<NhomDichVu> _nhoms = [];
+  // Dịch vụ, hình thức và biến thể (thời lượng / gói) đã chọn ở trang chi tiết
   NhomDichVu? _nhom;
-  bool _dangTaiDv = true;
-  bool _daTaiDv = false; // đã có danh sách đầy đủ: mới biết nhóm có bỏ qua bước 2 hay không
-  String? _loiDv;
-
-  // Bước 2–3: hình thức và biến thể (thời lượng / gói)
   String _loai = 'TheoLan';
   int? _dichVuId;
 
@@ -75,9 +69,6 @@ class _BookingScreenState extends State<BookingScreen> {
   static final List<TimeOfDay> _khungGio = List.generate(11, (i) => TimeOfDay(hour: 7 + i, minute: 0));
 
   int get _dichVuIdGoc => CatalogUi.toInt(widget.service['dichVuId'] ?? widget.service['id']);
-
-  /// Trong lúc chưa tải xong danh sách, nhóm tạm chỉ có một biến thể nên chưa kết luận được việc bỏ bước 2.
-  bool get _boQua2 => _daTaiDv && _nhom != null && BuocDat.boQuaBuoc2(_nhom!);
 
   DuLieuDat get _duLieu => DuLieuDat(
         nhom: _nhom,
@@ -150,19 +141,16 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
-    // Dựng tạm nhóm từ dịch vụ đang xem để mở ngay, không chờ mạng
-    final tam = NhomDichVu.gom([widget.service]).first;
-    _nhoms = [tam];
-    _nhom = tam;
-    _loai = BuocDat.loaiMacDinh(tam, uuTien: widget.service['loaiHinhDat']?.toString());
+    final nhom = NhomDichVu.gom([widget.service]).first;
+    _nhom = nhom;
+    _loai = BuocDat.loaiMacDinh(nhom, uuTien: widget.service['loaiHinhDat']?.toString());
     _dichVuId = _dichVuIdGoc > 0 ? _dichVuIdGoc : null;
-    _buoc = 2;
-    _daToi = 2;
+    _buoc = BuocDat.buocDau;
+    _daToi = BuocDat.buocDau;
     // Hôm nay nếu còn khung giờ hợp lệ, không thì ngày mai
     _ngay = _homNay;
     if (!_khungGio.any(_gioHopLe)) _ngay = _homNay.add(const Duration(days: 1));
     _chinhGio();
-    _taiDichVu();
     _taiDiaChi();
   }
 
@@ -230,107 +218,6 @@ class _BookingScreenState extends State<BookingScreen> {
   /// Tăng mỗi khi lựa chọn đổi: phản hồi giá của lựa chọn cũ về muộn thì bỏ qua.
   int _phienGia = 0;
   int _lanTinh = 0; // lần gọi _tinhGia mới nhất: chỉ lần này được tắt vòng xoay
-
-  Future<void> _taiDichVu() async {
-    setState(() {
-      _dangTaiDv = true;
-      _loiDv = null;
-    });
-    try {
-      final loaiId = CatalogUi.toInt(widget.service['loaiDichVuId']);
-      final res = await ServiceCatalogApiService().getServices(loaiDichVuId: loaiId > 0 ? loaiId : null);
-      if (!mounted) return;
-      if (!res.success || res.data == null) {
-        setState(() => _loiDv = res.message ?? 'Không tải được danh sách dịch vụ');
-        return;
-      }
-      var nhoms = NhomDichVu.gom(res.data!);
-      var dangChon = _nhom == null ? null : _timNhom(nhoms, _nhom!);
-      if (dangChon == null && _nhom != null) {
-        // Dịch vụ đang chọn không có trong danh sách (đã ngừng / khác danh mục): vẫn giữ để đặt tiếp
-        nhoms = [_nhom!, ...nhoms];
-        dangChon = _nhom;
-      }
-      setState(() {
-        _nhoms = nhoms;
-        _daTaiDv = true;
-        if (dangChon != null) _datNhom(dangChon, giuBienThe: true);
-        if (_buoc == 2 && _boQua2) {
-          _buoc = 3;
-          if (_daToi < 3) _daToi = 3;
-        }
-      });
-    } catch (_) {
-      if (mounted) setState(() => _loiDv = 'Không kết nối được máy chủ');
-    } finally {
-      if (mounted) setState(() => _dangTaiDv = false);
-    }
-  }
-
-  /// Nhóm trong danh sách mới tương ứng nhóm đang chọn: theo biến thể đang chọn, rồi theo mã.
-  NhomDichVu? _timNhom(List<NhomDichVu> nhoms, NhomDichVu cu) {
-    final theoId = _dichVuId == null ? null : NhomDichVu.timTheoDichVuId(nhoms, _dichVuId!);
-    if (theoId != null) return theoId;
-    for (final g in nhoms) {
-      if (g.ma == cu.ma) return g;
-    }
-    return null;
-  }
-
-  /// Chọn nhóm: giữ hình thức nếu nhóm có, chọn biến thể đầu tiên của hình thức đó
-  /// (hoặc giữ biến thể đang chọn khi chỉ thay bằng bản đầy đủ của cùng nhóm).
-  void _datNhom(NhomDichVu g, {bool giuBienThe = false}) {
-    _nhom = g;
-    _loai = BuocDat.loaiMacDinh(g, uuTien: _loai);
-    final ds = g.bienTheTheoLoai(_loai);
-    final conBienThe = giuBienThe && ds.any((b) => CatalogUi.toInt(b['id']) == _dichVuId);
-    if (!conBienThe) _dichVuId = ds.isEmpty ? null : CatalogUi.toInt(ds.first['id']);
-  }
-
-  void _chonNhom(NhomDichVu g) {
-    if (g.ma == _nhom?.ma) return;
-    setState(() {
-      _datNhom(g);
-      _daToi = _buoc; // đổi dịch vụ: các bước sau phải đi lại
-      _maApDung = null;
-      _maController.clear();
-      _huyGia();
-      _chinhGio();
-    });
-  }
-
-  void _chonLoai(String loai) {
-    if (loai == _loai) return;
-    String? thongBao;
-    setState(() {
-      _loai = loai;
-      final ds = _nhom?.bienTheTheoLoai(loai) ?? const [];
-      _dichVuId = ds.isEmpty ? null : CatalogUi.toInt(ds.first['id']);
-      _daToi = _buoc;
-      _huyGia();
-      final cu = _ngay;
-      if (cu != null) {
-        final moi = BuocDat.keoNgay(cu, loai, _homNay);
-        if (moi != cu) {
-          _ngay = moi;
-          final dm = '${moi.day.toString().padLeft(2, '0')}/${moi.month.toString().padLeft(2, '0')}';
-          thongBao = loai == 'GoiThang'
-              ? 'Đã đổi ngày về $dm vì gói tháng chỉ bắt đầu trong 3 tháng.'
-              : 'Đã đổi ngày về $dm vì đặt theo lần chỉ trong 1 tháng.';
-        }
-      }
-      _chinhGio();
-    });
-    if (thongBao != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(thongBao!)));
-    }
-  }
-
-  void _chonBienThe(int id) => setState(() {
-        _dichVuId = id;
-        _huyGia();
-        _chinhGio();
-      });
 
   void _chonNgay(DateTime d) => setState(() {
         _ngay = d;
@@ -463,7 +350,7 @@ class _BookingScreenState extends State<BookingScreen> {
       if (chan != null) {
         // Thanh bước nhảy qua một bước vừa bị sửa thành chưa hợp lệ: dừng ở bước đó
         _baoLoi(BuocDat.loiBuoc(chan, _duLieu)!);
-        setState(() => _buoc = chan);
+        setState(() => _buoc = math.max(chan, BuocDat.buocDau));
         return;
       }
     }
@@ -484,7 +371,7 @@ class _BookingScreenState extends State<BookingScreen> {
       _guiDon();
       return;
     }
-    _denBuoc(_daTaiDv ? BuocDat.buocKe(_buoc, _nhom!) : _buoc + 1);
+    _denBuoc(BuocDat.buocKe(_buoc));
   }
 
   /// Gửi đơn (POST /v1/bookings): chuyển khoản → màn QR, tiền mặt → chi tiết đơn.
@@ -502,7 +389,7 @@ class _BookingScreenState extends State<BookingScreen> {
     final chan = BuocDat.buocChan(BuocDat.soBuoc + 1, _duLieu);
     if (chan != null) {
       _baoLoi(BuocDat.loiBuoc(chan, _duLieu)!);
-      setState(() => _buoc = chan);
+      setState(() => _buoc = math.max(chan, BuocDat.buocDau));
       return;
     }
     if (id == null || ngay == null || gio == null || hinhThuc == null) return;
@@ -565,11 +452,11 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   void _lui() {
-    if (_buoc <= 1) {
+    if (_buoc <= BuocDat.buocDau) {
       Navigator.pop(context);
       return;
     }
-    setState(() => _buoc = _daTaiDv ? BuocDat.buocLui(_buoc, _nhom!) : _buoc - 1);
+    setState(() => _buoc = BuocDat.buocLui(_buoc));
   }
 
   @override
@@ -582,7 +469,6 @@ class _BookingScreenState extends State<BookingScreen> {
           ThanhBuoc(
             buoc: _buoc,
             daToi: _daToi,
-            boQuaBuoc2: _boQua2,
             onChon: _denBuoc,
           ),
           const Divider(height: 1),
@@ -595,25 +481,11 @@ class _BookingScreenState extends State<BookingScreen> {
 
   Widget _noiDungBuoc() {
     switch (_buoc) {
-      case 1:
-        return BuocDichVu(
-          nhoms: _nhoms,
-          maChon: _nhom?.ma,
-          onChon: _chonNhom,
-          dangTai: _dangTaiDv,
-          loi: _loiDv,
-          onThuLai: _taiDichVu,
-        );
-      case 2:
-        return BuocHinhThuc(
-          nhom: _nhom!,
-          loaiChon: _loai,
-          onChon: _chonLoai,
-          dichVuId: _dichVuId,
-          onChonBienThe: _chonBienThe,
-        );
       case 3:
         return BuocThoiGian(
+          dau: _nhom == null
+              ? null
+              : DichVuDaChon(nhom: _nhom!, bienThe: _bienThe, loai: _loai, onDoi: () => Navigator.pop(context)),
           loai: _loai,
           ngay: _ngay,
           ngayDau: _homNay,
