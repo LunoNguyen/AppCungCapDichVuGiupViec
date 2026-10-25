@@ -2,6 +2,7 @@ import '../../widgets/gia_hien_thi.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/catalog_ui.dart';
+import '../../widgets/anh_khong_cat.dart';
 import '../../services/nhom_dich_vu.dart';
 import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
@@ -130,34 +131,23 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               parent: BouncingScrollPhysics()),
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            // Ảnh minh hoạ dịch vụ
+            // Ảnh minh hoạ dịch vụ: hiện trọn ảnh (không cắt), chưa có ảnh thì biểu tượng
             Container(
-              height: 150,
+              height: 200,
               color: accent.withValues(alpha: 0.10),
-              child: Center(
-                child: Container(
-                  width: 112,
-                  height: 112,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
+              child: () {
+                final bieuTuong = Center(
+                  child: Icon(
+                    _service['icon'] as IconData? ?? Icons.cleaning_services_rounded,
+                    size: 52,
+                    color: accent,
                   ),
-                  child: () {
-                    final bieuTuong = Icon(
-                      _service['icon'] as IconData? ?? Icons.cleaning_services_rounded,
-                      size: 44,
-                      color: accent,
-                    );
-                    // Ảnh dịch vụ HCNS đặt theo mã dịch vụ (hinhAnhUrl từ danh sách dịch vụ)
-                    final anh = CatalogUi.fileUrl(
-                        (_service['hinhAnhUrl'] ?? _nhom?.anh ?? _service['hinhAnh'])?.toString());
-                    return anh == null
-                        ? bieuTuong
-                        : Image.network(anh, fit: BoxFit.cover, errorBuilder: (_, _, _) => bieuTuong);
-                  }(),
-                ),
-              ),
+                );
+                // Ảnh dịch vụ HCNS đặt theo mã dịch vụ (hinhAnhUrl từ danh sách dịch vụ)
+                final anh = CatalogUi.fileUrl(
+                    (_service['hinhAnhUrl'] ?? _nhom?.anh ?? _service['hinhAnh'])?.toString());
+                return anh == null ? bieuTuong : AnhKhongCat(url: anh, thayThe: bieuTuong);
+              }(),
             ),
 
             // Tên + giá + mô tả + đánh giá

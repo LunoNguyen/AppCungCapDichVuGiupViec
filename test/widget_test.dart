@@ -25,7 +25,10 @@ void main() {
     expect(find.text('Dịch vụ'), findsWidgets);
     expect(find.text('Thanh toán'), findsWidgets);
     expect(find.text('Hình thức'), findsOneWidget);
-    expect(find.text('Chọn hình thức đặt'), findsOneWidget);
+    // Bước 2: thanh chọn hình thức (một hàng) và dòng gợi ý của hình thức đang chọn
+    expect(find.text('Theo lần'), findsOneWidget);
+    expect(find.text('Gói tháng'), findsOneWidget);
+    expect(find.text('Một buổi làm, chọn ngày trong vòng 1 tháng tới.'), findsOneWidget);
 
     // Xả các yêu cầu mạng đang chờ (timeout) trước khi kết thúc test
     await tester.pumpWidget(const SizedBox());

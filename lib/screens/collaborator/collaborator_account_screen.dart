@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../chinh_sach_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -288,7 +289,11 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                         _MenuItem(Icons.headset_mic_outlined,
                             'Trung tâm trợ giúp', '', const Color(0xFF2F80ED), () {}),
                         _MenuItem(Icons.description_outlined,
-                            'Điều khoản & chính sách', '', Colors.grey, () {}),
+                            'Điều khoản & chính sách', '', Colors.grey,
+                            () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const ChinhSachScreen()),
+                                )),
                       ]),
                       const SizedBox(height: 24),
                       _buildLogoutButton(),

@@ -33,26 +33,26 @@ class BuocHinhThuc extends StatelessWidget {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
         ),
         const SizedBox(height: 4),
-        const Text('Chọn hình thức đặt', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 12),
-        _the(
-          loai: 'TheoLan',
-          coDuoc: nhom.coTheoLan,
-          icon: Icons.event_available_rounded,
-          ten: 'Theo lần',
-          moTa: 'Đặt một buổi, chọn ngày trong vòng 1 tháng tới.',
-          khongCo: 'Dịch vụ này không đặt theo lần',
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(color: AppColors.divider.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(12)),
+          child: Row(
+            children: [
+              _nutLoai('TheoLan', 'Theo lần', nhom.coTheoLan),
+              _nutLoai('GoiThang', 'Gói tháng', nhom.coGoiThang),
+            ],
+          ),
         ),
-        _the(
-          loai: 'GoiThang',
-          coDuoc: nhom.coGoiThang,
-          icon: Icons.date_range_rounded,
-          ten: 'Gói tháng',
-          moTa: 'Nhiều buổi trong 1 tháng theo các thứ bạn chọn, bắt đầu trong vòng 3 tháng tới.',
-          khongCo: 'Dịch vụ này chưa có gói tháng',
+        const SizedBox(height: 8),
+        Text(
+          laGoi
+              ? 'Nhiều buổi trong 1 tháng theo các thứ bạn chọn, bắt đầu trong vòng 3 tháng tới.'
+              : 'Một buổi làm, chọn ngày trong vòng 1 tháng tới.',
+          style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.35),
         ),
         if (bienThes.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           Text(
             laGoi ? 'Chọn gói' : 'Chọn thời lượng',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
@@ -107,65 +107,30 @@ class BuocHinhThuc extends StatelessWidget {
     );
   }
 
-  Widget _the({
-    required String loai,
-    required bool coDuoc,
-    required IconData icon,
-    required String ten,
-    required String moTa,
-    required String khongCo,
-  }) {
+  /// Một nút hình thức trong thanh chọn; hình thức dịch vụ không có thì mờ, không bấm được.
+  Widget _nutLoai(String loai, String nhan, bool coDuoc) {
     final chon = coDuoc && loai == loaiChon;
-    final gia = nhom
-        .bienTheTheoLoai(loai)
-        .map((b) => (num.tryParse(b['donGiaThamKhao']?.toString() ?? '') ?? 0).round())
-        .where((g) => g > 0);
-    final giaTu = gia.isEmpty ? 0 : gia.reduce((a, b) => a < b ? a : b);
-    return Opacity(
-      opacity: coDuoc ? 1 : 0.45,
-      child: GestureDetector(
-        onTap: coDuoc ? () => onChon(loai) : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: chon ? AppColors.brandSurface : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: chon ? AppColors.brand500 : AppColors.divider, width: chon ? 1.5 : 1),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: const BoxDecoration(color: AppColors.brandLight, shape: BoxShape.circle),
-                child: Icon(icon, color: AppColors.brand500),
+    return Expanded(
+      child: Opacity(
+        opacity: coDuoc ? 1 : 0.4,
+        child: GestureDetector(
+          onTap: coDuoc ? () => onChon(loai) : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: chon ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(9),
+              boxShadow: chon ? const [BoxShadow(color: Color(0x14000000), blurRadius: 2, offset: Offset(0, 1))] : null,
+            ),
+            child: Text(
+              nhan,
+              style: TextStyle(
+                fontWeight: chon ? FontWeight.w800 : FontWeight.w600,
+                color: chon ? AppColors.brand600 : AppColors.textSecondary,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(ten,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.textPrimary)),
-                    const SizedBox(height: 4),
-                    Text(coDuoc ? moTa : khongCo,
-                        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.35)),
-                    if (coDuoc && giaTu > 0) ...[
-                      const SizedBox(height: 6),
-                      Text('Từ ${CatalogUi.money(giaTu)}',
-                          style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.brand600)),
-                    ],
-                  ],
-                ),
-              ),
-              Icon(
-                chon ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                color: chon ? AppColors.brand500 : AppColors.textMuted,
-              ),
-            ],
+            ),
           ),
         ),
       ),

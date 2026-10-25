@@ -10,6 +10,7 @@ import '../auth/login_screen.dart';
 import '../../services/booking_api_service.dart';
 import '../../services/catalog_ui.dart';
 import '../../services/nhom_dich_vu.dart';
+import '../../widgets/anh_khong_cat.dart';
 import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
 
@@ -516,7 +517,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       ),
       clipBehavior: Clip.antiAlias,
       child: anh != null
-          ? Image.network(anh, fit: BoxFit.cover, errorBuilder: (_, _, _) => bieuTuong)
+          ? AnhKhongCat(url: anh, thayThe: bieuTuong)
           : bieuTuong,
     );
   }
