@@ -214,20 +214,9 @@ class CollaboratorApiService {
     required int donDatId,
     required int congTacVienId,
   }) async {
-    try {
-      final res = await _apiClient.post<Map<String, dynamic>>(
-        '/v1/collaborators/orders/$donDatId/accept',
-        body: {'congTacVienId': congTacVienId},
-      );
-      if (res.success) return res;
-    } catch (_) {}
-
-    return _apiClient.put<Map<String, dynamic>>(
-      '/v1/customer/bookings/$donDatId',
-      body: {
-        'congTacVienId': congTacVienId,
-        'trangThai': 'DangThucHien',
-      },
+    return _apiClient.post<Map<String, dynamic>>(
+      '/v1/collaborators/orders/$donDatId/accept',
+      body: {'congTacVienId': congTacVienId},
     );
   }
 

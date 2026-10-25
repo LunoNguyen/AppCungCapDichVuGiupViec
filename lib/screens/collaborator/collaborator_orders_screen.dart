@@ -67,12 +67,18 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
         setState(() {});
       }
     });
+    CtvLocationTracker.instance.addListener(_onLocationChanged);
   }
 
   StreamSubscription<String>? _realtime;
 
+  void _onLocationChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    CtvLocationTracker.instance.removeListener(_onLocationChanged);
     _realtime?.cancel();
     _tabController.dispose();
     super.dispose();
@@ -1522,74 +1528,97 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
           else if (currentTab == 'waiting')
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 44,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          final double? lat = LocationService.toDouble(o['viDo'] ?? o['lat']);
-                          final double? lng = LocationService.toDouble(o['kinhDo'] ?? o['lng']);
-                          _handleMapButton(address, lat: lat, lng: lng);
-                        },
-                        icon: const Icon(Icons.map_outlined, size: 16),
-                        label: const FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            'Xem bản đồ',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _primary,
-                          side: const BorderSide(color: _primary),
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 40,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              final double? lat = LocationService.toDouble(o['viDo'] ?? o['lat']);
+                              final double? lng = LocationService.toDouble(o['kinhDo'] ?? o['lng']);
+                              _handleMapButton(address, lat: lat, lng: lng);
+                            },
+                            icon: const Icon(Icons.map_outlined, size: 16),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Xem bản đồ',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _primary,
+                              side: const BorderSide(color: _primary),
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 40,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _handleCancelShift(o),
+                          icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
+                          label: const Text(
+                            'Hủy ca',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFFDC2626)),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFFCA5A5)),
+                            backgroundColor: const Color(0xFFFEF2F2),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SizedBox(
-                      height: 44,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _handleStartJob(o),
-                        icon: Icon(
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _handleStartJob(o),
+                      icon: Icon(
+                        isReady
+                            ? Icons.play_arrow_rounded
+                            : (isOverdue
+                                ? Icons.warning_amber_rounded
+                                : Icons.lock_outline_rounded),
+                        size: 18,
+                      ),
+                      label: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
                           isReady
-                              ? Icons.play_arrow_rounded
+                              ? 'Bắt đầu làm'
                               : (isOverdue
-                                  ? Icons.warning_amber_rounded
-                                  : Icons.lock_outline_rounded),
-                          size: 18,
+                                  ? 'Xử lý quá hạn'
+                                  : (diff != null && diff > 0 ? 'Chưa đến ngày' : 'Chưa đến giờ')),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                         ),
-                        label: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            isReady
-                                ? 'Bắt đầu làm'
-                                : (isOverdue
-                                    ? 'Xử lý quá hạn'
-                                    : (diff != null && diff > 0 ? 'Chưa đến ngày' : 'Chưa đến giờ')),
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                          ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isReady
+                            ? _primary
+                            : (isOverdue
+                                ? const Color(0xFFEA580C)
+                                : const Color(0xFF94A3B8)),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isReady
-                              ? _primary
-                              : (isOverdue
-                                  ? const Color(0xFFEA580C)
-                                  : const Color(0xFF94A3B8)),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 0,
-                        ),
+                        elevation: 0,
                       ),
                     ),
                   ),
@@ -1647,6 +1676,410 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
           ),
         ],
       ),
+    );
+  }
+
+
+  DateTime? _getJobStartDateTime(Map<String, dynamic> o) {
+    final rawDate = o['ngayThucHien']?.toString() ?? o['ngayLam']?.toString();
+    if (rawDate == null || rawDate.length < 10) return null;
+    final d = DateTime.tryParse(rawDate.substring(0, 10));
+    if (d == null) return null;
+    final startStr = _fmtTime(o['gioBatDau']?.toString());
+    final startMins = _parseTimeToMinutes(startStr);
+    final hour = startMins ~/ 60;
+    final minute = startMins % 60;
+    return DateTime(d.year, d.month, d.day, hour, minute);
+  }
+
+  Future<void> _handleCancelShift(Map<String, dynamic> o) async {
+    final startDateTime = _getJobStartDateTime(o);
+    final now = DateTime.now();
+
+    if (startDateTime != null) {
+      final diffMinutes = startDateTime.difference(now).inMinutes;
+      if (diffMinutes < 300) {
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Color(0xFFEA580C), size: 26),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Không thể tự hủy ca',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'Theo quy định hệ thống, bạn chỉ được tự hủy ca làm trước giờ bắt đầu tối thiểu 5 tiếng.\n\n'
+              'Ca làm này bắt đầu sau ${diffMinutes > 0 ? '${diffMinutes ~/ 60} giờ ${diffMinutes % 60} phút' : '0 phút'} (dưới 5 tiếng). '
+              'Nếu có việc khẩn cấp không thể thực hiện, vui lòng liên hệ ngay Tổng đài CSKH để được hỗ trợ.',
+              style: const TextStyle(fontSize: 14, height: 1.45),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Đóng'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _handlePhoneCall('19001234');
+                },
+                icon: const Icon(Icons.phone, size: 16),
+                label: const Text('Gọi CSKH'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brand500,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    }
+
+    await _showCancelShiftDialog(o);
+  }
+
+  Future<void> _showCancelShiftDialog(Map<String, dynamic> o) async {
+    final TextEditingController reasonController = TextEditingController();
+    String? errorMessage;
+    String selectedChip = '';
+    bool isSubmitting = false;
+
+    final List<String> reasonPresets = [
+      'Bận việc gia đình đột xuất',
+      'Lý do sức khỏe',
+      'Sự cố xe cộ / đi lại',
+      'Trùng lịch việc khác',
+    ];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.event_busy_rounded,
+                            color: Color(0xFFDC2626),
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Xác nhận hủy ca làm',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: _ink,
+                                ),
+                              ),
+                              Text(
+                                'Đơn: ${o['maDonDat'] ?? 'N/A'} · Ca: ${_fmtTime(o['gioBatDau']?.toString())} - ${_fmtDate(o['ngayThucHien']?.toString() ?? '')}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Color(0xFF94A3B8)),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.gavel_rounded, color: Color(0xFFDC2626), size: 20),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Quy chế hủy ca: Bạn đang hủy trước >= 5 tiếng. '
+                              'Theo quy định, bạn sẽ bị phạt trừ 5.000 VNĐ vào thu nhập và ca làm sẽ được chuyển lại cho CSKH điều phối.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF991B1B),
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Lý do gợi ý nhanh:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: reasonPresets.map((preset) {
+                        final isSelected = selectedChip == preset;
+                        return ChoiceChip(
+                          label: Text(preset),
+                          selected: isSelected,
+                          selectedColor: const Color(0xFFFEE2E2),
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          labelStyle: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? const Color(0xFFDC2626) : const Color(0xFF334155),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: isSelected ? const Color(0xFFEF4444) : Colors.transparent,
+                            ),
+                          ),
+                          onSelected: (selected) {
+                            setModalState(() {
+                              if (selected) {
+                                selectedChip = preset;
+                                reasonController.text = preset;
+                                reasonController.selection = TextSelection.collapsed(offset: preset.length);
+                                errorMessage = null;
+                              } else {
+                                selectedChip = '';
+                                if (reasonController.text == preset) {
+                                  reasonController.clear();
+                                }
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Chi tiết lý do hủy ca (bắt buộc) *',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: reasonController,
+                      maxLines: 3,
+                      maxLength: 150,
+                      inputFormatters: [
+                        _NoMultipleSpacesFormatter(),
+                      ],
+                      onChanged: (val) {
+                        setModalState(() {
+                          if (selectedChip.isNotEmpty && val != selectedChip) {
+                            selectedChip = '';
+                          }
+                          if (errorMessage != null) {
+                            errorMessage = null;
+                          }
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Nhập chi tiết lý do bạn cần hủy ca làm này...',
+                        hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        errorText: errorMessage,
+                        contentPadding: const EdgeInsets.all(12),
+                        suffixIcon: reasonController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18, color: Color(0xFF94A3B8)),
+                                onPressed: () {
+                                  setModalState(() {
+                                    reasonController.clear();
+                                    selectedChip = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: isSubmitting ? null : () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            ),
+                            child: const Text(
+                              'Giữ lại ca',
+                              style: TextStyle(color: Color(0xFF475569), fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: isSubmitting
+                                ? null
+                                : () async {
+                                    final raw = reasonController.text;
+                                    final cleanReason = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+
+                                    if (cleanReason.isEmpty) {
+                                      setModalState(() {
+                                        errorMessage = 'Vui lòng nhập lý do hủy ca làm';
+                                      });
+                                      return;
+                                    }
+                                    if (cleanReason.length < 5) {
+                                      setModalState(() {
+                                        errorMessage = 'Lý do hủy ca phải có ít nhất 5 ký tự';
+                                      });
+                                      return;
+                                    }
+
+                                    final int phanCongId = o['phanCongId'] ?? o['id'] ?? 0;
+                                    if (phanCongId == 0) {
+                                      setModalState(() {
+                                        errorMessage = 'Lỗi: Không tìm thấy ID phân công';
+                                      });
+                                      return;
+                                    }
+
+                                    final messenger = ScaffoldMessenger.of(context);
+                                    setModalState(() => isSubmitting = true);
+                                    final res = await _apiService.rejectAssignment(
+                                      id: phanCongId,
+                                      lyDo: cleanReason,
+                                    );
+                                    if (!mounted) return;
+
+                                    if (res.success) {
+                                      if (ctx.mounted) Navigator.pop(ctx);
+                                      messenger.showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Đã hủy ca làm. Hệ thống ghi nhận mức phạt 5.000 VNĐ.'),
+                                          backgroundColor: Color(0xFFEA580C),
+                                        ),
+                                      );
+                                      await _fetchAllData();
+                                    } else {
+                                      setModalState(() {
+                                        isSubmitting = false;
+                                        errorMessage = res.message ?? 'Hủy ca thất bại. Vui lòng thử lại';
+                                      });
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFDC2626),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: isSubmitting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Text(
+                                    'Xác nhận hủy (Phạt 5k)',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

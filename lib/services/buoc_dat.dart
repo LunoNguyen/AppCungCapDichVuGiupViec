@@ -36,7 +36,7 @@ class BuocDat {
   static const soBuoc = 5;
 
   /// Bước 2 chọn hình thức và thời lượng / gói: dịch vụ chỉ có đúng một lựa chọn thì không cần bước này.
-  static bool boQuaBuoc2(NhomDichVu nhom) => nhom.bienThe.length <= 1;
+  static bool boQuaBuoc2(NhomDichVu nhom) => false; // Luôn mở bước 2 để chọn hình thức và Combo
 
   static String loaiMacDinh(NhomDichVu nhom, {String? uuTien}) {
     if (uuTien == 'GoiThang' && nhom.coGoiThang) return 'GoiThang';
@@ -45,7 +45,7 @@ class BuocDat {
   }
 
   /// Mở màn đặt từ trang chi tiết dịch vụ: dịch vụ đã chọn sẵn nên bắt đầu ở bước 2 (hoặc 3).
-  static int buocMoDau(NhomDichVu nhom) => boQuaBuoc2(nhom) ? 3 : 2;
+  static int buocMoDau(NhomDichVu nhom) => 2;
 
   static int buocKe(int buoc, NhomDichVu nhom) {
     var ke = buoc + 1;

@@ -11,6 +11,9 @@ class BuocHinhThuc extends StatelessWidget {
   final ValueChanged<String> onChon;
   final int? dichVuId;
   final ValueChanged<int> onChonBienThe;
+  final List<Map<String, dynamic>> cacDichVuCombo;
+  final Set<int> comboDichVuIds;
+  final ValueChanged<int>? onToggleCombo;
 
   const BuocHinhThuc({
     super.key,
@@ -19,6 +22,9 @@ class BuocHinhThuc extends StatelessWidget {
     required this.onChon,
     required this.dichVuId,
     required this.onChonBienThe,
+    this.cacDichVuCombo = const [],
+    this.comboDichVuIds = const {},
+    this.onToggleCombo,
   });
 
   @override
@@ -59,6 +65,40 @@ class BuocHinhThuc extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           for (final b in bienThes) _bienThe(b),
+        ],
+        if (loaiChon == 'TheoLan' && cacDichVuCombo.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: AppColors.brand500, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Thêm dịch vụ đi kèm (Combo tiện lợi)',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                ),
+              ),
+              if (comboDichVuIds.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand500,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Đã chọn ${comboDichVuIds.length}',
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Ghép thêm dịch vụ vào cùng ca làm để cộng tác viên thực hiện liền mạch.',
+            style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.3),
+          ),
+          const SizedBox(height: 10),
+          for (final cdv in cacDichVuCombo) _theCombo(cdv),
         ],
       ],
     );
@@ -167,6 +207,77 @@ class BuocHinhThuc extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _theCombo(Map<String, dynamic> cdv) {
+    final id = CatalogUi.toInt(cdv['id'] ?? cdv['dichVuId']);
+    final chon = comboDichVuIds.contains(id);
+    final phut = CatalogUi.toInt(cdv['thoiGianThucHienPhut']);
+    final thoiLuong = phut > 0 ? (phut % 60 == 0 ? '${phut ~/ 60}h' : '$phut phút') : '60 phút';
+    final gia = CatalogUi.money(cdv['donGiaThamKhao']);
+
+    return GestureDetector(
+      onTap: () => onToggleCombo?.call(id),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: chon ? AppColors.brandSurface : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: chon ? AppColors.brand500 : AppColors.divider,
+            width: chon ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Checkbox(
+              value: chon,
+              onChanged: (_) => onToggleCombo?.call(id),
+              activeColor: AppColors.brand500,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    cdv['tenDichVu']?.toString() ?? 'Dịch vụ đi kèm',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.neutral100,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '+$thoiLuong',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '+$gia',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: chon ? AppColors.brand600 : AppColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -108,7 +108,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
               ]),
               if (_loggedIn) ...[
                 const SizedBox(height: 10),
-                Container(
+                Material(
                   color: Colors.white,
                   child: ListTile(
                     onTap: _confirmLogout,
@@ -369,7 +369,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
   }
 
   Widget _buildMenuGroup(List<_OptionItem> items) {
-    return Container(
+    return Material(
       color: Colors.white,
       child: Column(
         children: [

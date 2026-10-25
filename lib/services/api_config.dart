@@ -13,7 +13,7 @@ class ApiConfig {
     const tuChon = String.fromEnvironment('API_URL');
     if (tuChon.isNotEmpty) return tuChon;
     if (kIsWeb) return 'http://localhost:8083';
-    if (defaultTargetPlatform == TargetPlatform.android) return 'http://192.168.2.10:8083';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8083';
     return 'http://localhost:8083';
   }
 

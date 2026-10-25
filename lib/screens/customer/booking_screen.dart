@@ -47,6 +47,8 @@ class _BookingScreenState extends State<BookingScreen> {
   // Bước 2–3: hình thức và biến thể (thời lượng / gói)
   String _loai = 'TheoLan';
   int? _dichVuId;
+  List<Map<String, dynamic>> _cacDichVuCombo = [];
+  final Set<int> _comboDichVuIds = {};
 
   // Bước 3: thời gian, gói tháng, địa chỉ
   DateTime? _ngay;
@@ -140,12 +142,28 @@ class _BookingScreenState extends State<BookingScreen> {
 
   int get _donGiaThamKhao => _tien(_bienThe?['donGiaThamKhao']);
 
-  int get _tamTinh => _gia != null ? _tien(_gia!['chiPhiGoc']) : _donGiaThamKhao;
+  int get _tamTinh {
+    if (_gia != null) return _tien(_gia!['chiPhiGoc']);
+    int sum = _donGiaThamKhao;
+    for (final cid in _comboDichVuIds) {
+      final cdv = _cacDichVuCombo.where((d) => CatalogUi.toInt(d['id'] ?? d['dichVuId']) == cid).firstOrNull;
+      if (cdv != null) sum += _tien(cdv['donGiaThamKhao']);
+    }
+    return sum;
+  }
 
   int get _giam => _gia != null ? _tien(_gia!['soTienGiam']) : 0;
 
   /// Tổng tiền ở thanh đáy: số máy chủ tính, chưa có thì đơn giá tham khảo của biến thể đang chọn.
-  int get _tongTien => _gia != null ? _tien(_gia!['thanhTien']) : _donGiaThamKhao;
+  int get _tongTien {
+    if (_gia != null) return _tien(_gia!['thanhTien']);
+    int sum = _donGiaThamKhao;
+    for (final cid in _comboDichVuIds) {
+      final cdv = _cacDichVuCombo.where((d) => CatalogUi.toInt(d['id'] ?? d['dichVuId']) == cid).firstOrNull;
+      if (cdv != null) sum += _tien(cdv['donGiaThamKhao']);
+    }
+    return sum;
+  }
 
   @override
   void initState() {
@@ -245,6 +263,22 @@ class _BookingScreenState extends State<BookingScreen> {
         return;
       }
       var nhoms = NhomDichVu.gom(res.data!);
+      try {
+        final resTatCa = await ServiceCatalogApiService().getServices();
+        if (resTatCa.success && resTatCa.data != null) {
+          final maHienTai = _nhom?.ma;
+          final seenMa = <String>{};
+          _cacDichVuCombo = resTatCa.data!.where((d) {
+            final ma = d['maDichVu']?.toString() ?? '';
+            final loai = d['loaiHinhDat']?.toString() ?? 'TheoLan';
+            final trangThai = d['trangThai'] != false;
+            if (!trangThai || loai != 'TheoLan' || ma == maHienTai) return false;
+            if (seenMa.contains(ma)) return false;
+            seenMa.add(ma);
+            return true;
+          }).toList();
+        }
+      } catch (_) {}
       var dangChon = _nhom == null ? null : _timNhom(nhoms, _nhom!);
       if (dangChon == null && _nhom != null) {
         // Dịch vụ đang chọn không có trong danh sách (đã ngừng / khác danh mục): vẫn giữ để đặt tiếp
@@ -255,10 +289,7 @@ class _BookingScreenState extends State<BookingScreen> {
         _nhoms = nhoms;
         _daTaiDv = true;
         if (dangChon != null) _datNhom(dangChon, giuBienThe: true);
-        if (_buoc == 2 && _boQua2) {
-          _buoc = 3;
-          if (_daToi < 3) _daToi = 3;
-        }
+// Không tự nhảy sang bước 3, luôn giữ ở bước 2 để chọn hình thức và Combo
       });
     } catch (_) {
       if (mounted) setState(() => _loiDv = 'Không kết nối được máy chủ');
@@ -290,6 +321,7 @@ class _BookingScreenState extends State<BookingScreen> {
   void _chonNhom(NhomDichVu g) {
     if (g.ma == _nhom?.ma) return;
     setState(() {
+      _comboDichVuIds.clear();
       _datNhom(g);
       _daToi = _buoc; // đổi dịch vụ: các bước sau phải đi lại
       _maApDung = null;
@@ -303,6 +335,7 @@ class _BookingScreenState extends State<BookingScreen> {
     if (loai == _loai) return;
     String? thongBao;
     setState(() {
+      if (loai != 'TheoLan') _comboDichVuIds.clear();
       _loai = loai;
       final ds = _nhom?.bienTheTheoLoai(loai) ?? const [];
       _dichVuId = ds.isEmpty ? null : CatalogUi.toInt(ds.first['id']);
@@ -332,6 +365,15 @@ class _BookingScreenState extends State<BookingScreen> {
         _chinhGio();
       });
 
+  void _toggleComboDichVu(int id) => setState(() {
+        if (_comboDichVuIds.contains(id)) {
+          _comboDichVuIds.remove(id);
+        } else {
+          _comboDichVuIds.add(id);
+        }
+        _huyGia();
+      });
+
   void _chonNgay(DateTime d) => setState(() {
         _ngay = d;
         _huyGia();
@@ -354,6 +396,7 @@ class _BookingScreenState extends State<BookingScreen> {
     try {
       final res = await _bookingApi.calculatePrice(
         dichVuId: id,
+        dichVuIds: [id, ..._comboDichVuIds],
         loaiHinhDat: _loai,
         codeKhuyenMai: _maApDung,
         khachHangId: _session?.userId,
@@ -403,6 +446,7 @@ class _BookingScreenState extends State<BookingScreen> {
     try {
       final res = await _bookingApi.calculatePrice(
         dichVuId: id,
+        dichVuIds: [id, ..._comboDichVuIds],
         loaiHinhDat: _loai,
         codeKhuyenMai: code,
         khachHangId: _session?.userId,
@@ -506,14 +550,23 @@ class _BookingScreenState extends State<BookingScreen> {
       return;
     }
     if (id == null || ngay == null || gio == null || hinhThuc == null) return;
-    final phut = CatalogUi.toInt(_bienThe?['thoiGianThucHienPhut']);
-    final ketThuc = gio.hour * 60 + gio.minute + (phut > 0 ? phut : 120);
+    int tongPhut = CatalogUi.toInt(_bienThe?['thoiGianThucHienPhut']);
+    if (tongPhut <= 0) tongPhut = 120;
+    for (final cid in _comboDichVuIds) {
+      final cdv = _cacDichVuCombo.where((d) => CatalogUi.toInt(d['id'] ?? d['dichVuId']) == cid).firstOrNull;
+      if (cdv != null) {
+        final p = CatalogUi.toInt(cdv['thoiGianThucHienPhut']);
+        tongPhut += (p > 0 ? p : 60);
+      }
+    }
+    final ketThuc = gio.hour * 60 + gio.minute + tongPhut;
     final ghiChu = _ghiChu.text.trim();
     setState(() => _dangGui = true);
     try {
       final res = await _bookingApi.createBooking(
         khachHangId: session.userId,
         dichVuId: id,
+        dichVuIds: [id, ..._comboDichVuIds],
         ngayThucHien: _ymd(ngay),
         gioBatDau: BuocThoiGian.hhmm(gio),
         gioKetThuc: BuocThoiGian.hhmm(TimeOfDay(hour: (ketThuc ~/ 60) % 24, minute: ketThuc % 60)),
@@ -611,6 +664,9 @@ class _BookingScreenState extends State<BookingScreen> {
           onChon: _chonLoai,
           dichVuId: _dichVuId,
           onChonBienThe: _chonBienThe,
+          cacDichVuCombo: _cacDichVuCombo,
+          comboDichVuIds: _comboDichVuIds,
+          onToggleCombo: _toggleComboDichVu,
         );
       case 3:
         return BuocThoiGian(
@@ -667,8 +723,16 @@ class _BookingScreenState extends State<BookingScreen> {
     final bt = _bienThe;
     final lich = _lichGoi;
     final ghiChu = _ghiChu.text.trim();
+    String tenDv = _nhom?.ten ?? '—';
+    if (_comboDichVuIds.isNotEmpty) {
+      final comboNames = _comboDichVuIds.map((cid) {
+        final cdv = _cacDichVuCombo.where((d) => CatalogUi.toInt(d['id'] ?? d['dichVuId']) == cid).firstOrNull;
+        return cdv?['tenDichVu']?.toString() ?? 'Dịch vụ thêm';
+      }).toList();
+      tenDv = 'Combo: $tenDv + ${comboNames.join(' + ')}';
+    }
     return [
-      ('Dịch vụ', _nhom?.ten ?? '—'),
+      ('Dịch vụ', tenDv),
       ('Hình thức', CatalogUi.loaiHinhLabel(_loai)),
       (_laGoi ? 'Gói' : 'Thời lượng', bt == null ? '—' : NhomDichVu.nhanBienThe(bt)),
       if (_laGoi && _loiLichGoi == null) ...[
