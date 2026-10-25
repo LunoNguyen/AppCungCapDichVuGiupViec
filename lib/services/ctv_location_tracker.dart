@@ -38,6 +38,9 @@ class CtvLocationTracker extends ChangeNotifier {
   String? get currentAddress => _currentAddress;
   Position? get latestPosition => _latest ?? LocationService.lastKnownPosition;
 
+  @visibleForTesting
+  void setDistrictForTest(String district) => _setDistrict(district);
+
   void _setDistrict(String? d) {
     if (d == null || d.trim().isEmpty) return;
     final trimmed = d.trim();
