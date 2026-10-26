@@ -23,8 +23,15 @@ class NutGioHang extends StatelessWidget {
             tooltip: 'Giỏ hàng',
             backgroundColor: Colors.white,
             foregroundColor: AppColors.brand500,
-            elevation: 4,
-            shape: const CircleBorder(side: BorderSide(color: AppColors.brandLight, width: 2)),
+            // phẳng 2D: không đổ bóng, vuông bo góc
+            elevation: 0,
+            focusElevation: 0,
+            hoverElevation: 0,
+            highlightElevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: AppColors.brand500, width: 1.5),
+            ),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GioHangScreen())),
             child: const Icon(Icons.shopping_cart_outlined),
           ),
