@@ -8,6 +8,7 @@ import '../../services/catalog_ui.dart';
 import '../../services/nhom_dich_vu.dart';
 import '../../services/service_catalog_api_service.dart';
 import 'service_detail_screen.dart';
+import '../../widgets/nut_gio_hang.dart';
 
 /// Tìm dịch vụ (GET /v1/services) theo nhiều tiêu chí mở rộng:
 /// - Từ khoá (khớp tên dịch vụ, nội dung mô tả chi tiết, mức giá 216k/216.000, thời lượng, số buổi...)
@@ -293,6 +294,7 @@ class _CustomerServicesScreenState extends State<CustomerServicesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: const NutGioHang(),
       backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
         title: Text(_tieuDe),

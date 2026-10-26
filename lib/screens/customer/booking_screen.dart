@@ -6,6 +6,7 @@ import '../../services/address_api_service.dart';
 import '../../services/booking_api_service.dart';
 import '../../services/buoc_dat.dart';
 import '../../services/catalog_ui.dart';
+import '../../services/gio_hang.dart';
 import '../../services/lich_goi_thang.dart';
 import '../../services/nhom_dich_vu.dart';
 import '../../services/rang_buoc_ngay_dat.dart';
@@ -24,10 +25,13 @@ import 'thanh_toan_screen.dart';
 /// Màn đặt dịch vụ, giống website: Thời gian → Xác nhận → Thanh toán.
 /// Mở từ trang chi tiết dịch vụ với biến thể (hình thức + thời lượng / gói) đã chọn ở đó;
 /// muốn đổi dịch vụ thì bấm "Đổi" hoặc Quay lại ở bước đầu để về trang chi tiết.
+/// Mở từ giỏ hàng với [dichVuNhieu] (≥ 2 dịch vụ theo lần): một lịch, một địa chỉ, một hóa đơn;
+/// các dịch vụ làm nối tiếp nhau, phải xong trước 20:00 (giống web).
 class BookingScreen extends StatefulWidget {
   final Map<String, dynamic> service;
+  final List<MonGio>? dichVuNhieu;
 
-  const BookingScreen({super.key, required this.service});
+  const BookingScreen({super.key, required this.service, this.dichVuNhieu});
 
   @override
   State<BookingScreen> createState() => _BookingScreenState();
@@ -70,6 +74,14 @@ class _BookingScreenState extends State<BookingScreen> {
 
   int get _dichVuIdGoc => CatalogUi.toInt(widget.service['dichVuId'] ?? widget.service['id']);
 
+  // Đặt nhiều dịch vụ từ giỏ hàng
+  bool get _nhieu => (widget.dichVuNhieu?.length ?? 0) >= 2;
+  List<int>? get _idsNhieu => _nhieu ? [for (final m in widget.dichVuNhieu!) m.id] : null;
+  int get _tongPhutNhieu => _nhieu
+      ? widget.dichVuNhieu!.fold(0, (s, m) => s + (m.phut > 0 ? m.phut : GioHang.phutMacDinh))
+      : 0;
+  static const _phutXongMuonNhat = 20 * 60; // các dịch vụ phải xong trước 20:00 (DatNhieuDichVu)
+
   DuLieuDat get _duLieu => DuLieuDat(
         nhom: _nhom,
         loaiHinhDat: _loai,
@@ -102,6 +114,7 @@ class _BookingScreenState extends State<BookingScreen> {
     final ngay = _ngayBuoiDau;
     if (ngay == null) return false;
     final luc = DateTime(ngay.year, ngay.month, ngay.day, t.hour, t.minute);
+    if (_nhieu && t.hour * 60 + t.minute + _tongPhutNhieu > _phutXongMuonNhat) return false;
     return !luc.isBefore(DateTime.now().add(const Duration(hours: 1)));
   }
 
@@ -129,7 +142,9 @@ class _BookingScreenState extends State<BookingScreen> {
     return null;
   }
 
-  int get _donGiaThamKhao => _tien(_bienThe?['donGiaThamKhao']);
+  int get _donGiaThamKhao => _nhieu
+      ? widget.dichVuNhieu!.fold(0, (s, m) => s + m.gia)
+      : _tien(_bienThe?['donGiaThamKhao']);
 
   int get _tamTinh => _gia != null ? _tien(_gia!['chiPhiGoc']) : _donGiaThamKhao;
 
@@ -246,6 +261,7 @@ class _BookingScreenState extends State<BookingScreen> {
         khachHangId: _session?.userId,
         ngayThucHien: _ngayBuoiDau == null ? null : _ymd(_ngayBuoiDau!),
         gioBatDau: _gio == null ? null : BuocThoiGian.hhmm(_gio!),
+        dichVuIds: _idsNhieu,
       );
       if (!mounted || phien != _phienGia) return;
       if (!res.success || res.data == null) {
@@ -295,6 +311,7 @@ class _BookingScreenState extends State<BookingScreen> {
         khachHangId: _session?.userId,
         ngayThucHien: _ngayBuoiDau == null ? null : _ymd(_ngayBuoiDau!),
         gioBatDau: _gio == null ? null : BuocThoiGian.hhmm(_gio!),
+        dichVuIds: _idsNhieu,
       );
       if (!mounted) return;
       if (phien != _phienGia) return; // lựa chọn đã đổi trong lúc chờ
@@ -339,6 +356,7 @@ class _BookingScreenState extends State<BookingScreen> {
       ngayThucHien: _ngayBuoiDau == null ? null : _ymd(_ngayBuoiDau!),
       gioBatDau: _gio == null ? null : BuocThoiGian.hhmm(_gio!),
       maDangDung: _maApDung,
+      dichVuIds: _idsNhieu,
     );
     if (code != null && mounted) _apDungMa(code);
   }
@@ -393,7 +411,7 @@ class _BookingScreenState extends State<BookingScreen> {
       return;
     }
     if (id == null || ngay == null || gio == null || hinhThuc == null) return;
-    final phut = CatalogUi.toInt(_bienThe?['thoiGianThucHienPhut']);
+    final phut = _nhieu ? _tongPhutNhieu : CatalogUi.toInt(_bienThe?['thoiGianThucHienPhut']);
     final ketThuc = gio.hour * 60 + gio.minute + (phut > 0 ? phut : 120);
     final ghiChu = _ghiChu.text.trim();
     setState(() => _dangGui = true);
@@ -412,6 +430,7 @@ class _BookingScreenState extends State<BookingScreen> {
         yeuCauDacBiet: ghiChu.isEmpty ? null : ghiChu,
         maKhuyenMai: _maApDung,
         hinhThucThanhToan: hinhThuc,
+        dichVuIds: _idsNhieu,
       );
       if (!mounted) return;
       if (!res.success) {
@@ -431,6 +450,9 @@ class _BookingScreenState extends State<BookingScreen> {
         }
         return;
       }
+      // Đặt từ giỏ hàng: bỏ các dịch vụ vừa đặt khỏi giỏ
+      final daDat = _idsNhieu ?? (widget.dichVuNhieu != null ? [id] : null);
+      if (daDat != null) GioHang.instance.xoaNhieu(daDat);
       final donId = CatalogUi.toInt(res.data?['donDatId'] ?? res.data?['id']);
       if (donId <= 0) {
         _baoLoi('Đã đặt nhưng không đọc được mã đơn, vui lòng xem trong Đơn của tôi');
@@ -483,9 +505,11 @@ class _BookingScreenState extends State<BookingScreen> {
     switch (_buoc) {
       case 3:
         return BuocThoiGian(
-          dau: _nhom == null
-              ? null
-              : DichVuDaChon(nhom: _nhom!, bienThe: _bienThe, loai: _loai, onDoi: () => Navigator.pop(context)),
+          dau: _nhieu
+              ? _theNhieuDichVu()
+              : _nhom == null
+                  ? null
+                  : DichVuDaChon(nhom: _nhom!, bienThe: _bienThe, loai: _loai, onDoi: () => Navigator.pop(context)),
           loai: _loai,
           ngay: _ngay,
           ngayDau: _homNay,
@@ -535,14 +559,68 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
+  /// Thẻ "Các dịch vụ đã chọn" ở bước Thời gian khi đặt từ giỏ hàng.
+  Widget _theNhieuDichVu() {
+    final ds = widget.dichVuNhieu!;
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('${ds.length} dịch vụ đã chọn · làm nối tiếp trong cùng buổi',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+              ),
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Sửa')),
+            ],
+          ),
+          for (final m in ds)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(child: Text(m.ten, style: const TextStyle(fontWeight: FontWeight.w600))),
+                  Text(GioHang.thoiLuong(m.phut > 0 ? m.phut : GioHang.phutMacDinh),
+                      style: const TextStyle(color: AppColors.textSecondary)),
+                  const SizedBox(width: 10),
+                  Text(CatalogUi.money(m.gia), style: const TextStyle(fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          const Divider(),
+          Row(
+            children: [
+              Text('Tổng thời lượng ${GioHang.thoiLuong(_tongPhutNhieu)}'),
+              const Spacer(),
+              Text(CatalogUi.money(_donGiaThamKhao),
+                  style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.brand600)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text('Các dịch vụ phải xong trước 20:00, khung giờ quá muộn sẽ bị khóa.',
+              style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary)),
+        ],
+      ),
+    );
+  }
+
   List<(String, String)> _tomTat() {
     final bt = _bienThe;
     final lich = _lichGoi;
     final ghiChu = _ghiChu.text.trim();
     return [
-      ('Dịch vụ', _nhom?.ten ?? '—'),
-      ('Hình thức', CatalogUi.loaiHinhLabel(_loai)),
-      (_laGoi ? 'Gói' : 'Thời lượng', bt == null ? '—' : NhomDichVu.nhanBienThe(bt)),
+      if (_nhieu) ...[
+        for (final m in widget.dichVuNhieu!) ('Dịch vụ', '${m.ten} · ${CatalogUi.money(m.gia)}'),
+        ('Hình thức', 'Theo lần'),
+        ('Tổng thời lượng', GioHang.thoiLuong(_tongPhutNhieu)),
+      ] else ...[
+        ('Dịch vụ', _nhom?.ten ?? '—'),
+        ('Hình thức', CatalogUi.loaiHinhLabel(_loai)),
+        (_laGoi ? 'Gói' : 'Thời lượng', bt == null ? '—' : NhomDichVu.nhanBienThe(bt)),
+      ],
       if (_laGoi && _loiLichGoi == null) ...[
         ('Thứ trong tuần', LichGoiThang.nhan(_thuGoi)),
         ('Lịch', '$_soBuoiGoi buổi, ${_ddmmyyyy(lich.first)} → ${_ddmmyyyy(lich.last)}'),

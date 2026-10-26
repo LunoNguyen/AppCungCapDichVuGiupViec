@@ -7,6 +7,8 @@ import '../../services/nhom_dich_vu.dart';
 import '../../services/service_catalog_api_service.dart';
 import '../../services/session_service.dart';
 import 'booking_screen.dart';
+import '../../services/gio_hang.dart';
+import '../../widgets/nut_gio_hang.dart';
 import '../auth/login_screen.dart';
 import '../../widgets/phan_hoi_btaskee.dart';
 
@@ -271,6 +273,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
           ],
         ),
       ),
+      floatingActionButton: const NutGioHang(),
       bottomNavigationBar: Container(
         padding: EdgeInsets.fromLTRB(
             16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
@@ -278,12 +281,29 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
           color: Colors.white,
           border: Border(top: BorderSide(color: AppColors.divider)),
         ),
-        child: SizedBox(
-          height: 48,
-          child: ElevatedButton(
-            onPressed: _loading || _error != null ? null : _handleBooking,
-            child: const Text('Đặt dịch vụ'),
-          ),
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: _loading || _error != null ? null : _themVaoGio,
+                  icon: const Icon(Icons.add_shopping_cart_rounded, size: 20),
+                  label: const Text('Thêm vào giỏ'),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _loading || _error != null ? null : _handleBooking,
+                  child: const Text('Đặt dịch vụ'),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -512,6 +532,21 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         ],
       ),
     );
+  }
+
+  /// Thêm biến thể đang chọn vào giỏ hàng (đặt nhiều dịch vụ trong một lần, giống web).
+  Future<void> _themVaoGio() async {
+    final bt = Map<String, dynamic>.from(_bienTheChon);
+    bt['hinhAnhUrl'] ??= _service['hinhAnhUrl'] ?? _nhom?.anh;
+    bt['loaiDichVuId'] ??= _service['loaiDichVuId'] ?? widget.service['loaiDichVuId'];
+    final mon = MonGio.tuDichVu(bt);
+    if (mon.id <= 0) return;
+    final moi = await GioHang.instance.them(mon);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(moi ? 'Đã thêm "${mon.ten}" vào giỏ hàng' : 'Dịch vụ này đã có trong giỏ hàng'),
+      backgroundColor: moi ? AppColors.success : null,
+    ));
   }
 
   /// Đã đăng nhập khách hàng: vào thẳng màn đặt lịch; chưa đăng nhập: mời đăng nhập

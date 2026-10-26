@@ -7,6 +7,8 @@ import 'customer_account_screen.dart';
 import '../../services/app_realtime.dart';
 import '../../services/session_service.dart';
 import '../../widgets/chuong_thong_bao.dart';
+import '../../services/gio_hang.dart';
+import '../../widgets/nut_gio_hang.dart';
 
 /// Khung chính app Khách hàng - bố cục tab giống bTaskee:
 /// Trang chủ / Hoạt động / Thông báo / Tài khoản
@@ -26,6 +28,7 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    GioHang.instance.tai(); // giỏ hàng lưu trên máy: hiện nút giỏ nổi khi còn dịch vụ
     // Realtime: thông báo mới hiện lên điện thoại + số chưa đọc trên chuông
     SessionService.load().then((s) {
       if (s != null && s.taiKhoanId > 0) {
@@ -53,6 +56,7 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
     ];
 
     return Scaffold(
+      floatingActionButton: _currentIndex == 0 ? const NutGioHang() : null,
       body: IndexedStack(
         index: _currentIndex,
         children: screens,

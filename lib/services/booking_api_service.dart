@@ -14,11 +14,13 @@ class BookingApiService {
     int? khachHangId, // mỗi khách chỉ dùng một mã khuyến mãi một lần
     String? ngayThucHien, // yyyy-MM-dd – có cả ngày giờ thì lấy đúng bảng giá tại thời điểm làm
     String? gioBatDau, // HH:mm
+    List<int>? dichVuIds, // đặt nhiều dịch vụ từ giỏ hàng: giá gốc = tổng các dịch vụ
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/bookings/calculate-price',
       body: {
         'dichVuId': dichVuId,
+        if (dichVuIds != null && dichVuIds.length >= 2) 'chiTiet': [for (final x in dichVuIds) {'dichVuId': x, 'soLuong': 1}],
         if (bangGiaId != null) 'bangGiaId': bangGiaId,
         'loaiHinhDat': loaiHinhDat,
         if (ngayThucHien != null) 'ngayThucHien': ngayThucHien,
@@ -65,11 +67,13 @@ class BookingApiService {
     String? ghiChu,
     String? maKhuyenMai,
     required String hinhThucThanhToan,
+    List<int>? dichVuIds, // đặt nhiều dịch vụ từ giỏ hàng: một lịch, một hóa đơn
   }) {
     String gio(String g) => g.length == 5 ? '$g:00' : g;
     return {
       'khachHangId': khachHangId,
       'dichVuId': dichVuId,
+      if (dichVuIds != null && dichVuIds.length >= 2) 'chiTiet': [for (final x in dichVuIds) {'dichVuId': x, 'soLuong': 1}],
       if (bangGiaId != null) 'bangGiaId': bangGiaId,
       'ngayThucHien': ngayThucHien,
       'gioBatDau': gio(gioBatDau),
@@ -103,10 +107,12 @@ class BookingApiService {
     String? ghiChu,
     String? maKhuyenMai,
     required String hinhThucThanhToan,
+    List<int>? dichVuIds,
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/bookings',
       body: bodyTaoDon(
+        dichVuIds: dichVuIds,
         khachHangId: khachHangId,
         dichVuId: dichVuId,
         bangGiaId: bangGiaId,
@@ -133,11 +139,13 @@ class BookingApiService {
     required String loaiHinhDat,
     String? ngayThucHien, // yyyy-MM-dd
     String? gioBatDau, // HH:mm
+    List<int>? dichVuIds,
   }) async {
     return _apiClient.post<List<Map<String, dynamic>>>(
       '/v1/bookings/available-promotions',
       body: {
         'dichVuId': dichVuId,
+        if (dichVuIds != null && dichVuIds.length >= 2) 'chiTiet': [for (final x in dichVuIds) {'dichVuId': x, 'soLuong': 1}],
         'loaiHinhDat': loaiHinhDat,
         if (ngayThucHien != null) 'ngayThucHien': ngayThucHien,
         if (gioBatDau != null) 'gioBatDau': gioBatDau,
