@@ -122,7 +122,7 @@ class CtvLocationTracker extends ChangeNotifier {
 
       // 1. Phân giải địa giới hành chính (Quận/Huyện, Tỉnh/Thành) từ GPS điện thoại & 2 API
       final geo = await LocationService.getAddressDetails(p.latitude, p.longitude);
-      final quanHuyen = (geo['quanHuyen']?.isNotEmpty == true) ? geo['quanHuyen'] : quickDistrict;
+      final quanHuyen = ((geo['quanHuyen']?.isNotEmpty == true) ? geo['quanHuyen'] : quickDistrict) ?? '';
       final tinhThanh = geo['tinhThanh'];
       final diaChi = geo['diaChi'];
       if (diaChi != null && diaChi.isNotEmpty && diaChi != _currentAddress) {

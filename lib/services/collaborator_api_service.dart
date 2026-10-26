@@ -237,13 +237,15 @@ class CollaboratorApiService {
 
   /// CTV nhận đơn từ pool (atomic — first-come-first-served)
   /// Trả về 409 nếu đơn đã có người nhận trước
+  /// Đơn nhiều dịch vụ: [chiTietIds] là các dịch vụ CTV chọn nhận (null = mọi dịch vụ còn trống CTV làm được).
   Future<ApiResponse<Map<String, dynamic>>> acceptOrderFromPool({
     required int donDatId,
     required int congTacVienId,
+    List<int>? chiTietIds,
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/collaborators/orders/$donDatId/accept',
-      body: {'congTacVienId': congTacVienId},
+      body: {'congTacVienId': congTacVienId, if (chiTietIds != null) 'chiTietIds': chiTietIds},
     );
   }
 

@@ -11,6 +11,7 @@ import '../../services/location_service.dart';
 import '../../services/ctv_location_tracker.dart';
 import '../../widgets/app_time_picker.dart';
 import '../../widgets/tai_san_capture_sheet.dart';
+import '../../services/dich_vu_don.dart';
 
 class CollaboratorOrdersScreen extends StatefulWidget {
   const CollaboratorOrdersScreen({super.key});
@@ -4230,12 +4231,75 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     );
   }
 
+  /// Hộp chọn dịch vụ muốn nhận của đơn nhiều dịch vụ; null nếu CTV đóng hộp.
+  Future<List<int>?> _chonDichVuNhan(List<DichVuDon> dichVus) {
+    final chon = DichVuDon.chonMacDinh(dichVus).toSet();
+    return showModalBottomSheet<List<int>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Chọn dịch vụ bạn sẽ làm',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                const Text('Đơn có nhiều dịch vụ trong cùng một buổi. Mỗi dịch vụ một cộng tác viên nhận.',
+                    style: TextStyle(fontSize: 13, color: Colors.black54)),
+                const SizedBox(height: 8),
+                for (final d in dichVus)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: chon.contains(d.chiTietId),
+                    onChanged: d.nhanDuoc
+                        ? (v) => setSheet(() => v == true ? chon.add(d.chiTietId) : chon.remove(d.chiTietId))
+                        : null,
+                    title: Text(d.ten, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(d.daCoNguoi
+                        ? 'Đã có người nhận'
+                        : !d.coKyNang
+                            ? 'Bạn chưa đăng ký kỹ năng này'
+                            : (d.phut > 0 ? '${d.phut ~/ 60 > 0 ? '${d.phut ~/ 60} giờ ' : ''}${d.phut % 60 > 0 ? '${d.phut % 60} phút' : ''}'.trim() : '')),
+                  ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: chon.isEmpty ? null : () => Navigator.pop(ctx, chon.toList()..sort()),
+                    child: Text(chon.isEmpty ? 'Chọn ít nhất một dịch vụ' : 'Nhận ${chon.length} dịch vụ'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleAction(
     Map<String, dynamic> o,
     String action, {
     String? lyDo,
     TaiSanCaptureResult? taiSanResult,
   }) async {
+    // Đơn nhiều dịch vụ: CTV chọn dịch vụ muốn nhận trước khi gửi (đóng hộp chọn = không nhận)
+    List<int>? chiTietIds;
+    if (action == 'accept') {
+      final dichVus = DichVuDon.tuDonCho(o);
+      if (dichVus.isNotEmpty) {
+        chiTietIds = await _chonDichVuNhan(dichVus);
+        if (chiTietIds == null || !mounted) return;
+      }
+    }
     setState(() => _isLoading = true);
     try {
       dynamic res;
@@ -4249,6 +4313,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
         res = await _apiService.acceptOrderFromPool(
           donDatId: donDatId,
           congTacVienId: _currentUserId,
+          chiTietIds: chiTietIds,
         );
       } else if (action == 'reject') {
         final int donDatId = o['donDatId'] ?? o['id'] ?? 0;
