@@ -5,20 +5,57 @@ import '../services/dia_gioi_api_service.dart';
 
 /// Giá trị đang chọn của [DiaChiFields].
 class DiaChiDangChon {
-  /// true = Địa chỉ cũ (3 cấp: Tỉnh → Quận/Huyện → Phường/Xã)
-  /// false = Địa chỉ mới (2 cấp: Tỉnh → Phường/Xã sau sáp nhập)
-  bool isV1 = true;
+  /// true = khách chọn phường cũ (trước sáp nhập, kèm quận cũ); false = phường mới (sau sáp nhập).
+  bool isV1 = false;
 
   int? maTinh = DiaGioiApiService.maHcm;
   String? tenTinh = 'Thành phố Hồ Chí Minh';
 
-  // Chế độ V1 (3 cấp)
+  // Phường cũ (v1) và quận cũ của nó
   QuanHuyenV1? quanV1;
   PhuongXaV1? phuongV1;
 
-  // Chế độ V2 (2 cấp)
+  // Phường mới (v2)
   PhuongXa? phuong;
   int? khuVucId;
+
+  /// Áp lựa chọn từ danh sách phường gộp (giống web: chọn phường cũ thì gửi kèm maQuan).
+  void apDung(PhuongGop p) {
+    khuVucId = null;
+    if (p.laCu) {
+      isV1 = true;
+      quanV1 = QuanHuyenV1(
+        ma: p.maQuan ?? 0,
+        ten: p.tenQuan ?? '',
+        maTinh: maTinh ?? DiaGioiApiService.maHcm,
+        khuVucId: p.khuVucIdQuan,
+        tenKhuVuc: p.tenKhuVucQuan,
+      );
+      phuongV1 = PhuongXaV1(ma: p.ma, ten: p.ten, maQuan: p.maQuan ?? 0);
+      phuong = null;
+    } else {
+      isV1 = false;
+      phuong = PhuongXa(p.ma, p.ten, p.khuVuc);
+      quanV1 = null;
+      phuongV1 = null;
+    }
+  }
+
+  /// Bỏ phường đang chọn (khi đổi tỉnh).
+  void boPhuong() {
+    quanV1 = null;
+    phuongV1 = null;
+    phuong = null;
+    khuVucId = null;
+  }
+
+  /// [p] có phải phường đang chọn không (mã phường mới và cũ có thể trùng nhau).
+  bool laPhuong(PhuongGop p) => p.laCu
+      ? isV1 && phuongV1?.ma == p.ma && quanV1?.ma == p.maQuan
+      : !isV1 && phuong?.ma == p.ma;
+
+  int? get maPhuong => isV1 ? phuongV1?.ma : phuong?.ma;
+  int? get maQuan => isV1 ? quanV1?.ma : null;
 
   /// Địa chỉ ngoài khu vực phục vụ
   bool get ngoaiKhuVuc {
@@ -48,14 +85,16 @@ class DiaChiDangChon {
   String? get tenQuanHienTai => isV1 ? quanV1?.ten : null;
 }
 
-/// Các ô ĐỊA CHỈ dùng chung (sổ địa chỉ, đăng ký khách hàng, đăng ký CTV):
-/// Hỗ trợ chuyển đổi linh hoạt:
-/// - "Địa chỉ cũ (Quận / Huyện)": Tỉnh → Quận/Huyện → Phường/Xã + Số nhà.
-/// - "Địa chỉ mới (Sau sáp nhập)": Tỉnh → Phường/Xã mới + Số nhà.
+/// Các ô ĐỊA CHỈ dùng chung (sổ địa chỉ, đăng ký khách hàng, đăng ký CTV), giống form web:
+/// chỉ 2 ô Tỉnh, thành phố → Phường, xã (+ số nhà). Tỉnh gộp trước và sau sáp nhập theo mã; tỉnh có ở
+/// cả hai thì ô phường tìm được cả phường mới lẫn phường cũ (kèm quận cũ).
 class DiaChiFields extends StatefulWidget {
   final DiaChiDangChon giaTri;
   final TextEditingController soNhaCtrl;
   final int? maPhuongBanDau;
+
+  /// Có = địa chỉ đã lưu là phường cũ của quận này.
+  final int? maQuanBanDau;
 
   /// true: báo lỗi khi địa chỉ ngoài khu vực phục vụ (dùng khi đặt dịch vụ).
   final bool batBuocTrongKhuVuc;
@@ -69,6 +108,7 @@ class DiaChiFields extends StatefulWidget {
     required this.giaTri,
     required this.soNhaCtrl,
     this.maPhuongBanDau,
+    this.maQuanBanDau,
     this.batBuocTrongKhuVuc = false,
     this.ghiChuKhuVuc,
     this.onChanged,
@@ -81,18 +121,9 @@ class DiaChiFields extends StatefulWidget {
 class DiaChiFieldsState extends State<DiaChiFields> {
   final _api = DiaGioiApiService();
 
-  // Dữ liệu V1
-  List<TinhThanh> _tinhV1 = [];
-  List<QuanHuyenV1> _quanV1 = [];
-  List<PhuongXaV1> _phuongV1 = [];
-  bool _taiQuanV1 = false;
-  bool _taiPhuongV1 = false;
-
-  // Dữ liệu V2
-  List<TinhThanh> _tinhV2 = [];
-  List<PhuongXa> _phuongV2 = [];
-  bool _taiPhuongV2 = false;
-
+  List<TinhThanh> _tinh = [];
+  List<PhuongGop> _phuong = [];
+  bool _taiPhuong = false;
   String? _loi;
 
   DiaChiDangChon get _g => widget.giaTri;
@@ -100,127 +131,61 @@ class DiaChiFieldsState extends State<DiaChiFields> {
   @override
   void initState() {
     super.initState();
-    _napDuLieuBanDau();
+    _napTinh();
   }
 
-  Future<void> _napDuLieuBanDau() async {
-    if (_g.isV1) {
-      await _napTinhV1();
-    } else {
-      await _napTinhV2();
-    }
-  }
-
-  // ===================== XỬ LÝ V1 (3 CẤP) =====================
-  Future<void> _napTinhV1() async {
-    final res = await _api.tinhThanhV1();
+  Future<void> _napTinh() async {
+    final res = await _api.tinhGop();
     if (!mounted) return;
     setState(() {
-      _tinhV1 = res.data ?? [];
+      _tinh = res.data ?? [];
       _loi = res.success ? null : (res.message ?? 'Không tải được danh sách tỉnh.');
-      if (_g.maTinh != null && _tinhV1.isNotEmpty) {
-        _g.tenTinh = _tinhV1.firstWhere((t) => t.ma == _g.maTinh, orElse: () => _tinhV1.first).ten;
-      }
+      final t = _tinh.where((t) => t.ma == _g.maTinh).firstOrNull;
+      if (t != null) _g.tenTinh = t.ten;
     });
     if (_g.maTinh != null) {
-      await _napQuanV1(_g.maTinh!);
+      await _napPhuong(_g.maTinh!, chonMa: widget.maPhuongBanDau, chonQuan: widget.maQuanBanDau);
     }
   }
 
-  Future<void> _napQuanV1(int maTinh) async {
+  Future<void> _napPhuong(int maTinh, {int? chonMa, int? chonQuan}) async {
     setState(() {
-      _taiQuanV1 = true;
-      _quanV1 = [];
-      _phuongV1 = [];
+      _taiPhuong = true;
+      _phuong = [];
     });
-    final res = await _api.quanHuyenV1(maTinh);
-    if (!mounted) return;
+    final res = await _api.phuongXaGop(maTinh);
+    if (!mounted || _g.maTinh != maTinh) return;
     setState(() {
-      _taiQuanV1 = false;
-      _quanV1 = res.data ?? [];
-      _loi = res.success ? null : (res.message ?? 'Không tải được danh sách quận, huyện.');
-    });
-    widget.onChanged?.call(_g);
-  }
-
-  Future<void> _napPhuongV1(int maQuan) async {
-    setState(() {
-      _taiPhuongV1 = true;
-      _phuongV1 = [];
-    });
-    final res = await _api.phuongXaV1(maQuan);
-    if (!mounted) return;
-    setState(() {
-      _taiPhuongV1 = false;
-      _phuongV1 = res.data ?? [];
-      _loi = res.success ? null : (res.message ?? 'Không tải được danh sách phường, xã.');
-    });
-    widget.onChanged?.call(_g);
-  }
-
-  // ===================== XỬ LÝ V2 (2 CẤP) =====================
-  Future<void> _napTinhV2() async {
-    final res = await _api.tinhThanh();
-    if (!mounted) return;
-    setState(() {
-      _tinhV2 = res.data ?? [];
-      _loi = res.success ? null : (res.message ?? 'Không tải được danh sách tỉnh.');
-      if (_g.maTinh != null && _tinhV2.isNotEmpty) {
-        _g.tenTinh = _tinhV2.firstWhere((t) => t.ma == _g.maTinh, orElse: () => _tinhV2.first).ten;
-      }
-    });
-    if (_g.maTinh != null) {
-      await _napPhuongV2(_g.maTinh!, chonMa: widget.maPhuongBanDau);
-    }
-  }
-
-  Future<void> _napPhuongV2(int maTinh, {int? chonMa}) async {
-    setState(() {
-      _taiPhuongV2 = true;
-      _phuongV2 = [];
-    });
-    final res = await _api.phuongXa(maTinh);
-    if (!mounted) return;
-    setState(() {
-      _taiPhuongV2 = false;
-      _phuongV2 = res.data ?? [];
+      _taiPhuong = false;
+      _phuong = res.data ?? [];
       _loi = res.success ? null : (res.message ?? 'Không tải được danh sách phường, xã.');
       if (chonMa != null) {
-        final p = _phuongV2.where((x) => x.ma == chonMa);
-        if (p.isNotEmpty) _g.phuong = p.first;
+        final p = _phuong
+            .where((x) => x.ma == chonMa && (chonQuan != null ? x.laCu && x.maQuan == chonQuan : !x.laCu))
+            .firstOrNull;
+        if (p != null) _g.apDung(p);
       }
     });
     widget.onChanged?.call(_g);
   }
 
-  /// Chọn sẵn quận/phường có tên xuất hiện trong chuỗi địa chỉ (GPS). Trả về true nếu tìm được.
+  /// Chọn sẵn phường có tên xuất hiện trong chuỗi địa chỉ (GPS). Trả về true nếu tìm được.
   bool doanPhuong(String diaChi) {
     final t = diaChi.toLowerCase();
-    if (_g.isV1) {
-      for (final q in _quanV1) {
-        if (t.contains(q.ten.toLowerCase())) {
-          setState(() {
-            _g.quanV1 = q;
-            _g.phuongV1 = null;
-          });
-          _napPhuongV1(q.ma);
-          widget.onChanged?.call(_g);
-          return true;
-        }
-      }
-    } else {
-      for (final p in _phuongV2) {
-        if (RegExp('(?![0-9])').hasMatch(t)) {
-          setState(() {
-            _g.phuong = p;
-            _g.khuVucId = null;
-          });
-          widget.onChanged?.call(_g);
-          return true;
-        }
-      }
+    PhuongGop? thay;
+    for (final p in _phuong) {
+      final ten = p.ten.toLowerCase();
+      final rutGon = ten.replaceFirst(RegExp(r'^(phường|xã|thị trấn|đặc khu)\s+'), '').trim();
+      final khop = t.contains(ten) || (!RegExp(r'^\d+$').hasMatch(rutGon) && rutGon.length > 3 && t.contains(rutGon));
+      if (!khop) continue;
+      if (p.laCu && (p.tenQuan == null || !t.contains(p.tenQuan!.toLowerCase()))) continue;
+      thay = p;
+      if (!p.laCu) break; // ưu tiên phường mới
     }
-    return false;
+    if (thay == null) return false;
+    setState(() => _g.apDung(thay!));
+    widget.onChanged?.call(_g);
+    return true;
   }
 
   Future<T?> _bangChon<T>(String tieuDe, List<T> ds, String Function(T) nhan, bool Function(T) dangChon) {
@@ -232,76 +197,25 @@ class DiaChiFieldsState extends State<DiaChiFields> {
     );
   }
 
-  // Chọn Tỉnh
   Future<void> _chonTinh() async {
-    final ds = _g.isV1 ? _tinhV1 : _tinhV2;
-    if (ds.isEmpty) {
-      if (_g.isV1) {
-        await _napTinhV1();
-      } else {
-        await _napTinhV2();
-      }
-      return;
-    }
-    final t = await _bangChon<TinhThanh>('Tìm tỉnh, thành', ds, (x) => x.ten, (x) => x.ma == _g.maTinh);
+    if (_tinh.isEmpty) return _napTinh();
+    final t = await _bangChon<TinhThanh>('Tìm tỉnh, thành', _tinh, (x) => x.nhan, (x) => x.ma == _g.maTinh);
     if (t == null || t.ma == _g.maTinh) return;
-
     setState(() {
       _g.maTinh = t.ma;
       _g.tenTinh = t.ten;
-      _g.quanV1 = null;
-      _g.phuongV1 = null;
-      _g.phuong = null;
-      _g.khuVucId = null;
+      _g.boPhuong();
     });
     widget.onChanged?.call(_g);
-
-    if (_g.isV1) {
-      await _napQuanV1(t.ma);
-    } else {
-      await _napPhuongV2(t.ma);
-    }
+    await _napPhuong(t.ma);
   }
 
-  // Chọn Quận (V1)
-  Future<void> _chonQuanV1() async {
+  Future<void> _chonPhuong() async {
     if (_g.maTinh == null) return;
-    if (_quanV1.isEmpty) return _napQuanV1(_g.maTinh!);
-    final q = await _bangChon<QuanHuyenV1>('Tìm quận, huyện', _quanV1, (x) => x.ten, (x) => x.ma == _g.quanV1?.ma);
-    if (q == null) return;
-
-    setState(() {
-      _g.quanV1 = q;
-      _g.phuongV1 = null;
-    });
-    widget.onChanged?.call(_g);
-    await _napPhuongV1(q.ma);
-  }
-
-  // Chọn Phường V1
-  Future<void> _chonPhuongV1() async {
-    if (_g.quanV1 == null) return;
-    if (_phuongV1.isEmpty) return _napPhuongV1(_g.quanV1!.ma);
-    final p = await _bangChon<PhuongXaV1>('Tìm phường, xã', _phuongV1, (x) => x.nhan, (x) => x.ma == _g.phuongV1?.ma);
+    if (_phuong.isEmpty) return _napPhuong(_g.maTinh!);
+    final p = await _bangChon<PhuongGop>('Gõ tên phường, xã (mới hoặc cũ)', _phuong, (x) => x.nhan, _g.laPhuong);
     if (p == null) return;
-
-    setState(() {
-      _g.phuongV1 = p;
-    });
-    widget.onChanged?.call(_g);
-  }
-
-  // Chọn Phường V2
-  Future<void> _chonPhuongV2() async {
-    if (_g.maTinh == null) return;
-    if (_phuongV2.isEmpty) return _napPhuongV2(_g.maTinh!);
-    final p = await _bangChon<PhuongXa>('Tìm phường, xã', _phuongV2, (x) => x.nhan, (x) => x.ma == _g.phuong?.ma);
-    if (p == null) return;
-
-    setState(() {
-      _g.phuong = p;
-      _g.khuVucId = null;
-    });
+    setState(() => _g.apDung(p));
     widget.onChanged?.call(_g);
   }
 
@@ -334,125 +248,29 @@ class DiaChiFieldsState extends State<DiaChiFields> {
 
   String? _ghiChu() {
     if (widget.ghiChuKhuVuc != null) return widget.ghiChuKhuVuc!(_g);
-    if (_g.isV1) {
-      if (_g.quanV1 != null) {
-        if (_g.quanV1!.khuVucId != null) {
-          return 'Khu vực phục vụ: ${_g.quanV1!.tenKhuVuc ?? _g.quanV1!.ten}';
-        } else if (_g.quanV1!.maTinh == DiaGioiApiService.maHcm) {
-          return 'Khu vực: ${_g.quanV1!.ten}';
-        } else {
-          return widget.batBuocTrongKhuVuc ? null : 'Nằm ngoài khu vực phục vụ.';
-        }
-      }
-      return null;
-    } else {
-      final p = _g.phuong;
-      if (p == null) return null;
-      if (p.khuVuc.isEmpty) {
-        return widget.batBuocTrongKhuVuc ? null : 'Ngoài khu vực phục vụ: vẫn lưu được, chưa đặt dịch vụ tại đây được.';
-      }
-      if (p.khuVuc.length == 1) return 'Khu vực: ${p.khuVuc.first.ten}';
-      return null;
+    if (_g.maPhuong == null) return null;
+    if (_g.ngoaiKhuVuc) {
+      return widget.batBuocTrongKhuVuc ? null : 'Ngoài khu vực phục vụ: vẫn lưu được, chưa đặt dịch vụ tại đây được.';
     }
+    if (_g.isV1) return 'Khu vực: ${_g.khuVuc?.ten}';
+    if (_g.phuong!.khuVuc.length == 1) return 'Khu vực: ${_g.phuong!.khuVuc.first.ten}';
+    return null;
+  }
+
+  String? get _nhanPhuong {
+    if (_taiPhuong) return 'Đang tải…';
+    final p = _phuong.where(_g.laPhuong).firstOrNull;
+    return p?.nhan ?? (_g.isV1 ? _g.phuongV1?.nhan : _g.phuong?.nhan);
   }
 
   @override
   Widget build(BuildContext context) {
-    final dsTinh = _g.isV1 ? _tinhV1 : _tinhV2;
-    final tenTinh = dsTinh.where((t) => t.ma == _g.maTinh).map((t) => t.ten).firstOrNull ?? _g.tenTinh;
+    final tenTinh = _tinh.where((t) => t.ma == _g.maTinh).map((t) => t.nhan).firstOrNull ?? _g.tenTinh;
     final nhieuKv = !_g.isV1 && (_g.phuong?.khuVuc.length ?? 0) > 1;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ================= Thanh Toggle Chuyển Đổi V1 / V2 =================
-        Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    if (_g.isV1) return;
-                    setState(() {
-                      _g.isV1 = true;
-                    });
-                    _napTinhV1();
-                    widget.onChanged?.call(_g);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _g.isV1 ? Colors.white : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: _g.isV1
-                          ? [BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 4, offset: const Offset(0, 1))]
-                          : null,
-                    ),
-                    alignment: Alignment.center,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        '📍 Địa chỉ cũ (Quận/Huyện)',
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: _g.isV1 ? FontWeight.bold : FontWeight.w500,
-                          color: _g.isV1 ? AppColors.brand500 : Colors.grey.shade700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    if (!_g.isV1) return;
-                    setState(() {
-                      _g.isV1 = false;
-                    });
-                    _napTinhV2();
-                    widget.onChanged?.call(_g);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: !_g.isV1 ? Colors.white : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: !_g.isV1
-                          ? [BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 4, offset: const Offset(0, 1))]
-                          : null,
-                    ),
-                    alignment: Alignment.center,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        '🏛️ Địa chỉ mới (Sáp nhập)',
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: !_g.isV1 ? FontWeight.bold : FontWeight.w500,
-                          color: !_g.isV1 ? AppColors.brand500 : Colors.grey.shade700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
         // Ô 1: Tỉnh / Thành phố
         FormField<int>(
           validator: (_) => _g.maTinh == null ? 'Vui lòng chọn tỉnh, thành phố' : null,
@@ -464,88 +282,51 @@ class DiaChiFieldsState extends State<DiaChiFields> {
               await _chonTinh();
               f.didChange(_g.maTinh);
             },
-            loi: f.errorText ?? (dsTinh.isEmpty ? _loi : null),
+            loi: f.errorText ?? (_tinh.isEmpty ? _loi : null),
           ),
         ),
         const SizedBox(height: 12),
 
-        // ================= GIAO DIỆN KIỂU CŨ V1 (3 CẤP) =================
-        if (_g.isV1) ...[
-          // Ô 2: Quận / Huyện
-          FormField<int>(
-            validator: (_) => _g.quanV1 == null ? 'Vui lòng chọn quận, huyện' : null,
-            builder: (f) => _o(
-              nhan: 'Quận, huyện *',
-              icon: Icons.share_location_outlined,
-              giaTri: _taiQuanV1 ? 'Đang tải…' : _g.quanV1?.ten,
-              onTap: () async {
-                await _chonQuanV1();
-                f.didChange(_g.quanV1?.ma);
-              },
-              loi: f.errorText ?? (_quanV1.isEmpty && !_taiQuanV1 ? _loi : null),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Ô 3: Phường / Xã V1
-          FormField<int>(
-            validator: (_) => _g.phuongV1 == null ? 'Vui lòng chọn phường, xã' : null,
-            builder: (f) => _o(
-              nhan: 'Phường, xã *',
-              icon: Icons.map_outlined,
-              giaTri: _taiPhuongV1 ? 'Đang tải…' : _g.phuongV1?.nhan,
-              onTap: () async {
-                await _chonPhuongV1();
-                f.didChange(_g.phuongV1?.ma);
-              },
-              loi: f.errorText ?? (_phuongV1.isEmpty && !_taiPhuongV1 ? _loi : null),
-              goiY: _ghiChu(),
-            ),
-          ),
-        ],
-
-        // ================= GIAO DIỆN KIỂU MỚI V2 (2 CẤP) =================
-        if (!_g.isV1) ...[
-          FormField<int>(
-            validator: (_) {
-              if (_g.phuong == null) return 'Vui lòng chọn phường, xã';
-              if (widget.batBuocTrongKhuVuc && _g.ngoaiKhuVuc) {
-                return 'Phường, xã này ngoài khu vực phục vụ.';
-              }
-              return null;
+        // Ô 2: Phường / Xã (mới hoặc cũ)
+        FormField<int>(
+          validator: (_) {
+            if (_g.maPhuong == null) return 'Vui lòng chọn phường, xã';
+            if (widget.batBuocTrongKhuVuc && _g.ngoaiKhuVuc) {
+              return 'Phường, xã này ngoài khu vực phục vụ.';
+            }
+            return null;
+          },
+          builder: (f) => _o(
+            nhan: 'Phường, xã *',
+            icon: Icons.map_outlined,
+            giaTri: _nhanPhuong,
+            onTap: () async {
+              await _chonPhuong();
+              f.didChange(_g.maPhuong);
             },
-            builder: (f) => _o(
-              nhan: 'Phường, xã *',
-              icon: Icons.map_outlined,
-              giaTri: _taiPhuongV2 ? 'Đang tải…' : _g.phuong?.nhan,
-              onTap: () async {
-                await _chonPhuongV2();
-                f.didChange(_g.phuong?.ma);
-              },
-              loi: f.errorText ?? (_phuongV2.isEmpty && !_taiPhuongV2 ? _loi : null),
-              goiY: _ghiChu(),
-            ),
+            loi: f.errorText ?? (_phuong.isEmpty && !_taiPhuong ? _loi : null),
+            goiY: _ghiChu(),
           ),
-          if (nhieuKv) ...[
-            const SizedBox(height: 12),
-            DropdownButtonFormField<int>(
-              initialValue: _g.khuVuc?.id,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Khu vực *',
-                prefixIcon: Icon(Icons.share_location_outlined),
-                helperText: 'Phường này thuộc nhiều quận cũ, chọn quận đúng với địa chỉ',
-                helperMaxLines: 2,
-              ),
-              items: _g.phuong!.khuVuc
-                  .map((k) => DropdownMenuItem(value: k.id, child: Text(k.ten, overflow: TextOverflow.ellipsis)))
-                  .toList(),
-              onChanged: (v) {
-                setState(() => _g.khuVucId = v);
-                widget.onChanged?.call(_g);
-              },
+        ),
+        if (nhieuKv) ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            initialValue: _g.khuVuc?.id,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Khu vực *',
+              prefixIcon: Icon(Icons.share_location_outlined),
+              helperText: 'Phường này thuộc nhiều quận cũ, chọn quận đúng với địa chỉ',
+              helperMaxLines: 2,
             ),
-          ],
+            items: _g.phuong!.khuVuc
+                .map((k) => DropdownMenuItem(value: k.id, child: Text(k.ten, overflow: TextOverflow.ellipsis)))
+                .toList(),
+            onChanged: (v) {
+              setState(() => _g.khuVucId = v);
+              widget.onChanged?.call(_g);
+            },
+          ),
         ],
 
         // Ô cuối: Số nhà, tên đường

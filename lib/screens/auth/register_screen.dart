@@ -159,7 +159,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           // Địa chỉ nơi ở thành địa chỉ mặc định; khu vực suy ra từ phường
           soNhaTenDuong: _addressController.text.trim(),
           maTinh: _diaChiKhach.maTinh,
-          maPhuong: _diaChiKhach.phuong?.ma,
+          maPhuong: _diaChiKhach.maPhuong,
+          maQuan: _diaChiKhach.maQuan,
           khuVucId: (_diaChiKhach.phuong?.khuVuc.length ?? 0) > 1 ? _diaChiKhach.khuVuc?.id : null,
         );
         if (!mounted) return;
@@ -215,7 +216,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           gioiTinh: _ctvGender == 'Nam' ? 'Nam' : 'Nu',
           soNhaTenDuong: _ctvAddressController.text.trim(),
           maTinh: _diaChiCtv.maTinh,
-          maPhuong: _diaChiCtv.phuong?.ma,
+          maPhuong: _diaChiCtv.maPhuong,
+          maQuan: _diaChiCtv.maQuan,
         );
         if (!mounted) return;
 

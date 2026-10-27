@@ -19,6 +19,7 @@ class DiaChi {
   final String? soNhaTenDuong;
   final int? maTinh;
   final int? maPhuong;
+  final int? maQuan; // có = phường cũ (trước sáp nhập)
 
   const DiaChi({
     required this.id,
@@ -32,6 +33,7 @@ class DiaChi {
     this.soNhaTenDuong,
     this.maTinh,
     this.maPhuong,
+    this.maQuan,
   });
 
   factory DiaChi.fromJson(Map<String, dynamic> j) => DiaChi(
@@ -46,6 +48,7 @@ class DiaChi {
         soNhaTenDuong: j['soNhaTenDuong']?.toString(),
         maTinh: int.tryParse(j['maTinh']?.toString() ?? ''),
         maPhuong: int.tryParse(j['maPhuong']?.toString() ?? ''),
+        maQuan: int.tryParse(j['maQuan']?.toString() ?? ''),
       );
 
   /// Địa chỉ nằm trong khu vực (quận, huyện) bTaskee phục vụ thì mới đặt dịch vụ được.

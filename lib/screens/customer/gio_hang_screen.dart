@@ -7,8 +7,8 @@ import '../../widgets/anh_khong_cat.dart';
 import '../auth/login_screen.dart';
 import 'booking_screen.dart';
 
-/// Giỏ hàng (giống trang /gio-hang trên web): tick các dịch vụ theo lần để đặt chung một lịch, một hóa đơn;
-/// gói tháng đặt riêng. Tối đa 5 dịch vụ, tổng tối đa 8 giờ.
+/// Giỏ hàng (giống trang /gio-hang trên web): tick các dịch vụ để đặt chung một lịch, một hóa đơn,
+/// làm song song từ cùng giờ bắt đầu. Tối đa 5 dịch vụ; gói tháng chỉ đặt một mình.
 class GioHangScreen extends StatelessWidget {
   const GioHangScreen({super.key});
 
@@ -19,7 +19,10 @@ class GioHangScreen extends StatelessWidget {
     final session = await SessionService.load();
     if (!context.mounted) return;
     if (session == null || !session.isCustomer) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
       return;
     }
     Navigator.push(
@@ -27,36 +30,26 @@ class GioHangScreen extends StatelessWidget {
       MaterialPageRoute(
         builder: (_) => chon.length == 1
             ? BookingScreen(service: _dichVuChoMan(chon.first))
-            : BookingScreen(service: _dichVuChoMan(chon.first), dichVuNhieu: chon),
+            : BookingScreen(
+                service: _dichVuChoMan(chon.first),
+                dichVuNhieu: chon,
+              ),
       ),
     );
   }
 
   /// Dữ liệu dịch vụ tối thiểu để mở màn đặt (giống map từ /v1/services).
   static Map<String, dynamic> _dichVuChoMan(MonGio m) => {
-        'id': m.id,
-        'dichVuId': m.id,
-        'tenDichVu': m.ten,
-        'title': m.ten,
-        'loaiHinhDat': m.loaiHinhDat,
-        'loaiDichVuId': m.danhMucId,
-        'donGiaThamKhao': m.gia,
-        'thoiGianThucHienPhut': m.phut,
-        'hinhAnhUrl': m.anh,
-      };
-
-  void _datRieng(BuildContext context, MonGio m) async {
-    final session = await SessionService.load();
-    if (!context.mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => session != null && session.isCustomer
-            ? BookingScreen(service: _dichVuChoMan(m))
-            : const LoginScreen(),
-      ),
-    );
-  }
+    'id': m.id,
+    'dichVuId': m.id,
+    'tenDichVu': m.ten,
+    'title': m.ten,
+    'loaiHinhDat': m.loaiHinhDat,
+    'loaiDichVuId': m.danhMucId,
+    'donGiaThamKhao': m.gia,
+    'thoiGianThucHienPhut': m.phut,
+    'hinhAnhUrl': m.anh,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +60,6 @@ class GioHangScreen extends StatelessWidget {
         final ds = gio.mon;
         final chon = gio.daChon;
         final loi = GioHang.loiDatChung(chon);
-        final coTheoLan = ds.any((m) => !m.laGoi);
         return Scaffold(
           backgroundColor: AppColors.scaffoldBg,
           appBar: AppBar(
@@ -82,14 +74,23 @@ class GioHangScreen extends StatelessWidget {
                         title: const Text('Xóa tất cả?'),
                         content: const Text('Bỏ mọi dịch vụ khỏi giỏ hàng.'),
                         actions: [
-                          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Không')),
-                          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Xóa')),
+                          TextButton(
+                            onPressed: () => Navigator.pop(c, false),
+                            child: const Text('Không'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(c, true),
+                            child: const Text('Xóa'),
+                          ),
                         ],
                       ),
                     );
                     if (ok == true) gio.xoaTatCa();
                   },
-                  child: const Text('Xóa tất cả', style: TextStyle(color: AppColors.error)),
+                  child: const Text(
+                    'Xóa tất cả',
+                    style: TextStyle(color: AppColors.error),
+                  ),
                 ),
             ],
           ),
@@ -98,44 +99,59 @@ class GioHangScreen extends StatelessWidget {
               : ListView(
                   padding: const EdgeInsets.only(bottom: 16),
                   children: [
-                    if (coTheoLan)
-                      CheckboxListTile(
-                        tileColor: Colors.white,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        value: chon.length == ds.where((m) => !m.laGoi).length,
-                        onChanged: (v) => gio.chonTatCa(v == true),
-                        title: Text('Chọn tất cả (${ds.where((m) => !m.laGoi).length})',
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                    CheckboxListTile(
+                      tileColor: Colors.white,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: chon.length == ds.length,
+                      onChanged: (v) => gio.chonTatCa(v == true),
+                      title: Text(
+                        'Chọn tất cả (${ds.length})',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
+                    ),
                     const SizedBox(height: 8),
                     for (final m in ds) _dong(context, m),
                   ],
                 ),
-          bottomNavigationBar: ds.isEmpty ? null : _thanhDay(context, chon, loi),
+          bottomNavigationBar: ds.isEmpty
+              ? null
+              : _thanhDay(context, chon, loi),
         );
       },
     );
   }
 
   Widget _trong(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.shopping_cart_outlined, size: 56, color: AppColors.brand500),
-              const SizedBox(height: 12),
-              const Text('Giỏ hàng của bạn đang trống',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 6),
-              const Text('Thêm dịch vụ ở trang chi tiết để đặt nhiều dịch vụ trong một lần.',
-                  textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary)),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('Khám phá dịch vụ')),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.shopping_cart_outlined,
+            size: 56,
+            color: AppColors.brand500,
           ),
-        ),
-      );
+          const SizedBox(height: 12),
+          const Text(
+            'Giỏ hàng của bạn đang trống',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Thêm dịch vụ ở trang chi tiết để đặt nhiều dịch vụ trong một lần.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Khám phá dịch vụ'),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _dong(BuildContext context, MonGio m) {
     final anh = CatalogUi.fileUrl(m.anh);
@@ -149,15 +165,18 @@ class GioHangScreen extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 10, 8, 10),
       child: Row(
         children: [
-          m.laGoi
-              ? const SizedBox(width: 48)
-              : Checkbox(value: m.chon, onChanged: (_) => GioHang.instance.doiChon(m.id)),
+          Checkbox(
+            value: m.chon,
+            onChanged: (_) => GioHang.instance.doiChon(m.id),
+          ),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: SizedBox(
               width: 52,
               height: 52,
-              child: anh == null ? thayThe : AnhKhongCat(url: anh, thayThe: thayThe),
+              child: anh == null
+                  ? thayThe
+                  : AnhKhongCat(url: anh, thayThe: thayThe),
             ),
           ),
           const SizedBox(width: 10),
@@ -165,29 +184,41 @@ class GioHangScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(m.ten, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
                 Text(
-                  [CatalogUi.loaiHinhLabel(m.loaiHinhDat), if (m.phut > 0) GioHang.thoiLuong(m.phut)].join(' · '),
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                  m.ten,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
-                Text(CatalogUi.money(m.gia),
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.brand600)),
+                Text(
+                  [
+                    CatalogUi.loaiHinhLabel(m.loaiHinhDat),
+                    if (m.phut > 0) GioHang.thoiLuong(m.phut),
+                  ].join(' · '),
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  CatalogUi.money(m.gia),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.brand600,
+                  ),
+                ),
               ],
             ),
           ),
-          if (m.laGoi)
-            OutlinedButton(
-              onPressed: () => _datRieng(context, m),
-              style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-              child: const Text('Đặt riêng'),
-            ),
           IconButton(
             tooltip: 'Xóa khỏi giỏ',
             onPressed: () => GioHang.instance.xoa(m.id),
-            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: AppColors.error,
+            ),
           ),
         ],
       ),
@@ -197,7 +228,12 @@ class GioHangScreen extends StatelessWidget {
   Widget _thanhDay(BuildContext context, List<MonGio> chon, String? loi) {
     final gio = GioHang.instance;
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        10,
+        16,
+        10 + MediaQuery.of(context).padding.bottom,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: AppColors.divider)),
@@ -207,24 +243,37 @@ class GioHangScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('${chon.length} dịch vụ · ${GioHang.thoiLuong(gio.tongPhut)}',
-                  style: const TextStyle(color: AppColors.textSecondary)),
+              Text(
+                '${chon.length} dịch vụ · xong sau ${GioHang.thoiLuong(gio.phutXong)}',
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
               const Spacer(),
-              Text(CatalogUi.money(gio.tongGia),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.brand600)),
+              Text(
+                CatalogUi.money(gio.tongGia),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.brand600,
+                ),
+              ),
             ],
           ),
           if (loi != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: Text(loi, style: const TextStyle(fontSize: 12.5, color: AppColors.error)),
+              child: Text(
+                loi,
+                style: const TextStyle(fontSize: 12.5, color: AppColors.error),
+              ),
             ),
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: chon.isEmpty || loi != null ? null : () => _dat(context),
+              onPressed: chon.isEmpty || loi != null
+                  ? null
+                  : () => _dat(context),
               child: Text('Đặt dịch vụ (${chon.length})'),
             ),
           ),

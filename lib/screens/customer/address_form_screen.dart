@@ -98,8 +98,8 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
     setState(() => _saving = true);
     try {
       final luuY = _luuYCtrl.text.trim();
-      final maPhuong = _diaChi.isV1 ? _diaChi.phuongV1!.ma : _diaChi.phuong!.ma;
-      final maQuan = _diaChi.isV1 ? _diaChi.quanV1?.ma : null;
+      final maPhuong = _diaChi.maPhuong!;
+      final maQuan = _diaChi.maQuan;
       final nhieuKv = !_diaChi.isV1 && (_diaChi.phuong?.khuVuc.length ?? 0) > 1;
       final khuVucId = _diaChi.isV1 ? _diaChi.quanV1?.khuVucId : (nhieuKv ? _diaChi.khuVuc?.id : null);
       final res = _isEdit
@@ -170,6 +170,7 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
                 giaTri: _diaChi,
                 soNhaCtrl: _soNhaCtrl,
                 maPhuongBanDau: widget.diaChi?.maPhuong,
+                maQuanBanDau: widget.diaChi?.maQuan,
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 8),

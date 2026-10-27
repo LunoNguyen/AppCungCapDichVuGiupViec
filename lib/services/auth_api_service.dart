@@ -21,6 +21,7 @@ class AuthApiService {
     String? soNhaTenDuong,
     int? maTinh,
     int? maPhuong,
+    int? maQuan, // có = phường cũ (trước sáp nhập)
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/auth/customer/register',
@@ -37,6 +38,7 @@ class AuthApiService {
         if (soNhaTenDuong != null) 'soNhaTenDuong': soNhaTenDuong,
         if (maTinh != null) 'maTinh': maTinh,
         if (maPhuong != null) 'maPhuong': maPhuong,
+        if (maQuan != null) 'maQuan': maQuan,
       },
     );
   }
@@ -55,6 +57,7 @@ class AuthApiService {
     String? soNhaTenDuong,
     int? maTinh,
     int? maPhuong,
+    int? maQuan, // có = phường cũ (trước sáp nhập)
     String? tinhThanh,
     String? phuongXa,
     // KHU VỰC nhận việc: 1 đến 5 quận, huyện
@@ -76,6 +79,7 @@ class AuthApiService {
         if (soNhaTenDuong != null) 'soNhaTenDuong': soNhaTenDuong,
         if (maTinh != null) 'maTinh': maTinh,
         if (maPhuong != null) 'maPhuong': maPhuong,
+        if (maQuan != null) 'maQuan': maQuan,
         if (danhSachKhuVucId != null) 'danhSachKhuVucId': danhSachKhuVucId,
         if (tinhThanh != null && tinhThanh.isNotEmpty) 'tinhThanh': tinhThanh,
         if (phuongXa != null && phuongXa.isNotEmpty) 'phuongXa': phuongXa,

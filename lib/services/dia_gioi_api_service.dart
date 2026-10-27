@@ -5,7 +5,58 @@ import 'api_response.dart';
 class TinhThanh {
   final int ma;
   final String ten;
-  const TinhThanh(this.ma, this.ten);
+
+  /// Tỉnh chỉ còn ở địa giới trước sáp nhập (v1).
+  final bool chiCu;
+  const TinhThanh(this.ma, this.ten, {this.chiCu = false});
+
+  String get nhan => chiCu ? '$ten (trước sáp nhập)' : ten;
+}
+
+/// Một phường, xã trong danh sách gộp của tỉnh (GET /v1/dia-gioi/tinh/{ma}/phuong-xa-gop):
+/// phường mới (sau sáp nhập) hoặc phường cũ kèm quận cũ.
+class PhuongGop {
+  final int ma;
+  final String ten;
+  final bool laCu;
+  final int? maQuan;
+  final String? tenQuan;
+  final int? khuVucIdQuan;
+  final String? tenKhuVucQuan;
+  final List<KhuVucNho> khuVuc; // phường mới
+  const PhuongGop({
+    required this.ma,
+    required this.ten,
+    required this.laCu,
+    this.maQuan,
+    this.tenQuan,
+    this.khuVucIdQuan,
+    this.tenKhuVucQuan,
+    this.khuVuc = const [],
+  });
+
+  factory PhuongGop.fromJson(Map<String, dynamic> e) {
+    int? so(dynamic v) => v == null ? null : int.tryParse('$v');
+    return PhuongGop(
+      ma: so(e['ma']) ?? 0,
+      ten: '${e['ten'] ?? ''}',
+      laCu: e['loai'] == 'cu',
+      maQuan: so(e['maQuan']),
+      tenQuan: e['tenQuan']?.toString(),
+      khuVucIdQuan: so(e['khuVucId']),
+      tenKhuVucQuan: e['tenKhuVuc']?.toString(),
+      khuVuc: ((e['khuVuc'] as List?) ?? const [])
+          .map((k) => KhuVucNho(int.parse('${k['id']}'), '${k['tenKhuVuc']}'))
+          .toList(),
+    );
+  }
+
+  /// "Bến Nghé (Phường) — Quận 1 (cũ)" / "Sài Gòn (Phường) — mới" (giống web).
+  String get nhan {
+    final m = RegExp(r'^(Phường|Xã|Đặc khu|Thị trấn) (.*)$').firstMatch(ten);
+    final goc = m == null ? ten : '${m.group(2)} (${m.group(1)})';
+    return laCu ? '$goc — ${tenQuan ?? ''} (cũ)' : '$goc — mới';
+  }
 }
 
 /// Quận, huyện (Địa chỉ cũ v1).
@@ -89,6 +140,10 @@ class DiaGioiApiService {
   // Cache V2
   static List<TinhThanh>? _tinhV2;
   static final Map<int, List<PhuongXa>> _phuongV2 = {};
+
+  // Cache danh sách gộp v1 + v2
+  static List<TinhThanh>? _tinhGop;
+  static final Map<int, List<PhuongGop>> _phuongGop = {};
 
   // Cache V1
   static List<TinhThanh>? _tinhV1;
@@ -228,6 +283,28 @@ class DiaGioiApiService {
       }
     }
     return null;
+  }
+
+  // ==================== GỘP V1 + V2 (form 2 ô: tỉnh → phường) ====================
+  Future<ApiResponse<List<TinhThanh>>> tinhGop() async {
+    if (_tinhGop != null) return ApiResponse.ok(_tinhGop);
+    final res = await _api.get<List<TinhThanh>>('/v1/dia-gioi/tinh-gop',
+        fromJsonT: (j) => j is List
+            ? j.map((e) => TinhThanh(int.parse('${e['ma']}'), '${e['ten']}', chiCu: e['coMoi'] == false)).toList()
+            : <TinhThanh>[]);
+    if (res.success && res.data != null && res.data!.isNotEmpty) _tinhGop = res.data;
+    return res;
+  }
+
+  Future<ApiResponse<List<PhuongGop>>> phuongXaGop(int maTinh) async {
+    final coSan = _phuongGop[maTinh];
+    if (coSan != null) return ApiResponse.ok(coSan);
+    final res = await _api.get<List<PhuongGop>>('/v1/dia-gioi/tinh/$maTinh/phuong-xa-gop',
+        fromJsonT: (j) => j is List
+            ? j.map((e) => PhuongGop.fromJson(Map<String, dynamic>.from(e as Map))).toList()
+            : <PhuongGop>[]);
+    if (res.success && res.data != null) _phuongGop[maTinh] = res.data!;
+    return res;
   }
 
   // ==================== API V2 ====================

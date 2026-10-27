@@ -32,24 +32,26 @@ void main() {
     expect(GioHang.instance.mon.map((m) => m.id), [1, 2]);
   });
 
-  test('gói tháng không được chọn đặt chung', () async {
+  test('gói tháng chọn được nhưng không đặt chung với dịch vụ khác', () async {
     await GioHang.instance.them(mon(1));
     await GioHang.instance.them(mon(2, loai: 'GoiThang'));
     await GioHang.instance.chonTatCa(true);
-    expect(GioHang.instance.daChon.map((m) => m.id), [1]);
+    expect(GioHang.instance.daChon.map((m) => m.id), [1, 2]);
+    expect(GioHang.loiDatChung(GioHang.instance.daChon),
+        'Gói tháng không đặt chung với dịch vụ khác, hãy chọn riêng gói tháng.');
+    expect(GioHang.loiDatChung([mon(2, loai: 'GoiThang')]), isNull);
   });
 
-  test('tổng giá và tổng thời lượng của các dịch vụ đã chọn', () async {
+  test('tổng giá; các dịch vụ làm song song nên đơn xong theo dịch vụ lâu nhất', () async {
     await GioHang.instance.them(mon(1, phut: 180, gia: 270000));
     await GioHang.instance.them(mon(2, phut: 240, gia: 1760000));
     expect(GioHang.instance.tongGia, 2030000);
-    expect(GioHang.instance.tongPhut, 420);
+    expect(GioHang.instance.phutXong, 240);
   });
 
-  test('giới hạn 5 dịch vụ và 8 giờ', () {
+  test('tối đa 5 dịch vụ, không giới hạn tổng thời lượng', () {
     expect(GioHang.loiDatChung([for (var i = 1; i <= 6; i++) mon(i, phut: 30)]), 'Mỗi lần đặt tối đa 5 dịch vụ.');
-    expect(GioHang.loiDatChung([mon(1, phut: 240), mon(2, phut: 270)]), 'Tổng thời lượng tối đa 8 giờ (đang chọn 8 giờ 30 phút).');
-    expect(GioHang.loiDatChung([mon(1, phut: 180), mon(2, phut: 240)]), isNull);
+    expect(GioHang.loiDatChung([mon(1, phut: 240), mon(2, phut: 270)]), isNull);
   });
 
   test('đặt xong thì bỏ các dịch vụ vừa đặt khỏi giỏ', () async {
