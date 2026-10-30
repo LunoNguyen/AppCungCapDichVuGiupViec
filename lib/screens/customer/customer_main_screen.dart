@@ -4,15 +4,14 @@ import 'customer_home_screen.dart';
 import 'booking_history_screen.dart';
 import 'customer_notification_screen.dart';
 import 'customer_account_screen.dart';
-import 'cart_screen.dart';
 import '../../services/app_realtime.dart';
-import '../../services/cart_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/chuong_thong_bao.dart';
+import '../../services/gio_hang.dart';
+import '../../widgets/nut_gio_hang.dart';
 
 /// Khung chính app Khách hàng - bố cục tab giống bTaskee:
 /// Trang chủ / Hoạt động / Thông báo / Tài khoản
-/// Có nút giỏ hàng lơ lửng phong cách Be ở góc dưới phải.
 class CustomerMainScreen extends StatefulWidget {
   final int initialIndex;
   const CustomerMainScreen({super.key, this.initialIndex = 0});
@@ -29,8 +28,7 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
-    // Tải số lượng giỏ hàng cache
-    CartService.refreshCount();
+    GioHang.instance.tai(); // giỏ hàng lưu trên máy: hiện nút giỏ nổi khi còn dịch vụ
     // Realtime: thông báo mới hiện lên điện thoại + số chưa đọc trên chuông
     SessionService.load().then((s) {
       if (s != null && s.taiKhoanId > 0) {
@@ -48,80 +46,6 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
     });
   }
 
-  Widget _buildFloatingCart() {
-    return Positioned(
-      right: 16,
-      bottom: 16,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Material(
-            color: Colors.white,
-            shape: const CircleBorder(),
-            elevation: 6,
-            shadowColor: Colors.black38,
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CartScreen()),
-                );
-                CartService.refreshCount();
-              },
-              child: Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.brand300, width: 1.5),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.shopping_cart_rounded,
-                    color: AppColors.brand500,
-                    size: 28,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Huy hiệu đỏ đếm số lượng giỏ hàng
-          ValueListenableBuilder<int>(
-            valueListenable: CartService.countNotifier,
-            builder: (context, count, _) {
-              if (count <= 0) return const SizedBox.shrink();
-              return Positioned(
-                top: -2,
-                right: -2,
-                child: IgnorePointer(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.redAccent,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-                    child: Text(
-                      count > 99 ? '99+' : '$count',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final screens = [
@@ -132,15 +56,10 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
     ];
 
     return Scaffold(
-      body: Stack(
-        children: [
-          IndexedStack(
-            index: _currentIndex,
-            children: screens,
-          ),
-          // Nút giỏ hàng lơ lửng phong cách Be (hiện ở tab Trang chủ)
-          if (_currentIndex == 0) _buildFloatingCart(),
-        ],
+      floatingActionButton: _currentIndex == 0 ? const NutGioHang() : null,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: screens,
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(

@@ -1,7 +1,9 @@
-import 'package:flutter/widgets.dart' show Locale;
+﻿import 'package:flutter/widgets.dart' show Locale;
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import 'dia_gioi_api_service.dart';
 
 /// Kết quả lấy vị trí: có [position] hoặc [error] (thông điệp hiển thị cho người dùng).
 class LocationResult {
@@ -14,8 +16,27 @@ class LocationResult {
 
 /// GPS dùng chung cho Khách hàng (lấy toạ độ địa chỉ) và Cộng tác viên (gửi vị trí, chỉ đường).
 class LocationService {
-  /// Xin quyền và lấy vị trí hiện tại.
-  static Future<LocationResult> getCurrentPosition() async {
+  static final DiaGioiApiService _diaGioiApi = DiaGioiApiService();
+  static Future<LocationResult>? _inFlightPosition;
+  static Position? _lastPosition;
+
+  /// Vị trí GPS gần nhất đã lấy được trong phiên làm việc (giúp mở Google Maps tức thì).
+  static Position? get lastKnownPosition => _lastPosition;
+
+  /// Xin quyền và lấy vị trí hiện tại (gộp các yêu cầu gọi trùng cùng lúc để tránh treo GPS).
+  static Future<LocationResult> getCurrentPosition() {
+    final pending = _inFlightPosition;
+    if (pending != null) return pending;
+    final future = _fetchCurrentPositionInternal();
+    _inFlightPosition = future;
+    return future.whenComplete(() {
+      if (identical(_inFlightPosition, future)) {
+        _inFlightPosition = null;
+      }
+    });
+  }
+
+  static Future<LocationResult> _fetchCurrentPositionInternal() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         return const LocationResult._(
@@ -38,7 +59,7 @@ class LocationService {
         pos = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(
             accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 12),
+            timeLimit: Duration(seconds: 5),
           ),
         );
       } catch (_) {
@@ -46,13 +67,18 @@ class LocationService {
         pos = await Geolocator.getLastKnownPosition();
       }
       pos ??= await Geolocator.getLastKnownPosition();
+      pos ??= _lastPosition;
 
       if (pos != null) {
+        _lastPosition = pos;
         return LocationResult._(pos, null);
       }
       return const LocationResult._(
           null, 'Chưa lấy được vị trí GPS. Vui lòng bật định vị và thử lại.');
     } catch (e) {
+      if (_lastPosition != null) {
+        return LocationResult._(_lastPosition, null);
+      }
       return LocationResult._(null, 'Không lấy được vị trí: $e');
     }
   }
@@ -84,37 +110,13 @@ class LocationService {
     }
   }
 
-  static const List<({String ten, double viDo, double kinhDo})> _tamQuanHcm = [
-    (ten: 'Quận 1', viDo: 10.7769, kinhDo: 106.7009),
-    (ten: 'Quận 3', viDo: 10.7843, kinhDo: 106.6844),
-    (ten: 'Quận 4', viDo: 10.7578, kinhDo: 106.7013),
-    (ten: 'Quận 5', viDo: 10.7540, kinhDo: 106.6634),
-    (ten: 'Quận 6', viDo: 10.7480, kinhDo: 106.6352),
-    (ten: 'Quận 7', viDo: 10.7340, kinhDo: 106.7215),
-    (ten: 'Quận 8', viDo: 10.7240, kinhDo: 106.6286),
-    (ten: 'Quận 10', viDo: 10.7746, kinhDo: 106.6670),
-    (ten: 'Quận 11', viDo: 10.7629, kinhDo: 106.6505),
-    (ten: 'Quận 12', viDo: 10.8672, kinhDo: 106.6413),
-    (ten: 'Quận Bình Thạnh', viDo: 10.8106, kinhDo: 106.7091),
-    (ten: 'Quận Bình Tân', viDo: 10.7653, kinhDo: 106.6036),
-    (ten: 'Quận Gò Vấp', viDo: 10.8387, kinhDo: 106.6653),
-    (ten: 'Quận Phú Nhuận', viDo: 10.7991, kinhDo: 106.6803),
-    (ten: 'Quận Tân Bình', viDo: 10.8015, kinhDo: 106.6527),
-    (ten: 'Quận Tân Phú', viDo: 10.7901, kinhDo: 106.6281),
-    (ten: 'Thành phố Thủ Đức', viDo: 10.8231, kinhDo: 106.7710),
-    (ten: 'Huyện Bình Chánh', viDo: 10.6874, kinhDo: 106.5939),
-    (ten: 'Huyện Cần Giờ', viDo: 10.4113, kinhDo: 106.9547),
-    (ten: 'Huyện Củ Chi', viDo: 11.0067, kinhDo: 106.5135),
-    (ten: 'Huyện Hóc Môn', viDo: 10.8862, kinhDo: 106.5923),
-    (ten: 'Huyện Nhà Bè', viDo: 10.6950, kinhDo: 106.7400),
-  ];
-
-  /// Đoán quận/huyện TP.HCM từ toạ độ (chọn tâm gần nhất trong bán kính 30km).
+  /// Đoán quận/huyện TP.HCM từ toạ độ thông qua dữ liệu của [DiaGioiApiService] (bán kính 30km).
   static String? doanQuanTheoToaDo(double lat, double lng) {
-    ({String ten, double viDo, double kinhDo})? gan;
+    final dsTamQuan = DiaGioiApiService.danhSachTamQuan;
+    TamQuan? gan;
     double min = double.infinity;
-    for (int i = 0; i < _tamQuanHcm.length; i++) {
-      final t = _tamQuanHcm[i];
+    for (int i = 0; i < dsTamQuan.length; i++) {
+      final t = dsTamQuan[i];
       final d = distanceKm(lat, lng, t.viDo, t.kinhDo);
       if (d < min) {
         min = d;
@@ -124,33 +126,19 @@ class LocationService {
     return (gan != null && min <= 30) ? gan.ten : null;
   }
 
-  /// Tìm tên quận từ danh sách các trường địa chỉ của Geocoder.
+  /// Tìm tên quận từ danh sách các trường địa chỉ của Geocoder dựa trên dữ liệu 2 API (v1 & v2).
   static String? _timTenQuan(Iterable<String?> texts) {
-    for (final raw in texts) {
-      if (raw == null || raw.trim().isEmpty) continue;
-      final t = raw.trim().toLowerCase();
-      if (t == 'thành phố hồ chí minh' ||
-          t == 'thành phố hcm' ||
-          t == 'tp. hcm' ||
-          t == 'tp.hcm' ||
-          t == 'ho chi minh city' ||
-          t == 'hồ chí minh') {
-        continue;
-      }
-      for (final q in _tamQuanHcm) {
-        final qTen = q.ten.toLowerCase();
-        final qRutGon = qTen.replaceFirst(RegExp(r'^(quận|huyện|thành phố)\s+'), '');
-        if (t == qTen || t.contains(qTen) || t.contains(qRutGon)) {
-          return q.ten;
-        }
-      }
-    }
-    return null;
+    return DiaGioiApiService.timQuanTuDiaGioi(texts);
   }
 
   /// Lấy chi tiết thông tin hành chính (quận huyện, tỉnh thành, địa chỉ) từ toạ độ GPS.
   static Future<Map<String, String>> getAddressDetails(double lat, double lng) async {
     try {
+      // Đồng bộ danh mục địa giới từ 2 API (v1 Quận/Huyện cũ + v2 Phường/Xã mới + Tâm toạ độ)
+      try {
+        await _diaGioiApi.dongBoDuLieuDinhVi().timeout(const Duration(seconds: 2));
+      } catch (_) {}
+
       final marks = await Geocoding(locale: const Locale('vi', 'VN'))
           .placemarkFromCoordinates(lat, lng);
       Placemark? p = marks.isNotEmpty ? marks.first : null;
@@ -168,10 +156,11 @@ class LocationService {
       }
 
       quanHuyen ??= doanQuanTheoToaDo(lat, lng);
-      quanHuyen ??= '';
+      // Mac dinh ve Quan 1 neu toa do o xa ngoai TP.HCM (may ao o My hoac ngoai tinh)
+      quanHuyen ??= 'Quận 1';
 
       String tinhThanh = p?.administrativeArea ?? '';
-      if (tinhThanh.isEmpty && quanHuyen.isNotEmpty) {
+      if (tinhThanh.isEmpty || !tinhThanh.toLowerCase().contains('hồ chí minh')) {
         tinhThanh = 'Thành phố Hồ Chí Minh';
       }
 
@@ -230,6 +219,22 @@ class LocationService {
   static String formatKm(double km) =>
       km < 1 ? '${(km * 1000).round()} m' : '${km.toStringAsFixed(1)} km';
 
+  static Future<bool> _launchMapsUri(Uri uri) async {
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (ok) return true;
+    } catch (_) {}
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.platformDefault);
+      if (ok) return true;
+    } catch (_) {}
+    try {
+      return await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Mở Google Maps chỉ đường tới toạ độ, hoặc tìm theo địa chỉ khi không có toạ độ.
   static Future<bool> openDirections(
       {double? lat, double? lng, String? address}) async {
@@ -245,7 +250,7 @@ class LocationService {
       'api': '1',
       'destination': dest,
     });
-    return launchUrl(uri, mode: LaunchMode.externalApplication);
+    return _launchMapsUri(uri);
   }
 
   /// Mở bản đồ tại một điểm (xem vị trí CTV).
@@ -254,7 +259,7 @@ class LocationService {
       'api': '1',
       'query': '$lat,$lng',
     });
-    return launchUrl(uri, mode: LaunchMode.externalApplication);
+    return _launchMapsUri(uri);
   }
 
   static double? toDouble(dynamic v) =>

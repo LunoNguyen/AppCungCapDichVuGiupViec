@@ -12,6 +12,7 @@ Future<String?> moBangKhuyenMai(
   String? ngayThucHien,
   String? gioBatDau,
   String? maDangDung,
+  List<int>? dichVuIds,
 }) {
   return showModalBottomSheet<String>(
     context: context,
@@ -24,6 +25,7 @@ Future<String?> moBangKhuyenMai(
       ngayThucHien: ngayThucHien,
       gioBatDau: gioBatDau,
       maDangDung: maDangDung,
+      dichVuIds: dichVuIds,
     ),
   );
 }
@@ -34,8 +36,10 @@ class _BangKhuyenMai extends StatefulWidget {
   final String? ngayThucHien;
   final String? gioBatDau;
   final String? maDangDung;
+  final List<int>? dichVuIds;
 
   const _BangKhuyenMai({
+    this.dichVuIds,
     required this.dichVuId,
     required this.loaiHinhDat,
     this.ngayThucHien,
@@ -69,6 +73,7 @@ class _BangKhuyenMaiState extends State<_BangKhuyenMai> {
         loaiHinhDat: widget.loaiHinhDat,
         ngayThucHien: widget.ngayThucHien,
         gioBatDau: widget.gioBatDau,
+        dichVuIds: widget.dichVuIds,
       );
       if (!mounted) return;
       setState(() {
