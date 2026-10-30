@@ -402,8 +402,8 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
                               Expanded(
                                 child: Text(
                                   isBefore
-                                      ? 'Yêu cầu chụp lại hiện trạng tài sản ở khu vực thực hiện trước khi bắt đầu làm. Ảnh được lưu trên MinIO và đính kèm vào chi tiết đơn đặt.'
-                                      : 'Bắt buộc chụp lại tài sản ở khu vực thực hiện sau khi làm xong. Nếu không chụp và gửi ảnh, đơn sẽ không được chuyển sang trạng thái Hoàn thành.',
+                                      ? 'Chụp lại hiện trạng tài sản tại khu vực làm việc trước khi bắt đầu dịch vụ.'
+                                      : 'Chụp lại hiện trạng tài sản tại khu vực làm việc sau khi hoàn thành dịch vụ.',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     color: primaryColor,
@@ -419,7 +419,7 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
 
                         // Chọn khu vực
                         const Text(
-                          '1. Khu vực / Vật dụng ghi nhận',
+                          'Khu vực / Vật dụng ghi nhận',
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w700,
@@ -458,7 +458,7 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
 
                         // Chọn mô tả hiện trạng
                         const Text(
-                          '2. Hiện trạng tài sản khu vực thực hiện',
+                          'Hiện trạng tài sản',
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w700,
@@ -500,7 +500,7 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
                           children: [
                             const Expanded(
                               child: Text(
-                                '3. Hình ảnh tài sản đã chụp',
+                                'Hình ảnh đã chụp',
                                 style: TextStyle(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700,
@@ -521,7 +521,7 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
                               ),
                               child: Text(
                                 _capturedItems.isEmpty
-                                    ? 'Bắt buộc >= 1 ảnh'
+                                    ? 'Tối thiểu 1 ảnh'
                                     : 'Đã chụp ${_capturedItems.length} ảnh',
                                 style: TextStyle(
                                   fontSize: 11.5,
@@ -760,7 +760,7 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
                                               const SizedBox(width: 4),
                                               Expanded(
                                                 child: Text(
-                                                  'Đã lưu MinIO (${item.timestampLabel})',
+                                                  'Đã tải lên (${item.timestampLabel})',
                                                   maxLines: 1,
                                                   overflow:
                                                       TextOverflow.ellipsis,
@@ -784,7 +784,7 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
 
                         const SizedBox(height: 14),
                         const Text(
-                          '4. Ghi chú thêm về tài sản (tùy chọn)',
+                          'Ghi chú thêm',
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w700,
