@@ -1787,7 +1787,7 @@ class CollaboratorScheduleScreenState
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Bước 1: Liên hệ KH $customerName',
+                                          'Liên hệ khách hàng: $customerName',
                                           style: const TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w700,
@@ -1876,7 +1876,7 @@ class CollaboratorScheduleScreenState
                             const SizedBox(height: 14),
 
                             const Text(
-                              'Bước 2: Chọn phương án thống nhất với khách hàng',
+                              'Phương án xử lý thống nhất',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
@@ -1893,7 +1893,7 @@ class CollaboratorScheduleScreenState
                                   : (conflictingShiftToday != null
                                       ? const Color(0xFFDC2626)
                                       : const Color(0xFF16A34A)),
-                              title: '1. Làm bù NGAY HÔM NAY (${fmtLocalDate(todayDate)})',
+                              title: 'Làm bù hôm nay (${fmtLocalDate(todayDate)})',
                               enabled: !isLateNight,
                               disabledReason:
                                   '⚠️ Đã quá muộn trong ngày (${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}), không còn khung giờ phù hợp để dọn dẹp hôm nay! Vui lòng chọn Phương án 2 để dời sang ngày làm bù.',
@@ -1909,8 +1909,8 @@ class CollaboratorScheduleScreenState
                               icon: Icons.event_available_rounded,
                               iconColor: _primary,
                               title: isGoiThang
-                                  ? '2. Dời sang ngày làm bù (Tôi vẫn nhận làm trọn gói)'
-                                  : '2. Dời sang ngày mới (Tôi vẫn phụ trách)',
+                                  ? 'Dời sang ngày làm bù'
+                                  : 'Dời sang ngày mới',
                               subtitle: isGoiThang
                                   ? (endOfPackageFmt != null
                                       ? 'Làm bù sau buổi cuối cùng của gói (Gợi ý: $endOfPackageFmt). Đảm bảo hoàn thành trọn vẹn toàn bộ gói.'
@@ -1923,7 +1923,7 @@ class CollaboratorScheduleScreenState
                                 value: 'RESCHEDULE_RELEASE',
                                 icon: Icons.person_search_rounded,
                                 iconColor: const Color(0xFFD97706),
-                                title: '3. Dời sang ngày mới (Tôi bận — Tìm CTV khác)',
+                                title: 'Dời ngày và chuyển CTV khác',
                                 subtitle:
                                     'Cập nhật ngày mới khách chọn và trả đơn về trạng thái Đang tìm CTV để người khác nhận.',
                                 badgeText: 'Trả về Tìm CTV',
@@ -1932,7 +1932,7 @@ class CollaboratorScheduleScreenState
                                 value: 'CANCEL_ORDER',
                                 icon: Icons.cancel_outlined,
                                 iconColor: const Color(0xFFDC2626),
-                                title: '4. Khách không còn nhu cầu (Hủy đơn)',
+                                title: 'Khách yêu cầu hủy đơn',
                                 subtitle:
                                     'Khách báo không cần dọn nữa. Hủy ca quá hạn để không bị treo đơn.',
                                 badgeText: 'Hủy đơn',
@@ -2835,7 +2835,7 @@ class CollaboratorScheduleScreenState
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Đã hoàn thành ca làm việc! +$netStr (80% tiền công) đã được cộng vào Ví thu nhập.'),
+            content: Text('✅ Đã hoàn thành ca làm việc! +$netStr đã được cộng vào Ví thu nhập.'),
             backgroundColor: AppColors.success,
           ),
         );

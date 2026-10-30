@@ -41,7 +41,7 @@ class StorageApiService {
         return ApiResponse.err(data['error']?.toString() ?? 'Lỗi tải lên file');
       }
     } catch (e) {
-      return ApiResponse.err('Lỗi kết nối MinIO Storage: $e');
+      return ApiResponse.err('Không thể kết nối máy chủ lưu trữ: $e');
     }
   }
 

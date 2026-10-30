@@ -3231,7 +3231,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                               : (conflictingShiftToday != null
                                   ? const Color(0xFFDC2626)
                                   : const Color(0xFF16A34A))),
-                      title: '1. Làm bù NGAY HÔM NAY ($todayStr)',
+                      title: 'Làm bù hôm nay ($todayStr)',
                       enabled: !isLateNight && !(isGoiThang && bothSlotsBusyToday),
                       disabledReason: isLateNight
                           ? '⚠️ Đã quá muộn trong ngày (${DateFormat('HH:mm').format(now)}), không còn khung giờ phù hợp để dọn dẹp hôm nay! Vui lòng chọn Phương án 2 để dời sang ngày làm bù.'
@@ -3251,8 +3251,8 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                       icon: Icons.edit_calendar_rounded,
                       color: _primary,
                       title: isGoiThang
-                          ? '2. Dời sang ngày làm bù (Tôi vẫn nhận làm trọn gói)'
-                          : '2. Dời sang ngày mới (Tôi vẫn nhận làm)',
+                          ? 'Dời sang ngày làm bù'
+                          : 'Dời sang ngày mới',
                       subtitle: isGoiThang
                           ? (endOfPackageFmt != null
                               ? 'Làm bù sau buổi cuối cùng của gói (Gợi ý: $endOfPackageFmt). Đảm bảo hoàn thành trọn vẹn toàn bộ gói.'
@@ -3264,7 +3264,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                         value: 'RESCHEDULE_RELEASE',
                         icon: Icons.person_search_rounded,
                         color: const Color(0xFFEA580C),
-                        title: '3. Dời sang ngày mới (Tôi bận — Tìm CTV khác)',
+                        title: 'Dời ngày và chuyển CTV khác',
                         subtitle:
                             'Cập nhật ngày thực hiện mới theo ý khách và trả đơn về trạng thái "Đang tìm CTV" để người khác nhận.',
                       ),
@@ -3272,7 +3272,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                         value: 'CANCEL_ORDER',
                         icon: Icons.cancel_outlined,
                         color: const Color(0xFFDC2626),
-                        title: '4. Khách không còn nhu cầu (Hủy đơn này)',
+                        title: 'Khách yêu cầu hủy đơn',
                         subtitle:
                             'Khách xác nhận hủy vì đã qua ngày hẹn → Kiểm tra trạng thái ca và chuyển đơn sang Đã hủy.',
                       ),
