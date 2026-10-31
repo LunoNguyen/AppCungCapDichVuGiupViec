@@ -205,6 +205,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _pickAndUploadHoSo(String loai) async {
+    // Bỏ focus ô nhập: quay lại từ camera/thư viện, bàn phím bật lại sẽ cuộn trang về ô đó
+    FocusManager.instance.primaryFocus?.unfocus();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.white,
@@ -267,6 +269,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _pickAndUploadChungChi() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     try {
       final List<XFile> files = await _imagePicker.pickMultiImage(
         maxWidth: 1600,
@@ -2346,6 +2349,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
       initialDate: _ctvDob ?? DateTime(1995, 1, 1),
       firstDate: DateTime(1950),
       lastDate: DateTime(DateTime.now().year - 18, DateTime.now().month, DateTime.now().day),
+      // Lịch theo màu tím của form cộng tác viên (mặc định lấy màu cam của app)
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                primary: AppColors.ctvYellowDark,
+                onPrimary: Colors.white,
+                surface: Colors.white,
+                surfaceTint: Colors.transparent,
+              ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(foregroundColor: AppColors.ctvYellowDark),
+          ),
+          datePickerTheme: const DatePickerThemeData(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            headerForegroundColor: AppColors.ctvYellowDark,
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (picked != null) {
       setState(() => _ctvDob = picked);
