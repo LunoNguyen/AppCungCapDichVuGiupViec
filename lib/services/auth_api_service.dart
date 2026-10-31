@@ -137,15 +137,18 @@ class AuthApiService {
 
   /// Gửi (lại) mã OTP qua tin nhắn SMS tới SĐT của tài khoản
   /// POST /v1/auth/otp/send
+  /// [loaiTaiKhoan] (KhachHang | CongTacVien): SĐT có cả tài khoản khách hàng và tài khoản CTV riêng thì chọn tài khoản nào.
   Future<ApiResponse<Map<String, dynamic>>> sendOtp({
     required String identifier,
     String mucDich = 'DangKy',
+    String? loaiTaiKhoan,
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/auth/otp/send',
       body: {
         'identifier': identifier,
         'mucDich': mucDich,
+        if (loaiTaiKhoan != null) 'loaiTaiKhoan': loaiTaiKhoan,
       },
     );
   }
@@ -156,6 +159,7 @@ class AuthApiService {
     required String identifier,
     required String maCode,
     required String matKhauMoi,
+    String? loaiTaiKhoan,
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
       '/v1/auth/password/reset',
@@ -163,6 +167,7 @@ class AuthApiService {
         'identifier': identifier,
         'maCode': maCode,
         'matKhauMoi': matKhauMoi,
+        if (loaiTaiKhoan != null) 'loaiTaiKhoan': loaiTaiKhoan,
       },
     );
   }

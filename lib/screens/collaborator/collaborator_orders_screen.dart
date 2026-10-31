@@ -2536,40 +2536,42 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
       diaChi: (o['diaChi'] ?? '').toString(),
     );
 
-    if (!mounted) return;
-    if (captureBefore == null || captureBefore.danhSachHinhAnh.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '⚠️ Bạn cần chụp và gửi ảnh hiện trạng tài sản khu vực thực hiện trước khi bắt đầu dịch vụ!',
-          ),
-          backgroundColor: AppColors.warning,
-        ),
-      );
-      return;
-    }
+    // Đóng bảng chụp = huỷ thao tác; ảnh tài sản không bắt buộc nên danh sách ảnh rỗng vẫn bắt đầu được
+    if (!mounted || captureBefore == null) return;
+    final bool coAnhTruoc = captureBefore.coAnh;
 
     setState(() => _isLoading = true);
     try {
-      final res = await _apiService.startAssignment(
-        phanCongId,
-        danhSachHinhAnh: captureBefore.danhSachHinhAnh,
-        khuVucVatDung: captureBefore.khuVucVatDung,
-        moTaHienTrang: captureBefore.moTaHienTrang,
-        ghiChuTaiSan: captureBefore.ghiChuTaiSan,
-      );
+      // Ảnh đang giữ trong máy: chỉ tải lên MinIO sau khi máy chủ nhận bắt đầu ca
+      final res = await _apiService.startAssignment(phanCongId);
       if (res.success) {
-        o['anhTruocDichVu'] = captureBefore.danhSachHinhAnh;
-        o['daChupTruocDichVu'] = true;
-        o['thoiGianChupTruoc'] =
-            DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
+        String? loiAnh;
+        if (coAnhTruoc) {
+          try {
+            final keys = await guiAnhTaiSanSauXacNhan(
+              phanCongId: phanCongId,
+              truocDichVu: true,
+              ketQua: captureBefore,
+            );
+            o['anhTruocDichVu'] = keys;
+            o['daChupTruocDichVu'] = true;
+            o['thoiGianChupTruoc'] =
+                DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
+          } catch (e) {
+            loiAnh = e.toString().replaceFirst('Exception: ', '');
+          }
+        }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              '▶️ Đã gửi ảnh tài sản trước khi làm và bắt đầu thực hiện dịch vụ!',
+              loiAnh != null
+                  ? '▶️ Đã bắt đầu thực hiện dịch vụ, nhưng chưa gửi được ảnh tài sản: $loiAnh'
+                  : coAnhTruoc
+                      ? '▶️ Đã bắt đầu thực hiện dịch vụ và gửi ảnh tài sản trước khi làm!'
+                      : '▶️ Đã bắt đầu thực hiện dịch vụ!',
             ),
-            backgroundColor: AppColors.success,
+            backgroundColor: loiAnh != null ? AppColors.warning : AppColors.success,
           ),
         );
         await _fetchAllData();
@@ -3795,7 +3797,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     final String timeStr =
         '${_fmtTime(o['gioBatDau']?.toString())} - ${_fmtTime(o['gioKetThuc']?.toString())}';
 
-    // BƯỚC 1 (BẮT BUỘC): Yêu cầu CTV chụp lại tài sản ở khu vực thực hiện SAU KHI LÀM XONG
+    // BƯỚC 1 (KHÔNG BẮT BUỘC): CTV có thể chụp lại tài sản ở khu vực thực hiện SAU KHI LÀM XONG
     final TaiSanCaptureResult? captureAfter = await TaiSanCaptureSheet.show(
       context,
       isBeforeService: false,
@@ -3804,18 +3806,8 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
       diaChi: (o['diaChi'] ?? '').toString(),
     );
 
-    if (!mounted) return;
-    if (captureAfter == null || captureAfter.danhSachHinhAnh.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '⚠️ Chưa chụp ảnh tài sản sau khi thực hiện! Đơn chưa được chuyển sang trạng thái Hoàn thành.',
-          ),
-          backgroundColor: AppColors.warning,
-        ),
-      );
-      return;
-    }
+    // Đóng bảng chụp = huỷ; danh sách ảnh rỗng vẫn hoàn thành được
+    if (!mounted || captureAfter == null) return;
 
     final num gross = _getGrossPrice(o);
     final num fee = _getPlatformFee(o);
@@ -3953,6 +3945,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                           ],
                         ),
                       ],
+                      if (captureAfter.coAnh) ...[
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -3961,7 +3954,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Đã chụp ${captureAfter.danhSachHinhAnh.length} ảnh tài sản sau dịch vụ (${captureAfter.khuVucVatDung})',
+                              'Đã chụp ${captureAfter.anhCho.length} ảnh tài sản sau dịch vụ (${captureAfter.khuVucVatDung})',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -3973,6 +3966,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                           ),
                         ],
                       ),
+                      ],
                     ],
                   ),
                 ),
@@ -4303,6 +4297,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     setState(() => _isLoading = true);
     try {
       dynamic res;
+      String? loiAnh; // hoàn thành được nhưng chưa gửi được ảnh tài sản
 
       if (action == 'accept') {
         final int donDatId = o['donDatId'] ?? o['id'] ?? 0;
@@ -4336,27 +4331,26 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
           _showError('Lỗi: Không tìm thấy ID phân công');
           return;
         }
-        if (taiSanResult == null || taiSanResult.danhSachHinhAnh.isEmpty) {
-          _showError(
-            'Bắt buộc chụp ảnh tài sản sau khi thực hiện thì đơn mới được chuyển sang Hoàn thành!',
-          );
-          return;
-        }
+        // Ảnh tài sản sau khi làm không bắt buộc; ảnh giữ trong máy chỉ tải lên MinIO khi hoàn thành thành công
+        final String ghiChuTaiSan = taiSanResult?.ghiChuTaiSan ?? '';
         res = await _apiService.completeAssignment(
           id: phanCongId,
-          ghiChu: taiSanResult.ghiChuTaiSan.isNotEmpty
-              ? taiSanResult.ghiChuTaiSan
-              : 'Hoàn thành qua ứng dụng',
-          danhSachHinhAnh: taiSanResult.danhSachHinhAnh,
-          khuVucVatDung: taiSanResult.khuVucVatDung,
-          moTaHienTrang: taiSanResult.moTaHienTrang,
-          ghiChuTaiSan: taiSanResult.ghiChuTaiSan,
+          ghiChu: ghiChuTaiSan.isNotEmpty ? ghiChuTaiSan : 'Hoàn thành qua ứng dụng',
         );
-        if (res != null && res.success) {
-          o['anhSauDichVu'] = taiSanResult.danhSachHinhAnh;
-          o['daChupSauDichVu'] = true;
-          o['thoiGianChupSau'] =
-              DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
+        if (res != null && res.success && taiSanResult != null && taiSanResult.coAnh) {
+          try {
+            final keys = await guiAnhTaiSanSauXacNhan(
+              phanCongId: phanCongId,
+              truocDichVu: false,
+              ketQua: taiSanResult,
+            );
+            o['anhSauDichVu'] = keys;
+            o['daChupSauDichVu'] = true;
+            o['thoiGianChupSau'] =
+                DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
+          } catch (e) {
+            loiAnh = e.toString().replaceFirst('Exception: ', '');
+          }
         }
       }
 
@@ -4368,9 +4362,11 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                 ? 'Đã nhận việc thành công! Ca làm đã được thêm vào lịch.'
                 : (action == 'reject'
                     ? 'Đã bỏ qua. Đơn vẫn hiện cho CTV khác.'
-                    : '✅ Đã hoàn thành công việc! +${_formatPrice(_getNetIncome(o))} (80% tiền công) đã được cộng vào Ví thu nhập.')),
-            backgroundColor:
-                action == 'reject' ? AppColors.warning : AppColors.success,
+                    : '✅ Đã hoàn thành công việc! +${_formatPrice(_getNetIncome(o))} (80% tiền công) đã được cộng vào Ví thu nhập.'
+                        '${loiAnh != null ? ' Chưa gửi được ảnh tài sản: $loiAnh' : ''}')),
+            backgroundColor: action == 'reject' || loiAnh != null
+                ? AppColors.warning
+                : AppColors.success,
           ),
         );
 

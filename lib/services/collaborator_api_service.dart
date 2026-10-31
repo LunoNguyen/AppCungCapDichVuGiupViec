@@ -118,7 +118,7 @@ class CollaboratorApiService {
     );
   }
 
-  /// CTV hoàn thành đơn (bắt buộc kèm ảnh tài sản Sau khi thực hiện dịch vụ)
+  /// CTV hoàn thành đơn (ảnh tài sản Sau khi thực hiện dịch vụ không bắt buộc)
   Future<ApiResponse<Map<String, dynamic>>> completeAssignment({
     required int id,
     String? ghiChu,
@@ -134,6 +134,31 @@ class CollaboratorApiService {
         'ketQuaThucHien': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
         'ghiChu': cleanGhiChu ?? 'Hoàn thành qua ứng dụng',
         if (danhSachHinhAnh != null) 'danhSachHinhAnh': danhSachHinhAnh,
+        if (khuVucVatDung != null && khuVucVatDung.trim().isNotEmpty)
+          'khuVucVatDung': khuVucVatDung.trim(),
+        if (moTaHienTrang != null && moTaHienTrang.trim().isNotEmpty)
+          'moTaHienTrang': moTaHienTrang.trim(),
+        if (ghiChuTaiSan != null && ghiChuTaiSan.trim().isNotEmpty)
+          'ghiChuTaiSan': ghiChuTaiSan.trim(),
+      },
+    );
+  }
+
+  /// Gắn ảnh tài sản (object key vừa tải lên MinIO) vào phân công – gọi SAU KHI bắt đầu / hoàn thành thành công.
+  /// [loaiBieuMau]: 'TruocDichVu' | 'SauDichVu'
+  Future<ApiResponse<Map<String, dynamic>>> guiAnhTaiSan({
+    required int phanCongId,
+    required String loaiBieuMau,
+    required List<String> danhSachHinhAnh,
+    String? khuVucVatDung,
+    String? moTaHienTrang,
+    String? ghiChuTaiSan,
+  }) async {
+    return _apiClient.post<Map<String, dynamic>>(
+      '/v1/collaborators/assignments/$phanCongId/tai-san',
+      queryParams: {'loaiBieuMau': loaiBieuMau},
+      body: {
+        'danhSachHinhAnh': danhSachHinhAnh,
         if (khuVucVatDung != null && khuVucVatDung.trim().isNotEmpty)
           'khuVucVatDung': khuVucVatDung.trim(),
         if (moTaHienTrang != null && moTaHienTrang.trim().isNotEmpty)

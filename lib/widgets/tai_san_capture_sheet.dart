@@ -3,29 +3,74 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../services/collaborator_api_service.dart';
 import '../services/storage_api_service.dart';
 
-/// Kết quả trả về sau khi CTV chụp và bấm Gửi ảnh tài sản
+/// Ảnh tài sản giữ tạm trong máy, CHƯA tải lên MinIO
+class AnhTaiSanCho {
+  final Uint8List bytes;
+  final String fileName;
+
+  const AnhTaiSanCho({required this.bytes, required this.fileName});
+}
+
+/// Kết quả trả về sau khi CTV chụp ảnh tài sản và bấm nút xác nhận.
+/// Ảnh chỉ được tải lên MinIO bằng [guiAnhTaiSanSauXacNhan] khi máy chủ đã nhận bắt đầu / hoàn thành.
 class TaiSanCaptureResult {
-  final List<String> danhSachHinhAnh;
-  final List<Uint8List> previewBytesList;
+  final List<AnhTaiSanCho> anhCho;
   final String khuVucVatDung;
   final String moTaHienTrang;
   final String ghiChuTaiSan;
 
   const TaiSanCaptureResult({
-    required this.danhSachHinhAnh,
-    this.previewBytesList = const [],
+    this.anhCho = const [],
     required this.khuVucVatDung,
     required this.moTaHienTrang,
     this.ghiChuTaiSan = '',
   });
+
+  bool get coAnh => anhCho.isNotEmpty;
+}
+
+/// Sau khi bắt đầu / hoàn thành THÀNH CÔNG mới tải ảnh lên MinIO, rồi gắn object key vào phân công.
+/// Trả về các object key đã lưu (rỗng nếu không chụp ảnh); ném [Exception] nếu chưa gửi được ảnh.
+Future<List<String>> guiAnhTaiSanSauXacNhan({
+  required int phanCongId,
+  required bool truocDichVu,
+  required TaiSanCaptureResult ketQua,
+  StorageApiService? storageService,
+  CollaboratorApiService? apiService,
+}) async {
+  if (!ketQua.coAnh) return const [];
+  final storage = storageService ?? StorageApiService();
+  final api = apiService ?? CollaboratorApiService();
+  final keys = <String>[];
+  for (final anh in ketQua.anhCho) {
+    final res = await storage.uploadTaiSanImage(bytes: anh.bytes, fileName: anh.fileName);
+    final key = res.success ? (res.data?['objectName']?.toString() ?? '').trim() : '';
+    if (key.isEmpty) {
+      throw Exception(res.error ?? res.message ?? 'Không tải được ảnh tài sản lên.');
+    }
+    TaiSanMemoryCache.put(key, anh.bytes);
+    keys.add(key);
+  }
+  final gan = await api.guiAnhTaiSan(
+    phanCongId: phanCongId,
+    loaiBieuMau: truocDichVu ? 'TruocDichVu' : 'SauDichVu',
+    danhSachHinhAnh: keys,
+    khuVucVatDung: ketQua.khuVucVatDung,
+    moTaHienTrang: ketQua.moTaHienTrang,
+    ghiChuTaiSan: ketQua.ghiChuTaiSan,
+  );
+  if (!gan.success) {
+    throw Exception(gan.message ?? gan.error ?? 'Chưa lưu được ảnh tài sản.');
+  }
+  return keys;
 }
 
 class _CapturedPhotoItem {
   final Uint8List bytes;
   final String fileName;
-  final String uploadedPath;
   final String areaLabel;
   final String timestampLabel;
   final bool isBeforeService;
@@ -33,7 +78,6 @@ class _CapturedPhotoItem {
   const _CapturedPhotoItem({
     required this.bytes,
     required this.fileName,
-    required this.uploadedPath,
     required this.areaLabel,
     required this.timestampLabel,
     required this.isBeforeService,
@@ -71,7 +115,6 @@ class TaiSanCaptureSheet extends StatefulWidget {
   final String maDon;
   final String tenDichVu;
   final String diaChi;
-  final StorageApiService? storageService;
 
   const TaiSanCaptureSheet({
     super.key,
@@ -79,7 +122,6 @@ class TaiSanCaptureSheet extends StatefulWidget {
     required this.maDon,
     required this.tenDichVu,
     this.diaChi = '',
-    this.storageService,
   });
 
   static Future<TaiSanCaptureResult?> show(
@@ -88,7 +130,6 @@ class TaiSanCaptureSheet extends StatefulWidget {
     required String maDon,
     required String tenDichVu,
     String diaChi = '',
-    StorageApiService? storageService,
   }) {
     return showModalBottomSheet<TaiSanCaptureResult>(
       context: context,
@@ -99,12 +140,11 @@ class TaiSanCaptureSheet extends StatefulWidget {
         maDon: maDon,
         tenDichVu: tenDichVu,
         diaChi: diaChi,
-        storageService: storageService,
       ),
     );
   }
 
-  /// Tạo file ảnh PNG hợp lệ (1x1 pixel chuẩn PNG) để upload lên MinIO
+  /// Tạo file ảnh PNG hợp lệ (1x1 pixel chuẩn PNG) để giữ tạm rồi upload lên MinIO
   /// trong trường hợp chạy trên máy ảo / giả lập hoặc môi trường test
   static Uint8List createValidSamplePngBytes({bool isBefore = true}) {
     final base64Png = isBefore
@@ -138,20 +178,18 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
     'Đã sắp xếp gọn gàng đúng vị trí',
   ];
 
-  late final StorageApiService _storageService;
   final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _noteController = TextEditingController();
 
   final List<_CapturedPhotoItem> _capturedItems = [];
   late String _selectedKhuVuc;
   late String _selectedMoTa;
-  bool _isUploading = false;
+  bool _isUploading = false; // đang mở camera / đọc ảnh (chưa tải gì lên MinIO)
   String? _validationError;
 
   @override
   void initState() {
     super.initState();
-    _storageService = widget.storageService ?? StorageApiService();
     _selectedKhuVuc = _khuVucOptions.first;
     _selectedMoTa = widget.isBeforeService
         ? _moTaTruocOptions.first
@@ -166,19 +204,30 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
 
   Future<void> _pickFromDevice(ImageSource source) async {
     if (_isUploading) return;
+    setState(() => _isUploading = true);
+    Uint8List? bytes;
+    String name = '';
+    bool khongCoCamera = false;
     try {
       final XFile? picked = await _imagePicker.pickImage(
         source: source,
         imageQuality: 82,
         maxWidth: 1280,
       );
-      if (picked == null) return;
-      final bytes = await picked.readAsBytes();
-      final name = picked.name.isNotEmpty
-          ? picked.name
-          : 'tai_san_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await _uploadAndAddPhoto(bytes, name);
+      if (picked != null) {
+        bytes = await picked.readAsBytes();
+        name = picked.name.isNotEmpty
+            ? picked.name
+            : 'tai_san_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      }
     } catch (_) {
+      khongCoCamera = true;
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+    if (bytes != null) {
+      await _uploadAndAddPhoto(bytes, name);
+    } else if (khongCoCamera) {
       // Nếu máy ảo hoặc thiết bị không hỗ trợ camera vật lý, chuyển sang chụp hiện trạng nhanh
       await _captureSimulatedPhoto();
     }
@@ -196,45 +245,16 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
     await _uploadAndAddPhoto(bytes, fileName);
   }
 
+  /// Chỉ giữ ảnh trong máy; ảnh được tải lên MinIO sau khi bắt đầu / hoàn thành thành công
   Future<void> _uploadAndAddPhoto(Uint8List bytes, String fileName) async {
     if (!mounted) return;
-    setState(() {
-      _isUploading = true;
-      _validationError = null;
-    });
-
-    final prefix = widget.isBeforeService ? 'truoc' : 'sau';
     final nowStr = DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
-    String uploadedPath =
-        'don-dat/tai-san/${prefix}_${DateTime.now().millisecondsSinceEpoch}_$fileName';
-
-    try {
-      final res = await _storageService.uploadTaiSanImage(
-        bytes: bytes,
-        fileName: fileName,
-      );
-      if (res.success && res.data != null) {
-        final obj = res.data!['objectName']?.toString() ??
-            res.data!['url']?.toString() ??
-            '';
-        if (obj.trim().isNotEmpty) {
-          uploadedPath = obj.trim();
-        }
-      }
-    } catch (_) {
-      // Giữ đường dẫn chuẩn don-dat/tai-san/... nếu đang ở chế độ test offline
-    }
-
-    TaiSanMemoryCache.put(uploadedPath, bytes);
-
-    if (!mounted) return;
     setState(() {
-      _isUploading = false;
+      _validationError = null;
       _capturedItems.add(
         _CapturedPhotoItem(
           bytes: bytes,
           fileName: fileName,
-          uploadedPath: uploadedPath,
           areaLabel: _selectedKhuVuc,
           timestampLabel: nowStr,
           isBeforeService: widget.isBeforeService,
@@ -251,18 +271,10 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
   }
 
   void _handleSubmit() {
-    if (_capturedItems.isEmpty) {
-      setState(() {
-        _validationError = widget.isBeforeService
-            ? 'Vui lòng chụp ít nhất 1 ảnh tài sản ở khu vực thực hiện trước khi bắt đầu dịch vụ!'
-            : 'Bắt buộc chụp lại tài sản ở khu vực thực hiện! Không chụp ảnh thì đơn không được chuyển sang trạng thái Hoàn thành.';
-      });
-      return;
-    }
-
     final result = TaiSanCaptureResult(
-      danhSachHinhAnh: _capturedItems.map((e) => e.uploadedPath).toList(),
-      previewBytesList: _capturedItems.map((e) => e.bytes).toList(),
+      anhCho: _capturedItems
+          .map((e) => AnhTaiSanCho(bytes: e.bytes, fileName: e.fileName))
+          .toList(),
       khuVucVatDung: _selectedKhuVuc,
       moTaHienTrang: _selectedMoTa,
       ghiChuTaiSan: _noteController.text.trim(),
@@ -338,8 +350,8 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
                             children: [
                               Text(
                                 isBefore
-                                    ? 'Chụp tài sản trước khi thực hiện'
-                                    : 'Chụp tài sản sau khi hoàn thành',
+                                    ? 'Chụp tài sản trước khi thực hiện (không bắt buộc)'
+                                    : 'Chụp tài sản sau khi hoàn thành (không bắt buộc)',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
@@ -753,14 +765,14 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
                                           Row(
                                             children: [
                                               Icon(
-                                                Icons.cloud_done_rounded,
+                                                Icons.photo_camera_rounded,
                                                 size: 12,
                                                 color: primaryColor,
                                               ),
                                               const SizedBox(width: 4),
                                               Expanded(
                                                 child: Text(
-                                                  'Đã tải lên (${item.timestampLabel})',
+                                                  'Đã chụp (${item.timestampLabel})',
                                                   maxLines: 1,
                                                   overflow:
                                                       TextOverflow.ellipsis,
@@ -904,9 +916,10 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
                               size: 18,
                             ),
                             label: Text(
-                              isBefore
-                                  ? 'Gửi ảnh & Bắt đầu làm'
-                                  : 'Gửi ảnh & Hoàn thành',
+                              // Ảnh tài sản không bắt buộc: chưa chụp thì vẫn bắt đầu / hoàn thành được
+                              _capturedItems.isEmpty
+                                  ? (isBefore ? 'Bắt đầu làm (không ảnh)' : 'Hoàn thành (không ảnh)')
+                                  : (isBefore ? 'Gửi ảnh & Bắt đầu làm' : 'Gửi ảnh & Hoàn thành'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(

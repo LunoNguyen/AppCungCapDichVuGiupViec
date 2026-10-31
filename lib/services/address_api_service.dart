@@ -19,7 +19,7 @@ class DiaChi {
   final String? soNhaTenDuong;
   final int? maTinh;
   final int? maPhuong;
-  final int? maQuan; // có = phường cũ (trước sáp nhập)
+  final int? maQuan; // có = địa chỉ theo địa giới cũ (tỉnh cũ, quận, huyện)
 
   const DiaChi({
     required this.id,
@@ -84,7 +84,7 @@ class AddressApiService {
     required String soNhaTenDuong,
     required int maTinh,
     int? maQuan,
-    required int maPhuong,
+    int? maPhuong,
     int? khuVucId,
     String? luuYDacBiet,
     bool laMacDinh = false,
@@ -95,7 +95,7 @@ class AddressApiService {
         'soNhaTenDuong': soNhaTenDuong,
         'maTinh': maTinh,
         if (maQuan != null) 'maQuan': maQuan,
-        'maPhuong': maPhuong,
+        if (maPhuong != null) 'maPhuong': maPhuong,
         if (khuVucId != null) 'khuVucId': khuVucId,
         if (luuYDacBiet != null) 'luuYDacBiet': luuYDacBiet,
         'laMacDinh': laMacDinh,
@@ -110,7 +110,7 @@ class AddressApiService {
     required String soNhaTenDuong,
     required int maTinh,
     int? maQuan,
-    required int maPhuong,
+    int? maPhuong,
     int? khuVucId,
     double? dienTichNha,
     String? luuYDacBiet,
@@ -122,7 +122,7 @@ class AddressApiService {
         'soNhaTenDuong': soNhaTenDuong,
         'maTinh': maTinh,
         if (maQuan != null) 'maQuan': maQuan,
-        'maPhuong': maPhuong,
+        if (maPhuong != null) 'maPhuong': maPhuong,
         if (khuVucId != null) 'khuVucId': khuVucId,
         if (dienTichNha != null) 'dienTichNha': dienTichNha,
         if (luuYDacBiet != null) 'luuYDacBiet': luuYDacBiet,

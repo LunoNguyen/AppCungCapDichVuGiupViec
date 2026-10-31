@@ -4,71 +4,72 @@ import 'package:app_cung_cap_dich_vu_giup_viec/widgets/dia_chi_fields.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('DiaChiDangChon - form 2 ô, phường gộp mới + cũ', () {
-    test('Mặc định TP.HCM, chưa chọn phường', () {
+  group('DiaChiDangChon - ô tỉnh (mới + cũ) → ô phường, xã / quận, huyện', () {
+    test('Mặc định TP.HCM (mới), chưa chọn ô thứ hai', () {
       final dc = DiaChiDangChon();
-      expect(dc.isV1, isFalse);
+      expect(dc.tinhCu, isFalse);
       expect(dc.maTinh, equals(DiaGioiApiService.maHcm));
-      expect(dc.maPhuong, isNull);
+      expect([dc.maPhuong, dc.maQuan, dc.daChonDuoi], [null, null, false]);
     });
 
-    test('Chọn phường cũ từ danh sách gộp: gửi kèm maQuan, khu vực theo quận cũ', () {
+    test('Tỉnh mới + phường mới: gửi maPhuong, khu vực theo phường', () {
       final dc = DiaChiDangChon();
+      dc.chonTinh(const TinhThanh(79, 'Thành phố Hồ Chí Minh'));
       dc.apDung(PhuongGop.fromJson({
-        'ma': 26734, 'ten': 'Phường Bến Nghé', 'loai': 'cu',
-        'maQuan': 760, 'tenQuan': 'Quận 1', 'khuVucId': 1, 'tenKhuVuc': 'Quận 1',
+        'ma': 26734, 'ten': 'Phường Sài Gòn', 'cu': false,
+        'khuVuc': [{'id': 1, 'tenKhuVuc': 'Quận 1'}],
       }));
+      expect([dc.maPhuong, dc.maQuan, dc.khuVuc?.id], [26734, null, 1]);
+      expect(dc.tenPhuongHienTai, 'Phường Sài Gòn');
+      expect(dc.duoi!.nhan, 'Sài Gòn (Phường)');
+    });
+
+    test('Tỉnh cùng tên + quận cũ: gửi mã tỉnh cũ + maQuan (không có maPhuong), khu vực theo quận', () {
+      final dc = DiaChiDangChon();
+      dc.chonTinh(const TinhThanh(79, 'Thành phố Hồ Chí Minh', maCu: 79));
+      dc.apDung(PhuongGop.fromJson({
+        'ma': 767, 'ten': 'Quận Tân Phú', 'cu': true, 'maTinh': 79,
+        'khuVuc': [{'id': 7, 'tenKhuVuc': 'Quận Tân Phú'}],
+      }));
+      expect(dc.tinhCu, isFalse);
       expect(dc.isV1, isTrue);
-      expect([dc.maPhuong, dc.maQuan, dc.khuVuc?.id], [26734, 760, 1]);
-    });
-
-    test('Chọn phường mới: không có maQuan; mã trùng phường cũ vẫn phân biệt được', () {
-      final dc = DiaChiDangChon();
-      final moi = PhuongGop.fromJson({'ma': 26734, 'ten': 'Phường Sài Gòn', 'loai': 'moi', 'khuVuc': [{'id': 1, 'tenKhuVuc': 'Quận 1'}]});
-      final cu = PhuongGop.fromJson({'ma': 26734, 'ten': 'Phường Bến Nghé', 'loai': 'cu', 'maQuan': 760, 'tenQuan': 'Quận 1'});
-      dc.apDung(moi);
-      expect([dc.isV1, dc.maPhuong, dc.maQuan], [false, 26734, null]);
-      expect(dc.laPhuong(moi), isTrue);
-      expect(dc.laPhuong(cu), isFalse);
-      expect(moi.nhan, 'Sài Gòn (Phường) — mới');
-      expect(cu.nhan, 'Bến Nghé (Phường) — Quận 1 (cũ)');
-    });
-
-    test('Chế độ V1: Gán quận Tân Phú và phường Tây Thạnh chuẩn xác', () {
-      final dc = DiaChiDangChon();
-      dc.isV1 = true;
-      dc.quanV1 = const QuanHuyenV1(
-        ma: 767,
-        ten: 'Quận Tân Phú',
-        maTinh: 79,
-        khuVucId: 7,
-        tenKhuVuc: 'Quận Tân Phú',
-      );
-      dc.phuongV1 = const PhuongXaV1(
-        ma: 27013,
-        ten: 'Phường Tây Thạnh',
-        maQuan: 767,
-      );
-
-      expect(dc.tenQuanHienTai, equals('Quận Tân Phú'));
-      expect(dc.tenPhuongHienTai, equals('Phường Tây Thạnh'));
-      expect(dc.khuVuc?.id, equals(7));
+      expect([dc.maTinhGui, dc.maPhuong, dc.maQuan, dc.khuVuc?.id], [79, null, 767, 7]);
+      expect(dc.tenQuanHienTai, 'Quận Tân Phú');
+      expect(dc.duoi!.nhan, 'Quận Tân Phú (cũ)');
       expect(dc.ngoaiKhuVuc, isFalse);
     });
 
-    test('Chế độ V2: Gán phường sau sáp nhập chuẩn xác', () {
+    test('Quận cũ mang mã tỉnh cũ khác ô tỉnh: gửi mã tỉnh cũ', () {
       final dc = DiaChiDangChon();
-      dc.isV1 = false;
-      dc.phuong = const PhuongXa(
-        27013,
-        'Phường Tây Thạnh',
-        [KhuVucNho(7, 'Quận Tân Phú')],
-      );
+      dc.chonTinh(const TinhThanh(1, 'Thành phố Hà Nội', maCu: 1));
+      dc.apDung(const PhuongGop(ma: 5, ten: 'Quận X', cu: true, maTinh: 2));
+      expect([dc.maTinh, dc.maTinhGui, dc.maQuan], [1, 2, 5]);
+      dc.apDung(const PhuongGop(ma: 5, ten: 'Phường Y'));
+      expect([dc.maTinhGui, dc.maPhuong, dc.maQuan, dc.isV1], [1, 5, null, false]);
+    });
 
-      expect(dc.tenQuanHienTai, isNull);
-      expect(dc.tenPhuongHienTai, equals('Phường Tây Thạnh'));
-      expect(dc.khuVuc?.id, equals(7));
-      expect(dc.ngoaiKhuVuc, isFalse);
+    test('Nhãn: tỉnh chỉ còn ở danh mục cũ ghi "(cũ)", tỉnh mới để nguyên; cùng mã vẫn phân biệt được', () {
+      const moi = TinhThanh(79, 'Thành phố Hồ Chí Minh');
+      const cu = TinhThanh(79, 'Thành phố Hồ Chí Minh', cu: true);
+      expect(moi.nhan, 'Thành phố Hồ Chí Minh');
+      expect(cu.nhan, 'Thành phố Hồ Chí Minh (cũ)');
+      final dc = DiaChiDangChon();
+      expect([dc.laTinh(moi), dc.laTinh(cu)], [true, false]);
+    });
+
+    test('Đổi tỉnh thì bỏ lựa chọn ô thứ hai', () {
+      final dc = DiaChiDangChon();
+      dc.apDung(const PhuongGop(ma: 1, ten: 'Phường A', khuVuc: [KhuVucNho(1, 'Quận 1')]));
+      dc.chonTinh(const TinhThanh(74, 'Tỉnh Bình Dương', cu: true));
+      expect([dc.daChonDuoi, dc.maQuan, dc.maPhuong], [false, null, null]);
+    });
+
+    test('Quận ngoài khu vực phục vụ', () {
+      final dc = DiaChiDangChon();
+      dc.chonTinh(const TinhThanh(74, 'Tỉnh Bình Dương', cu: true));
+      dc.apDung(const PhuongGop(ma: 718, ten: 'Thành phố Thủ Dầu Một', cu: true));
+      expect(dc.ngoaiKhuVuc, isTrue);
+      expect(dc.khuVuc, isNull);
     });
 
     testWidgets('DiaChiFields hiển thị trên màn hình nhỏ (320px) không bị tràn giao diện', (tester) async {
@@ -94,9 +95,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('📍 Địa chỉ cũ (Quận/Huyện)'), findsNothing);
       expect(find.text('Tỉnh, thành phố *'), findsOneWidget);
-      expect(find.text('Phường, xã *'), findsOneWidget);
+      expect(find.text('Phường, xã / quận, huyện *'), findsOneWidget);
       expect(find.text('Quận, huyện *'), findsNothing);
       expect(tester.takeException(), isNull);
     });

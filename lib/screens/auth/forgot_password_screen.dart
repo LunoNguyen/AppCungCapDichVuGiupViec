@@ -8,15 +8,20 @@ import '../../services/session_service.dart';
 import '../../widgets/password_checklist.dart';
 
 /// Quên mật khẩu: nhập SĐT -> nhận mã OTP qua tin nhắn SMS -> nhập OTP + mật khẩu mới.
-/// Dùng chung cho Khách hàng và Cộng tác viên (cùng bảng tài khoản).
+/// Dùng chung cho Khách hàng và Cộng tác viên; một SĐT có thể có hai tài khoản riêng (mật khẩu riêng)
+/// nên [loaiTaiKhoan] cho biết đặt lại mật khẩu tài khoản nào.
 class ForgotPasswordScreen extends StatefulWidget {
   final String initialPhone;
   final Color roleColor;
+
+  /// KhachHang | CongTacVien
+  final String loaiTaiKhoan;
 
   const ForgotPasswordScreen({
     super.key,
     this.initialPhone = '',
     this.roleColor = AppColors.brand500,
+    this.loaiTaiKhoan = 'KhachHang',
   });
 
   @override
@@ -86,7 +91,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _isLoading = true);
     try {
       final res =
-          await _authApiService.sendOtp(identifier: _phone, mucDich: _mucDich);
+          await _authApiService.sendOtp(identifier: _phone, mucDich: _mucDich, loaiTaiKhoan: widget.loaiTaiKhoan);
       if (!mounted) return;
       if (!res.success) {
         _showSnack(res.message ?? 'Không gửi được mã OTP', AppColors.error);
@@ -115,6 +120,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         identifier: _phone,
         maCode: _otpCtrl.text.trim(),
         matKhauMoi: _passCtrl.text,
+        loaiTaiKhoan: widget.loaiTaiKhoan,
       );
       if (!mounted) return;
       if (!res.success) {

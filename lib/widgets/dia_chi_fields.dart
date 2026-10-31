@@ -3,97 +3,80 @@ import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 import '../services/dia_gioi_api_service.dart';
 
-/// Giá trị đang chọn của [DiaChiFields].
+/// Giá trị đang chọn của [DiaChiFields], khớp bảng DiaChiKhachHang (chuỗi địa chỉ + khu vực):
+/// phường, xã mới → gửi maTinh + maPhuong; quận, huyện cũ → gửi maTinh (cũ) + maQuan.
 class DiaChiDangChon {
-  /// true = khách chọn phường cũ (trước sáp nhập, kèm quận cũ); false = phường mới (sau sáp nhập).
-  bool isV1 = false;
-
   int? maTinh = DiaGioiApiService.maHcm;
   String? tenTinh = 'Thành phố Hồ Chí Minh';
 
-  // Phường cũ (v1) và quận cũ của nó
-  QuanHuyenV1? quanV1;
-  PhuongXaV1? phuongV1;
+  /// true = tỉnh chỉ còn ở danh mục trước sáp nhập (ô thứ hai chỉ có quận, huyện cũ).
+  bool tinhCu = false;
 
-  // Phường mới (v2)
-  PhuongXa? phuong;
+  /// Dòng đang chọn ở ô thứ hai (phường, xã mới hoặc quận, huyện cũ).
+  PhuongGop? duoi;
   int? khuVucId;
 
-  /// Áp lựa chọn từ danh sách phường gộp (giống web: chọn phường cũ thì gửi kèm maQuan).
+  /// Đang chọn quận, huyện cũ: địa chỉ theo địa giới trước sáp nhập.
+  bool get isV1 => duoi?.cu ?? tinhCu;
+
+  /// Mã tỉnh gửi lên: quận cũ của tỉnh cùng tên mang mã tỉnh cũ.
+  int? get maTinhGui => duoi?.maTinh ?? maTinh;
+
+  void chonTinh(TinhThanh t) {
+    maTinh = t.ma;
+    tenTinh = t.ten;
+    tinhCu = t.cu;
+    boPhuong();
+  }
+
   void apDung(PhuongGop p) {
     khuVucId = null;
-    if (p.laCu) {
-      isV1 = true;
-      quanV1 = QuanHuyenV1(
-        ma: p.maQuan ?? 0,
-        ten: p.tenQuan ?? '',
-        maTinh: maTinh ?? DiaGioiApiService.maHcm,
-        khuVucId: p.khuVucIdQuan,
-        tenKhuVuc: p.tenKhuVucQuan,
-      );
-      phuongV1 = PhuongXaV1(ma: p.ma, ten: p.ten, maQuan: p.maQuan ?? 0);
-      phuong = null;
-    } else {
-      isV1 = false;
-      phuong = PhuongXa(p.ma, p.ten, p.khuVuc);
-      quanV1 = null;
-      phuongV1 = null;
-    }
+    duoi = p;
   }
 
-  /// Bỏ phường đang chọn (khi đổi tỉnh).
+  /// Bỏ dòng đang chọn ở ô thứ hai (khi đổi tỉnh).
   void boPhuong() {
-    quanV1 = null;
-    phuongV1 = null;
-    phuong = null;
+    duoi = null;
     khuVucId = null;
   }
 
-  /// [p] có phải phường đang chọn không (mã phường mới và cũ có thể trùng nhau).
-  bool laPhuong(PhuongGop p) => p.laCu
-      ? isV1 && phuongV1?.ma == p.ma && quanV1?.ma == p.maQuan
-      : !isV1 && phuong?.ma == p.ma;
+  bool laTinh(TinhThanh t) => t.ma == maTinh && t.cu == tinhCu;
+  bool laPhuong(PhuongGop p) => duoi?.ma == p.ma && duoi?.cu == p.cu;
 
-  int? get maPhuong => isV1 ? phuongV1?.ma : phuong?.ma;
-  int? get maQuan => isV1 ? quanV1?.ma : null;
+  int? get maPhuong => duoi == null || duoi!.cu ? null : duoi!.ma;
+  int? get maQuan => duoi != null && duoi!.cu ? duoi!.ma : null;
 
-  /// Địa chỉ ngoài khu vực phục vụ
-  bool get ngoaiKhuVuc {
-    if (isV1) {
-      return quanV1 != null && quanV1!.khuVucId == null;
-    }
-    return phuong != null && phuong!.khuVuc.isEmpty;
-  }
+  /// Đã chọn ô thứ hai.
+  bool get daChonDuoi => duoi != null;
 
-  /// Khu vực đang áp dụng
+  /// Địa chỉ ngoài khu vực phục vụ.
+  bool get ngoaiKhuVuc => duoi != null && duoi!.khuVuc.isEmpty;
+
+  /// Phường mới thuộc nhiều quận cũ: người dùng chọn khu vực.
+  bool get nhieuKhuVuc => (duoi?.khuVuc.length ?? 0) > 1;
+
+  /// Khu vực đang áp dụng.
   KhuVucNho? get khuVuc {
-    if (isV1) {
-      if (quanV1 != null && quanV1!.khuVucId != null) {
-        return KhuVucNho(quanV1!.khuVucId!, quanV1!.tenKhuVuc ?? quanV1!.ten);
-      }
-      return null;
-    }
-    final ds = phuong?.khuVuc ?? const <KhuVucNho>[];
+    final ds = duoi?.khuVuc ?? const <KhuVucNho>[];
     if (ds.isEmpty) return null;
     return ds.firstWhere((k) => k.id == khuVucId, orElse: () => ds.first);
   }
 
-  /// Tên phường đang chọn (dùng hiển thị hoặc lưu trữ)
-  String? get tenPhuongHienTai => isV1 ? phuongV1?.ten : phuong?.ten;
+  /// Tên phường mới đang chọn.
+  String? get tenPhuongHienTai => maPhuong == null ? null : duoi?.ten;
 
-  /// Tên quận đang chọn (nếu có)
-  String? get tenQuanHienTai => isV1 ? quanV1?.ten : null;
+  /// Tên quận cũ đang chọn.
+  String? get tenQuanHienTai => maQuan == null ? null : duoi?.ten;
 }
 
 /// Các ô ĐỊA CHỈ dùng chung (sổ địa chỉ, đăng ký khách hàng, đăng ký CTV), giống form web:
-/// chỉ 2 ô Tỉnh, thành phố → Phường, xã (+ số nhà). Tỉnh gộp trước và sau sáp nhập theo mã; tỉnh có ở
-/// cả hai thì ô phường tìm được cả phường mới lẫn phường cũ (kèm quận cũ).
+/// Tỉnh, thành phố (tỉnh mới; tỉnh chỉ còn ở danh mục cũ ghi "(cũ)") → Phường, xã / quận, huyện (+ số nhà).
 class DiaChiFields extends StatefulWidget {
   final DiaChiDangChon giaTri;
   final TextEditingController soNhaCtrl;
   final int? maPhuongBanDau;
 
-  /// Có = địa chỉ đã lưu là phường cũ của quận này.
+  /// Có = địa chỉ đã lưu theo địa giới cũ: maTinh là mã tỉnh cũ, chọn sẵn quận, huyện này.
   final int? maQuanBanDau;
 
   /// true: báo lỗi khi địa chỉ ngoài khu vực phục vụ (dùng khi đặt dịch vụ).
@@ -122,7 +105,7 @@ class DiaChiFieldsState extends State<DiaChiFields> {
   final _api = DiaGioiApiService();
 
   List<TinhThanh> _tinh = [];
-  List<PhuongGop> _phuong = [];
+  List<PhuongGop> _duoi = [];
   bool _taiPhuong = false;
   String? _loi;
 
@@ -140,47 +123,60 @@ class DiaChiFieldsState extends State<DiaChiFields> {
     setState(() {
       _tinh = res.data ?? [];
       _loi = res.success ? null : (res.message ?? 'Không tải được danh sách tỉnh.');
-      final t = _tinh.where((t) => t.ma == _g.maTinh).firstOrNull;
+      // Địa chỉ đã lưu theo địa giới cũ (có quận): maTinh là mã tỉnh cũ → tỉnh mới cùng tên hoặc tỉnh "(cũ)"
+      if (widget.maQuanBanDau != null && !_g.daChonDuoi) {
+        final maCu = _g.maTinh;
+        final tc = _tinh.where((x) => x.cu ? x.ma == maCu : x.maCu == maCu).firstOrNull;
+        if (tc != null) {
+          final kv = _g.khuVucId;
+          _g.chonTinh(tc);
+          _g.khuVucId = kv;
+        }
+      }
+      final t = _tinh.where(_g.laTinh).firstOrNull;
       if (t != null) _g.tenTinh = t.ten;
     });
     if (_g.maTinh != null) {
-      await _napPhuong(_g.maTinh!, chonMa: widget.maPhuongBanDau, chonQuan: widget.maQuanBanDau);
+      final quan = widget.maQuanBanDau;
+      await _napPhuong(chonMa: quan ?? widget.maPhuongBanDau, chonCu: quan != null);
     }
   }
 
-  Future<void> _napPhuong(int maTinh, {int? chonMa, int? chonQuan}) async {
+  Future<void> _napPhuong({int? chonMa, bool chonCu = false}) async {
+    final maTinh = _g.maTinh!, cu = _g.tinhCu;
     setState(() {
       _taiPhuong = true;
-      _phuong = [];
+      _duoi = [];
     });
-    final res = await _api.phuongXaGop(maTinh);
-    if (!mounted || _g.maTinh != maTinh) return;
+    final res = await _api.duoiTinh(maTinh, cu: cu);
+    if (!mounted || _g.maTinh != maTinh || _g.tinhCu != cu) return;
     setState(() {
       _taiPhuong = false;
-      _phuong = res.data ?? [];
-      _loi = res.success ? null : (res.message ?? 'Không tải được danh sách phường, xã.');
+      _duoi = res.data ?? [];
+      _loi = res.success ? null : (res.message ?? 'Không tải được danh sách phường, xã / quận, huyện.');
       if (chonMa != null) {
-        final p = _phuong
-            .where((x) => x.ma == chonMa && (chonQuan != null ? x.laCu && x.maQuan == chonQuan : !x.laCu))
-            .firstOrNull;
-        if (p != null) _g.apDung(p);
+        final p = _duoi.where((x) => x.ma == chonMa && x.cu == chonCu).firstOrNull;
+        if (p != null) {
+          final kv = _g.khuVucId; // giữ khu vực đã lưu (phường thuộc nhiều quận cũ)
+          _g.apDung(p);
+          _g.khuVucId = kv;
+        }
       }
     });
     widget.onChanged?.call(_g);
   }
 
-  /// Chọn sẵn phường có tên xuất hiện trong chuỗi địa chỉ (GPS). Trả về true nếu tìm được.
+  /// Chọn sẵn phường, xã / quận, huyện có tên xuất hiện trong chuỗi địa chỉ (GPS). Trả về true nếu tìm được.
   bool doanPhuong(String diaChi) {
     final t = diaChi.toLowerCase();
     PhuongGop? thay;
-    for (final p in _phuong) {
+    for (final p in _duoi) {
       final ten = p.ten.toLowerCase();
-      final rutGon = ten.replaceFirst(RegExp(r'^(phường|xã|thị trấn|đặc khu)\s+'), '').trim();
+      final rutGon = ten.replaceFirst(RegExp(r'^(phường|xã|thị trấn|đặc khu|quận|huyện|thị xã|thành phố)\s+'), '').trim();
       final khop = t.contains(ten) || (!RegExp(r'^\d+$').hasMatch(rutGon) && rutGon.length > 3 && t.contains(rutGon));
       if (!khop) continue;
-      if (p.laCu && (p.tenQuan == null || !t.contains(p.tenQuan!.toLowerCase()))) continue;
       thay = p;
-      if (!p.laCu) break; // ưu tiên phường mới
+      break;
     }
     if (thay == null) return false;
     setState(() => _g.apDung(thay!));
@@ -199,21 +195,17 @@ class DiaChiFieldsState extends State<DiaChiFields> {
 
   Future<void> _chonTinh() async {
     if (_tinh.isEmpty) return _napTinh();
-    final t = await _bangChon<TinhThanh>('Tìm tỉnh, thành', _tinh, (x) => x.nhan, (x) => x.ma == _g.maTinh);
-    if (t == null || t.ma == _g.maTinh) return;
-    setState(() {
-      _g.maTinh = t.ma;
-      _g.tenTinh = t.ten;
-      _g.boPhuong();
-    });
+    final t = await _bangChon<TinhThanh>('Tìm tỉnh, thành', _tinh, (x) => x.nhan, _g.laTinh);
+    if (t == null || _g.laTinh(t)) return;
+    setState(() => _g.chonTinh(t));
     widget.onChanged?.call(_g);
-    await _napPhuong(t.ma);
+    await _napPhuong();
   }
 
   Future<void> _chonPhuong() async {
     if (_g.maTinh == null) return;
-    if (_phuong.isEmpty) return _napPhuong(_g.maTinh!);
-    final p = await _bangChon<PhuongGop>('Gõ tên phường, xã (mới hoặc cũ)', _phuong, (x) => x.nhan, _g.laPhuong);
+    if (_duoi.isEmpty) return _napPhuong();
+    final p = await _bangChon<PhuongGop>('Tìm phường, xã / quận, huyện', _duoi, (x) => x.nhan, _g.laPhuong);
     if (p == null) return;
     setState(() => _g.apDung(p));
     widget.onChanged?.call(_g);
@@ -248,25 +240,23 @@ class DiaChiFieldsState extends State<DiaChiFields> {
 
   String? _ghiChu() {
     if (widget.ghiChuKhuVuc != null) return widget.ghiChuKhuVuc!(_g);
-    if (_g.maPhuong == null) return null;
+    if (!_g.daChonDuoi) return null;
     if (_g.ngoaiKhuVuc) {
       return widget.batBuocTrongKhuVuc ? null : 'Ngoài khu vực phục vụ: vẫn lưu được, chưa đặt dịch vụ tại đây được.';
     }
-    if (_g.isV1) return 'Khu vực: ${_g.khuVuc?.ten}';
-    if (_g.phuong!.khuVuc.length == 1) return 'Khu vực: ${_g.phuong!.khuVuc.first.ten}';
+    if (!_g.nhieuKhuVuc) return 'Khu vực: ${_g.khuVuc?.ten}';
     return null;
   }
 
   String? get _nhanPhuong {
     if (_taiPhuong) return 'Đang tải…';
-    final p = _phuong.where(_g.laPhuong).firstOrNull;
-    return p?.nhan ?? (_g.isV1 ? _g.phuongV1?.nhan : _g.phuong?.nhan);
+    return _g.duoi?.nhan;
   }
 
   @override
   Widget build(BuildContext context) {
-    final tenTinh = _tinh.where((t) => t.ma == _g.maTinh).map((t) => t.nhan).firstOrNull ?? _g.tenTinh;
-    final nhieuKv = !_g.isV1 && (_g.phuong?.khuVuc.length ?? 0) > 1;
+    final tenTinh = _tinh.where(_g.laTinh).map((t) => t.nhan).firstOrNull ?? _g.tenTinh;
+    final nhieuKv = _g.nhieuKhuVuc;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -287,24 +277,24 @@ class DiaChiFieldsState extends State<DiaChiFields> {
         ),
         const SizedBox(height: 12),
 
-        // Ô 2: Phường / Xã (mới hoặc cũ)
+        // Ô 2: cấp ngay dưới tỉnh – phường, xã (tỉnh mới) hoặc quận, huyện (tỉnh cũ)
         FormField<int>(
           validator: (_) {
-            if (_g.maPhuong == null) return 'Vui lòng chọn phường, xã';
+            if (!_g.daChonDuoi) return 'Vui lòng chọn phường, xã / quận, huyện';
             if (widget.batBuocTrongKhuVuc && _g.ngoaiKhuVuc) {
-              return 'Phường, xã này ngoài khu vực phục vụ.';
+              return 'Địa chỉ này ngoài khu vực phục vụ.';
             }
             return null;
           },
           builder: (f) => _o(
-            nhan: 'Phường, xã *',
+            nhan: 'Phường, xã / quận, huyện *',
             icon: Icons.map_outlined,
             giaTri: _nhanPhuong,
             onTap: () async {
               await _chonPhuong();
-              f.didChange(_g.maPhuong);
+              f.didChange(_g.duoi?.ma);
             },
-            loi: f.errorText ?? (_phuong.isEmpty && !_taiPhuong ? _loi : null),
+            loi: f.errorText ?? (_duoi.isEmpty && !_taiPhuong ? _loi : null),
             goiY: _ghiChu(),
           ),
         ),
@@ -319,7 +309,7 @@ class DiaChiFieldsState extends State<DiaChiFields> {
               helperText: 'Phường này thuộc nhiều quận cũ, chọn quận đúng với địa chỉ',
               helperMaxLines: 2,
             ),
-            items: _g.phuong!.khuVuc
+            items: _g.duoi!.khuVuc
                 .map((k) => DropdownMenuItem(value: k.id, child: Text(k.ten, overflow: TextOverflow.ellipsis)))
                 .toList(),
             onChanged: (v) {

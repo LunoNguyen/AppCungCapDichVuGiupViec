@@ -150,6 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
         builder: (_) => ForgotPasswordScreen(
           initialPhone: _phoneController.text,
           roleColor: isCustomer ? AppColors.brand500 : AppColors.ctvYellow,
+          loaiTaiKhoan: isCustomer ? 'KhachHang' : 'CongTacVien',
         ),
       ),
     );

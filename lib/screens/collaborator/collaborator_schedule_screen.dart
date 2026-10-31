@@ -1298,40 +1298,42 @@ class CollaboratorScheduleScreenState
       diaChi: (s['diaChi'] ?? '').toString(),
     );
 
-    if (!mounted) return;
-    if (captureBefore == null || captureBefore.danhSachHinhAnh.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '⚠️ Bạn cần chụp và gửi ảnh hiện trạng tài sản khu vực thực hiện trước khi bắt đầu dịch vụ!',
-          ),
-          backgroundColor: AppColors.warning,
-        ),
-      );
-      return;
-    }
+    // Đóng bảng chụp = huỷ thao tác; ảnh tài sản không bắt buộc nên danh sách ảnh rỗng vẫn bắt đầu được
+    if (!mounted || captureBefore == null) return;
+    final bool coAnhTruoc = captureBefore.coAnh;
 
     setState(() => _isLoading = true);
     try {
-      final res = await _apiService.startAssignment(
-        phanCongId,
-        danhSachHinhAnh: captureBefore.danhSachHinhAnh,
-        khuVucVatDung: captureBefore.khuVucVatDung,
-        moTaHienTrang: captureBefore.moTaHienTrang,
-        ghiChuTaiSan: captureBefore.ghiChuTaiSan,
-      );
+      // Ảnh đang giữ trong máy: chỉ tải lên MinIO sau khi máy chủ nhận bắt đầu ca
+      final res = await _apiService.startAssignment(phanCongId);
       if (res.success) {
-        s['anhTruocDichVu'] = captureBefore.danhSachHinhAnh;
-        s['daChupTruocDichVu'] = true;
-        s['thoiGianChupTruoc'] =
-            DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
+        String? loiAnh;
+        if (coAnhTruoc) {
+          try {
+            final keys = await guiAnhTaiSanSauXacNhan(
+              phanCongId: phanCongId,
+              truocDichVu: true,
+              ketQua: captureBefore,
+            );
+            s['anhTruocDichVu'] = keys;
+            s['daChupTruocDichVu'] = true;
+            s['thoiGianChupTruoc'] =
+                DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
+          } catch (e) {
+            loiAnh = e.toString().replaceFirst('Exception: ', '');
+          }
+        }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              '▶️ Đã gửi ảnh tài sản trước khi làm và bắt đầu thực hiện dịch vụ!',
+              loiAnh != null
+                  ? '▶️ Đã bắt đầu thực hiện dịch vụ, nhưng chưa gửi được ảnh tài sản: $loiAnh'
+                  : coAnhTruoc
+                      ? '▶️ Đã bắt đầu thực hiện dịch vụ và gửi ảnh tài sản trước khi làm!'
+                      : '▶️ Đã bắt đầu thực hiện dịch vụ!',
             ),
-            backgroundColor: AppColors.success,
+            backgroundColor: loiAnh != null ? AppColors.warning : AppColors.success,
           ),
         );
         await _fetchSchedules();
@@ -2419,7 +2421,7 @@ class CollaboratorScheduleScreenState
     final String timeStr =
         '${_fmtTime(s['gioBatDau']?.toString())} - ${_fmtTime(s['gioKetThuc']?.toString())}';
 
-    // BƯỚC 1 (BẮT BUỘC): Yêu cầu CTV chụp lại tài sản ở khu vực thực hiện SAU KHI LÀM XONG
+    // BƯỚC 1 (KHÔNG BẮT BUỘC): CTV có thể chụp lại tài sản ở khu vực thực hiện SAU KHI LÀM XONG
     final TaiSanCaptureResult? captureAfter = await TaiSanCaptureSheet.show(
       context,
       isBeforeService: false,
@@ -2428,18 +2430,8 @@ class CollaboratorScheduleScreenState
       diaChi: (s['diaChi'] ?? '').toString(),
     );
 
-    if (!mounted) return;
-    if (captureAfter == null || captureAfter.danhSachHinhAnh.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '⚠️ Chưa chụp ảnh tài sản sau khi thực hiện! Đơn chưa được chuyển sang trạng thái Hoàn thành.',
-          ),
-          backgroundColor: AppColors.warning,
-        ),
-      );
-      return;
-    }
+    // Đóng bảng chụp = huỷ; danh sách ảnh rỗng vẫn hoàn thành được
+    if (!mounted || captureAfter == null) return;
 
     final num gross = _getGrossPrice(s);
     final num fee = _getPlatformFee(s);
@@ -2815,28 +2807,36 @@ class CollaboratorScheduleScreenState
 
     setState(() => _isLoading = true);
     try {
+      // Ảnh giữ trong máy chỉ tải lên MinIO khi máy chủ đã nhận hoàn thành
       final res = await _apiService.completeAssignment(
         id: phanCongId,
         ghiChu: captureAfter.ghiChuTaiSan.isNotEmpty
             ? captureAfter.ghiChuTaiSan
             : 'Hoàn thành qua ứng dụng',
-        danhSachHinhAnh: captureAfter.danhSachHinhAnh,
-        khuVucVatDung: captureAfter.khuVucVatDung,
-        moTaHienTrang: captureAfter.moTaHienTrang,
-        ghiChuTaiSan: captureAfter.ghiChuTaiSan,
       );
-      if (res.success) {
-        s['anhSauDichVu'] = captureAfter.danhSachHinhAnh;
-        s['daChupSauDichVu'] = true;
-        s['thoiGianChupSau'] =
-            DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
+      String? loiAnh;
+      if (res.success && captureAfter.coAnh) {
+        try {
+          final keys = await guiAnhTaiSanSauXacNhan(
+            phanCongId: phanCongId,
+            truocDichVu: false,
+            ketQua: captureAfter,
+          );
+          s['anhSauDichVu'] = keys;
+          s['daChupSauDichVu'] = true;
+          s['thoiGianChupSau'] =
+              DateFormat('HH:mm dd/MM/yyyy').format(DateTime.now());
+        } catch (e) {
+          loiAnh = e.toString().replaceFirst('Exception: ', '');
+        }
       }
       if (res.success) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Đã hoàn thành ca làm việc! +$netStr đã được cộng vào Ví thu nhập.'),
-            backgroundColor: AppColors.success,
+            content: Text('✅ Đã hoàn thành ca làm việc! +$netStr đã được cộng vào Ví thu nhập.'
+                '${loiAnh != null ? ' Chưa gửi được ảnh tài sản: $loiAnh' : ''}'),
+            backgroundColor: loiAnh != null ? AppColors.warning : AppColors.success,
           ),
         );
         await _fetchSchedules();
