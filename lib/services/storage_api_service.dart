@@ -79,16 +79,51 @@ class StorageApiService {
     }
   }
 
-  /// Upload chứng chỉ / bằng cấp CTV
-  /// POST /api/storage/upload/ctv-chung-chi/{ctvId}
-  Future<ApiResponse<Map<String, dynamic>>> uploadChungChi({
-    required int ctvId,
+  /// Upload hồ sơ ứng viên CTV (Ảnh chân dung, CCCD mặt trước/sau)
+  /// POST /api/storage/upload/ctv-ho-so
+  Future<ApiResponse<Map<String, dynamic>>> uploadCTVHoSo({
     required Uint8List bytes,
     required String fileName,
   }) async {
     try {
-      final uri =
-          Uri.parse('${ApiConfig.storageUrl}/upload/ctv-chung-chi/$ctvId');
+      final uri = Uri.parse('${ApiConfig.storageUrl}/upload/ctv-ho-so');
+      final request = http.MultipartRequest('POST', uri)
+        ..files.add(
+          http.MultipartFile.fromBytes(
+            'file',
+            bytes,
+            filename: fileName,
+          ),
+        );
+
+      final streamedResponse =
+          await request.send().timeout(ApiConfig.connectTimeout);
+      final response = await http.Response.fromStream(streamedResponse);
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return ApiResponse.ok(data as Map<String, dynamic>);
+      } else {
+        return ApiResponse.err(
+            data['error']?.toString() ?? 'Lỗi tải tài liệu hồ sơ CTV');
+      }
+    } catch (e) {
+      return ApiResponse.err('Lỗi tải tài liệu hồ sơ CTV: $e');
+    }
+  }
+
+  /// Upload chứng chỉ / bằng cấp CTV
+  /// POST /api/storage/upload/ctv-chung-chi/{ctvId} hoặc /api/storage/upload/ctv-chung-chi
+  Future<ApiResponse<Map<String, dynamic>>> uploadChungChi({
+    int? ctvId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    try {
+      final path = ctvId != null
+          ? '/upload/ctv-chung-chi/$ctvId'
+          : '/upload/ctv-chung-chi';
+      final uri = Uri.parse('${ApiConfig.storageUrl}$path');
       final request = http.MultipartRequest('POST', uri)
         ..files.add(
           http.MultipartFile.fromBytes(
