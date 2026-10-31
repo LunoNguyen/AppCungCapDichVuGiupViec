@@ -35,7 +35,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _referralController = TextEditingController();
 
   // Các trường bổ sung cho Khách hàng (UC-KH01)
   final TextEditingController _addressController = TextEditingController(); // số nhà, tên đường
@@ -43,11 +42,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final DiaChiDangChon _diaChiKhach = DiaChiDangChon(); // địa chỉ nơi ở (tỉnh, phường)
 
   // Các trường bổ sung cho Cộng tác viên (UC-KH02, Image 3)
-  final TextEditingController _experienceController = TextEditingController(); // Kinh nghiệm
   String _ctvGender = 'Nữ'; // Giới tính: Nam / Nữ
   DateTime? _ctvDob;
   final DiaChiDangChon _diaChiCtv = DiaChiDangChon(); // ĐỊA CHỈ nơi ở hiện tại
-  bool _hasReferralCode = false; // Nút [Không] / [Có] trong box mã giới thiệu
 
   // Hồ sơ bắt buộc CTV: AnhChanDung, CCCD_Mat_Truoc, CCCD_Mat_Sau
   final Map<String, String> _uploadedHoSo = {}; // loai -> objectName
@@ -147,8 +144,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.addListener(_onFieldChanged);
     _ctvAddressController.addListener(_onFieldChanged);
     _addressController.addListener(_onFieldChanged);
-    _experienceController.addListener(_onFieldChanged);
-    _referralController.addListener(_onFieldChanged);
     _fetchServices();
   }
 
@@ -375,17 +370,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.removeListener(_onFieldChanged);
     _ctvAddressController.removeListener(_onFieldChanged);
     _addressController.removeListener(_onFieldChanged);
-    _experienceController.removeListener(_onFieldChanged);
-    _referralController.removeListener(_onFieldChanged);
 
     _fullNameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _referralController.dispose();
     _addressController.dispose();
     _ctvAddressController.dispose();
-    _experienceController.dispose();
     super.dispose();
   }
 
@@ -1088,15 +1079,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 14),
-
-                // Mã giới thiệu (nếu có)
-                _buildFieldLabel('Mã giới thiệu (nếu có)', isRequired: false),
-                const SizedBox(height: 6),
-                _buildCleanInputField(
-                  controller: _referralController,
-                  hintText: '123456',
-                ),
               ],
             ),
           ),
@@ -1551,7 +1533,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
               const SizedBox(height: 14),
 
-              // Chứng chỉ, Kinh nghiệm, Mã giới thiệu, Điều khoản (Mở khóa khi đã tải đủ 3 hồ sơ bắt buộc)
+              // Chứng chỉ, Điều khoản (Mở khóa khi đã tải đủ 3 hồ sơ bắt buộc)
               _buildStepLockWrapper(
                 isUnlocked: _isCtvHoSoOk,
                 lockMessage: 'Vui lòng tải đủ 3 ảnh hồ sơ bắt buộc (Chân dung, CCCD 2 mặt) trước',
@@ -1561,143 +1543,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     _buildFieldLabel('Chứng chỉ nghề nghiệp (Tùy chọn)', isRequired: false),
                     const SizedBox(height: 8),
                     _buildChungChiSection(),
-
-                    const SizedBox(height: 18),
-
-                    _buildFieldLabel('Kinh nghiệm làm việc (năm)', isRequired: false),
-                    const SizedBox(height: 6),
-                    _buildCleanInputField(
-                      controller: _experienceController,
-                      hintText: 'Ví dụ: 2 năm dọn dẹp gia đình, biết nấu ăn...',
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Khối HỒNG "Nhập mã giới thiệu để nhận quà" (Image 3)
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1F2), // Light soft pink box from Image 3
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFFECDD3), width: 1.2),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFE4E6),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.card_giftcard_rounded,
-                                  color: Color(0xFFE11D48),
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              const Expanded(
-                                child: Text(
-                                  'Nhập mã giới thiệu để nhận quà.',
-                                  style: TextStyle(
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFBE123C),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Nhập mã giới thiệu từ Tasker để nhận được nhiều ưu đãi hấp dẫn từ hệ thống.',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: Color(0xFF4B5563),
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              // Nút Không
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () => setState(() => _hasReferralCode = false),
-                                  style: OutlinedButton.styleFrom(
-                                    backgroundColor: !_hasReferralCode ? Colors.white : Colors.transparent,
-                                    side: BorderSide(
-                                      color: !_hasReferralCode ? const Color(0xFFE11D48) : const Color(0xFFCBD5E1),
-                                      width: !_hasReferralCode ? 1.8 : 1.0,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                                  ),
-                                  child: Text(
-                                    'Không',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: !_hasReferralCode ? FontWeight.bold : FontWeight.w500,
-                                      color: !_hasReferralCode ? const Color(0xFFE11D48) : AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              // Nút Có
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () => setState(() => _hasReferralCode = true),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _hasReferralCode ? const Color(0xFFE11D48) : Colors.white,
-                                    foregroundColor: _hasReferralCode ? Colors.white : AppColors.textPrimary,
-                                    elevation: _hasReferralCode ? 2 : 0,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(24),
-                                      side: BorderSide(
-                                        color: _hasReferralCode ? Colors.transparent : const Color(0xFFCBD5E1),
-                                      ),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Có',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: _hasReferralCode ? Colors.white : AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (_hasReferralCode) ...[
-                            const SizedBox(height: 14),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFFFECDD3)),
-                              ),
-                              child: TextFormField(
-                                controller: _referralController,
-                                decoration: const InputDecoration(
-                                  hintText: 'Nhập mã giới thiệu Tasker',
-                                  hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 13.5),
-                                  prefixIcon: Icon(Icons.confirmation_number_outlined, color: Color(0xFFE11D48), size: 20),
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
 
                     const SizedBox(height: 18),
 
