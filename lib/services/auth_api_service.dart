@@ -20,6 +20,7 @@ class AuthApiService {
     // Địa chỉ nơi ở: số nhà + mã tỉnh, phường (provinces.open-api.vn v2); khu vực suy ra từ phường
     String? soNhaTenDuong,
     int? maTinh,
+    int? maQuan,
     int? maPhuong,
   }) async {
     return _apiClient.post<Map<String, dynamic>>(
@@ -36,6 +37,7 @@ class AuthApiService {
         if (khuVucId != null) 'khuVucId': khuVucId,
         if (soNhaTenDuong != null) 'soNhaTenDuong': soNhaTenDuong,
         if (maTinh != null) 'maTinh': maTinh,
+        if (maQuan != null) 'maQuan': maQuan,
         if (maPhuong != null) 'maPhuong': maPhuong,
       },
     );
@@ -54,6 +56,7 @@ class AuthApiService {
     String? noiCuTru,
     String? soNhaTenDuong,
     int? maTinh,
+    int? maQuan,
     int? maPhuong,
     String? tinhThanh,
     String? phuongXa,
@@ -75,6 +78,7 @@ class AuthApiService {
         if (noiCuTru != null) 'noiCuTru': noiCuTru,
         if (soNhaTenDuong != null) 'soNhaTenDuong': soNhaTenDuong,
         if (maTinh != null) 'maTinh': maTinh,
+        if (maQuan != null) 'maQuan': maQuan,
         if (maPhuong != null) 'maPhuong': maPhuong,
         if (danhSachKhuVucId != null) 'danhSachKhuVucId': danhSachKhuVucId,
         if (tinhThanh != null && tinhThanh.isNotEmpty) 'tinhThanh': tinhThanh,
