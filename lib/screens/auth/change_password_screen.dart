@@ -170,6 +170,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           builder: (_) => ForgotPasswordScreen(
                             initialPhone: s?.soDienThoai ?? '',
                             roleColor: widget.roleColor,
+                            loaiTaiKhoan: s?.isCollaborator == true ? 'CongTacVien' : 'KhachHang',
                           ),
                         ),
                       );

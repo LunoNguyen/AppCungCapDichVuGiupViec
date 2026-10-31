@@ -85,7 +85,7 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
       _showSnack(
           timDuoc
               ? 'Đã điền địa chỉ theo vị trí hiện tại. Kiểm tra lại số nhà, tầng, căn hộ.'
-              : 'Đã điền số nhà, đường theo vị trí. Vui lòng chọn phường, xã.',
+              : 'Đã điền số nhà, đường theo vị trí. Vui lòng chọn phường, xã / quận, huyện.',
           AppColors.success);
     } finally {
       if (mounted) setState(() => _locating = false);
@@ -98,16 +98,15 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
     setState(() => _saving = true);
     try {
       final luuY = _luuYCtrl.text.trim();
-      final maPhuong = _diaChi.isV1 ? _diaChi.phuongV1!.ma : _diaChi.phuong!.ma;
-      final maQuan = _diaChi.isV1 ? _diaChi.quanV1?.ma : null;
-      final nhieuKv = !_diaChi.isV1 && (_diaChi.phuong?.khuVuc.length ?? 0) > 1;
-      final khuVucId = _diaChi.isV1 ? _diaChi.quanV1?.khuVucId : (nhieuKv ? _diaChi.khuVuc?.id : null);
+      final maPhuong = _diaChi.maPhuong;
+      final maQuan = _diaChi.maQuan;
+      final khuVucId = _diaChi.nhieuKhuVuc ? _diaChi.khuVuc?.id : null;
       final res = _isEdit
           ? await _api.updateAddress(
               widget.khachHangId,
               widget.diaChi!.id,
               soNhaTenDuong: _soNhaCtrl.text.trim(),
-              maTinh: _diaChi.maTinh!,
+              maTinh: _diaChi.maTinhGui!,
               maQuan: maQuan,
               maPhuong: maPhuong,
               khuVucId: khuVucId,
@@ -118,7 +117,7 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
           : await _api.createAddress(
               widget.khachHangId,
               soNhaTenDuong: _soNhaCtrl.text.trim(),
-              maTinh: _diaChi.maTinh!,
+              maTinh: _diaChi.maTinhGui!,
               maQuan: maQuan,
               maPhuong: maPhuong,
               khuVucId: khuVucId,
@@ -170,6 +169,7 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
                 giaTri: _diaChi,
                 soNhaCtrl: _soNhaCtrl,
                 maPhuongBanDau: widget.diaChi?.maPhuong,
+                maQuanBanDau: widget.diaChi?.maQuan,
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 8),

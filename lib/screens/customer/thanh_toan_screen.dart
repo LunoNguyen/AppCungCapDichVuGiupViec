@@ -11,7 +11,7 @@ import '../../services/session_service.dart';
 import 'order_detail_screen.dart';
 
 /// Màn thanh toán chuyển khoản của một đơn: mã VietQR, thông tin tài khoản, đồng hồ hạn thanh toán.
-/// "Tôi đã chuyển khoản" ghi nhận thanh toán (cùng hàm với website); xong thì sang chi tiết đơn.
+/// Hệ thống tự xác nhận khi nhận được tiền (webhook SePay); xong thì sang chi tiết đơn.
 class ThanhToanScreen extends StatefulWidget {
   final int donDatId;
 
@@ -173,43 +173,6 @@ class _ThanhToanScreenState extends State<ThanhToanScreen>
         ),
       );
 
-  Future<void> _daChuyenKhoan() async {
-    setState(() => _dangGui = true);
-    try {
-      final res = await _bookingApi.confirmTransfer(widget.donDatId);
-      if (!mounted) return;
-      if (res.success) {
-        _bao(res.message ?? 'Đã ghi nhận thanh toán.', loi: false);
-        _moChiTiet();
-        return;
-      }
-      final msg = res.message ?? 'Không ghi nhận được thanh toán';
-      _bao(msg.startsWith('Lỗi kết nối') ? 'Không kết nối được máy chủ' : msg);
-      if (msg.contains('đã được thanh toán') || msg.contains('đã bị hủy'))
-        _moChiTiet();
-    } finally {
-      if (mounted) setState(() => _dangGui = false);
-    }
-  }
-
-  Future<void> _giaLapThanhToan() async {
-    setState(() => _dangGui = true);
-    try {
-      final res = await PaymentApiService().mockPay(widget.donDatId);
-      if (!mounted) return;
-      if (res.success) {
-        _bao('Giả lập thanh toán thành công!', loi: false);
-        _moChiTiet();
-      } else {
-        _bao(res.message ?? 'Giả lập thanh toán không thành công');
-      }
-    } catch (_) {
-      if (mounted) _bao('Không kết nối được máy chủ');
-    } finally {
-      if (mounted) setState(() => _dangGui = false);
-    }
-  }
-
   Future<void> _huyDon() async {
     final dongY = await showDialog<bool>(
       context: context,
@@ -368,23 +331,10 @@ class _ThanhToanScreenState extends State<ThanhToanScreen>
           ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 50,
-          child: ElevatedButton(
-            onPressed: _dangGui || (_giay != null && _hetGio)
-                ? null
-                : _daChuyenKhoan,
-            child: _dangGui
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text('Tôi đã chuyển khoản'),
-          ),
+        const Text(
+          'Sau khi chuyển khoản, hệ thống tự xác nhận và chuyển sang chi tiết đơn.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 10),
         SizedBox(

@@ -26,7 +26,7 @@ import 'thanh_toan_screen.dart';
 /// Mở từ trang chi tiết dịch vụ với biến thể (hình thức + thời lượng / gói) đã chọn ở đó;
 /// muốn đổi dịch vụ thì bấm "Đổi" hoặc Quay lại ở bước đầu để về trang chi tiết.
 /// Mở từ giỏ hàng với [dichVuNhieu] (≥ 2 dịch vụ theo lần): một lịch, một địa chỉ, một hóa đơn;
-/// các dịch vụ làm nối tiếp nhau, phải xong trước 20:00 (giống web).
+/// các dịch vụ làm song song từ cùng giờ bắt đầu, dịch vụ lâu nhất phải xong trước 20:00 (giống web).
 class BookingScreen extends StatefulWidget {
   final Map<String, dynamic> service;
   final List<MonGio>? dichVuNhieu;
@@ -78,7 +78,7 @@ class _BookingScreenState extends State<BookingScreen> {
   bool get _nhieu => (widget.dichVuNhieu?.length ?? 0) >= 2;
   List<int>? get _idsNhieu => _nhieu ? [for (final m in widget.dichVuNhieu!) m.id] : null;
   int get _tongPhutNhieu => _nhieu
-      ? widget.dichVuNhieu!.fold(0, (s, m) => s + (m.phut > 0 ? m.phut : GioHang.phutMacDinh))
+      ? GioHang.phutDaiNhat(widget.dichVuNhieu!)
       : 0;
   static const _phutXongMuonNhat = 20 * 60; // các dịch vụ phải xong trước 20:00 (DatNhieuDichVu)
 
@@ -571,7 +571,7 @@ class _BookingScreenState extends State<BookingScreen> {
           Row(
             children: [
               Expanded(
-                child: Text('${ds.length} dịch vụ đã chọn · làm nối tiếp trong cùng buổi',
+                child: Text('${ds.length} dịch vụ đã chọn · bắt đầu cùng lúc, làm song song',
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
               ),
               TextButton(onPressed: () => Navigator.pop(context), child: const Text('Sửa')),
@@ -593,7 +593,7 @@ class _BookingScreenState extends State<BookingScreen> {
           const Divider(),
           Row(
             children: [
-              Text('Tổng thời lượng ${GioHang.thoiLuong(_tongPhutNhieu)}'),
+              Text('Xong sau ${GioHang.thoiLuong(_tongPhutNhieu)}'),
               const Spacer(),
               Text(CatalogUi.money(_donGiaThamKhao),
                   style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.brand600)),
@@ -615,7 +615,7 @@ class _BookingScreenState extends State<BookingScreen> {
       if (_nhieu) ...[
         for (final m in widget.dichVuNhieu!) ('Dịch vụ', '${m.ten} · ${CatalogUi.money(m.gia)}'),
         ('Hình thức', 'Theo lần'),
-        ('Tổng thời lượng', GioHang.thoiLuong(_tongPhutNhieu)),
+        ('Xong sau', GioHang.thoiLuong(_tongPhutNhieu)),
       ] else ...[
         ('Dịch vụ', _nhom?.ten ?? '—'),
         ('Hình thức', CatalogUi.loaiHinhLabel(_loai)),

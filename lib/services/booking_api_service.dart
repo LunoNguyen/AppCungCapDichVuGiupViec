@@ -205,13 +205,4 @@ class BookingApiService {
       queryParams: queryParams,
     );
   }
-
-  /// Khách xác nhận đã chuyển khoản (màn QR, nút "Thanh toán ngay" ở chi tiết đơn)
-  /// POST /v1/customer/bookings/{id}/confirm-transfer – cùng hàm với website
-  Future<ApiResponse<Map<String, dynamic>>> confirmTransfer(int donDatId) async {
-    return _apiClient.post<Map<String, dynamic>>(
-      '/v1/customer/bookings/$donDatId/confirm-transfer',
-      body: const {},
-    );
-  }
 }

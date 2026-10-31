@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Màn giỏ hàng: gói tháng đặt riêng, đếm và tổng tiền các dịch vụ đã chọn (giống web).
+/// Màn giỏ hàng: mọi dịch vụ đều tick được (không có nút Đặt riêng), đếm và tổng tiền đã chọn (giống web).
 void main() {
   MonGio mon(int id, {String loai = 'TheoLan'}) =>
       MonGio(id: id, ten: 'Dịch vụ $id', gia: 100000, phut: 120, loaiHinhDat: loai, danhMucId: 1);
@@ -15,7 +15,7 @@ void main() {
     await GioHang.instance.xoaTatCa();
   });
 
-  testWidgets('gói tháng có nút Đặt riêng, nút đặt đếm dịch vụ theo lần', (tester) async {
+  testWidgets('không có nút Đặt riêng, gói tháng chọn chung thì báo lý do', (tester) async {
     await GioHang.instance.them(mon(1));
     await GioHang.instance.them(mon(2));
     await GioHang.instance.them(mon(3, loai: 'GoiThang'));
@@ -23,9 +23,11 @@ void main() {
     await tester.pump();
 
     expect(find.text('Giỏ hàng (3)'), findsOneWidget);
-    expect(find.text('Đặt riêng'), findsOneWidget);
-    expect(find.text('Đặt dịch vụ (2)'), findsOneWidget);
-    expect(find.text('200.000đ'), findsOneWidget);
+    expect(find.text('Đặt riêng'), findsNothing);
+    expect(find.byType(Checkbox), findsNWidgets(4)); // 3 dịch vụ + chọn tất cả
+    expect(find.text('Đặt dịch vụ (3)'), findsOneWidget);
+    expect(find.text('300.000đ'), findsOneWidget);
+    expect(find.text('Gói tháng không đặt chung với dịch vụ khác, hãy chọn riêng gói tháng.'), findsOneWidget);
   });
 
   testWidgets('giỏ trống thì mời khám phá dịch vụ', (tester) async {

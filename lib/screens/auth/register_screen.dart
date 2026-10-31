@@ -4,13 +4,11 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/app_colors.dart';
 import '../../core/password_rules.dart';
 import '../../services/auth_api_service.dart';
-import '../../services/auth_flow.dart';
 import '../../services/session_service.dart';
 import '../../services/storage_api_service.dart';
 import '../../services/service_catalog_api_service.dart';
 import '../../widgets/dia_chi_fields.dart';
 import '../../widgets/password_checklist.dart';
-import '../customer/customer_main_screen.dart';
 import 'login_screen.dart';
 import 'otp_verification_screen.dart';
 
@@ -69,12 +67,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoadingServices = false;
 
   bool _obscurePassword = true;
-  // SĐT đã có tài khoản vai trò khác: nhập mật khẩu hiện tại để dùng chung, không áp quy tắc mật khẩu mới
-  bool _dungChungTaiKhoan = false;
   bool _agreeTerms = true;
 
   bool get _matKhauHopLe =>
-      _dungChungTaiKhoan ||
       PasswordRules.isValid(_passwordController.text, _phoneController.text);
   bool _isLoading = false;
 
@@ -98,9 +93,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_isCustPasswordOk) return false;
     final d = _diaChiKhach;
     final hasTinh = d.maTinh != null;
-    final hasPhuongOrQuan = d.isV1
-        ? (d.quanV1 != null && d.phuongV1 != null)
-        : (d.phuong != null);
+    final hasPhuongOrQuan = d.daChonDuoi; // phường, xã mới hoặc quận, huyện cũ
     final hasSoNha = _addressController.text.trim().length >= 3;
     return hasTinh && hasPhuongOrQuan && hasSoNha;
   }
@@ -124,9 +117,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_isCtvDobOk) return false;
     final d = _diaChiCtv;
     final hasTinh = d.maTinh != null;
-    final hasPhuongOrQuan = d.isV1
-        ? (d.quanV1 != null && d.phuongV1 != null)
-        : (d.phuong != null);
+    final hasPhuongOrQuan = d.daChonDuoi; // phường, xã mới hoặc quận, huyện cũ
     final hasSoNha = _ctvAddressController.text.trim().length >= 3;
     return hasTinh && hasPhuongOrQuan && hasSoNha;
   }
@@ -466,12 +457,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       if (isCustomer) {
         // UC-KH01: Đăng ký Khách hàng -> backend tạo tài khoản chờ kích hoạt + mã OTP
-        final maPhuongKhach = _diaChiKhach.isV1
-            ? _diaChiKhach.phuongV1?.ma
-            : _diaChiKhach.phuong?.ma;
-        final maQuanKhach = _diaChiKhach.isV1
-            ? _diaChiKhach.quanV1?.ma
-            : null;
         final response = await _authApiService.registerCustomer(
           hoTen: _fullNameController.text.trim(),
           soDienThoai: phone,
@@ -480,39 +465,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ngaySinh: _customerDob != null ? _fmtApiDate(_customerDob!) : null,
           // Địa chỉ nơi ở thành địa chỉ mặc định; khu vực suy ra từ phường
           soNhaTenDuong: _addressController.text.trim(),
-          maTinh: _diaChiKhach.maTinh,
-          maQuan: maQuanKhach,
-          maPhuong: maPhuongKhach,
-          khuVucId: (!_diaChiKhach.isV1 && (_diaChiKhach.phuong?.khuVuc.length ?? 0) > 1) ? _diaChiKhach.khuVuc?.id : null,
+          maTinh: _diaChiKhach.maTinhGui,
+          maPhuong: _diaChiKhach.maPhuong,
+          maQuan: _diaChiKhach.maQuan,
+          khuVucId: _diaChiKhach.nhieuKhuVuc ? _diaChiKhach.khuVuc?.id : null,
         );
         if (!mounted) return;
 
         if (!response.success) {
           _showSnack(response.message ?? 'Đăng ký thất bại. Vui lòng thử lại!',
               AppColors.error);
-          return;
-        }
-
-        // SĐT đã là cộng tác viên: dùng chung tài khoản (đã nhập đúng mật khẩu), không cần OTP
-        if (response.data?['canXacThucOtp'] == false) {
-          final login = await AuthFlow.login(
-            phone: phone,
-            password: _passwordController.text,
-            asCustomer: true,
-          );
-          if (!mounted) return;
-          _showSnack(
-              response.message ?? 'Đã thêm vai trò khách hàng cho tài khoản của bạn.',
-              AppColors.success);
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(
-              builder: (_) => login.success
-                  ? const CustomerMainScreen()
-                  : const LoginScreen(initialRoleTab: 0),
-            ),
-            (route) => false,
-          );
           return;
         }
 
@@ -542,17 +504,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'duongDanFile': cc['objectName'],
         }).toList();
 
-        final maPhuongCtv = _diaChiCtv.isV1
-            ? _diaChiCtv.phuongV1?.ma
-            : _diaChiCtv.phuong?.ma;
-        final maQuanCtv = _diaChiCtv.isV1
-            ? _diaChiCtv.quanV1?.ma
-            : null;
-        final phuongTen = _diaChiCtv.tenPhuongHienTai ?? '';
-        final quanTen = _diaChiCtv.tenQuanHienTai != null ? ', ${_diaChiCtv.tenQuanHienTai}' : '';
+        // Ô thứ hai: phường, xã mới hoặc quận, huyện cũ; tên gửi kèm để máy chủ xếp khu vực khi ngoài vùng phục vụ
+        final phuongTen = _diaChiCtv.tenPhuongHienTai ?? _diaChiCtv.tenQuanHienTai ?? '';
         final tinhTen = _diaChiCtv.tenTinh ?? '';
         final soNhaCtv = _ctvAddressController.text.trim();
-        final noiCuTruCtv = '$soNhaCtv, $phuongTen$quanTen, $tinhTen';
 
         final response = await _authApiService.registerCollaborator(
           hoTen: _fullNameController.text.trim(),
@@ -561,11 +516,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           matKhau: _passwordController.text,
           ngaySinh: _fmtApiDate(_ctvDob!),
           gioiTinh: _ctvGender == 'Nam' ? 'Nam' : 'Nu',
-          noiCuTru: noiCuTruCtv,
           soNhaTenDuong: soNhaCtv,
-          maTinh: _diaChiCtv.maTinh,
-          maQuan: maQuanCtv,
-          maPhuong: maPhuongCtv,
+          maTinh: _diaChiCtv.maTinhGui,
+          maQuan: _diaChiCtv.maQuan,
+          maPhuong: _diaChiCtv.maPhuong,
           tinhThanh: tinhTen,
           phuongXa: phuongTen,
           danhSachDichVuId: _selectedServiceIds.toList(),
@@ -1527,17 +1481,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       soNhaCtrl: _ctvAddressController,
                       onChanged: (_) => setState(() {}),
                       ghiChuKhuVuc: (d) {
-                        if (d.isV1) {
-                          if (d.quanV1 == null) return '';
-                          return d.quanV1!.khuVucId == null
-                              ? 'Nơi ở ngoài khu vực bTaskee đang phục vụ'
-                              : 'Thuộc khu vực: ${d.quanV1!.tenKhuVuc ?? d.quanV1!.ten}';
-                        }
-                        return d.phuong == null
+                        final x = d.duoi;
+                        return x == null
                             ? ''
-                            : d.phuong!.khuVuc.isEmpty
+                            : x.khuVuc.isEmpty
                                 ? 'Nơi ở ngoài khu vực bTaskee đang phục vụ'
-                                : 'Thuộc khu vực: ${d.phuong!.khuVuc.map((k) => k.ten).join(' / ')}';
+                                : 'Thuộc khu vực: ${x.khuVuc.map((k) => k.ten).join(' / ')}';
                       },
                     ),
 
@@ -2480,7 +2429,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  /// Ô mật khẩu + danh sách tiêu chí + ô đánh dấu dùng chung tài khoản đã có.
+  /// Ô mật khẩu + danh sách tiêu chí. SĐT đã có tài khoản vai trò khác vẫn tạo tài khoản riêng, mật khẩu riêng.
   Widget _buildPasswordField({String hintText = 'Ít nhất 8 ký tự, có chữ và số'}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2488,25 +2437,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _buildPasswordInput(hintText),
         ListenableBuilder(
           listenable: Listenable.merge([_passwordController, _phoneController]),
-          builder: (_, __) => _dungChungTaiKhoan
-              ? const SizedBox.shrink()
-              : PasswordChecklist(
-                  password: _passwordController.text,
-                  phone: _phoneController.text,
-                ),
-        ),
-        CheckboxListTile(
-          value: _dungChungTaiKhoan,
-          onChanged: (v) => setState(() => _dungChungTaiKhoan = v ?? false),
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          controlAffinity: ListTileControlAffinity.leading,
-          visualDensity: VisualDensity.compact,
-          title: Text(
-            isCustomer
-                ? 'Số này đã là cộng tác viên (nhập đúng mật khẩu đó để dùng chung tài khoản)'
-                : 'Số này đã có tài khoản khách hàng (nhập đúng mật khẩu đó để dùng chung tài khoản)',
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          builder: (_, __) => PasswordChecklist(
+            password: _passwordController.text,
+            phone: _phoneController.text,
           ),
         ),
       ],
@@ -2544,7 +2477,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         validator: (val) {
           if (val == null || val.isEmpty) return 'Vui lòng nhập mật khẩu';
-          if (_dungChungTaiKhoan) return null;
           return PasswordRules.validate(val, _phoneController.text);
         },
       ),
