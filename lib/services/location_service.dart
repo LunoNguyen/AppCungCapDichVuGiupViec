@@ -1,4 +1,5 @@
-﻿import 'package:flutter/widgets.dart' show Locale;
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/widgets.dart' show Locale;
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -19,6 +20,13 @@ class LocationService {
   static final DiaGioiApiService _diaGioiApi = DiaGioiApiService();
   static Future<LocationResult>? _inFlightPosition;
   static Position? _lastPosition;
+
+  /// Thời gian chờ tối đa khi lấy vị trí GPS hoặc đổi toạ độ thành địa chỉ; quá hạn thì bỏ qua để không treo ứng dụng.
+  @visibleForTesting
+  static Duration thoiGianCho = const Duration(seconds: 15);
+
+  static Future<T?> _choToiDa<T>(Future<T?> f) =>
+      f.timeout(thoiGianCho, onTimeout: () => null);
 
   /// Vị trí GPS gần nhất đã lấy được trong phiên làm việc (giúp mở Google Maps tức thì).
   static Position? get lastKnownPosition => _lastPosition;
@@ -54,20 +62,8 @@ class LocationService {
         return const LocationResult._(null,
             'Quyền vị trí đã bị tắt. Vui lòng bật lại trong Cài đặt của điện thoại.');
       }
-      Position? pos;
-      try {
-        pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 5),
-          ),
-        );
-      } catch (_) {
-        // Dự phòng khi GPS vệ tinh bị timeout hoặc trong nhà: lấy vị trí đã biết gần nhất
-        pos = await Geolocator.getLastKnownPosition();
-      }
-      pos ??= await Geolocator.getLastKnownPosition();
-      pos ??= _lastPosition;
+      // Cả bước lấy toạ độ chỉ chờ tối đa [thoiGianCho], kể cả khi máy không trả vị trí đã biết
+      final pos = await _choToiDa(_layToaDo()) ?? _lastPosition;
 
       if (pos != null) {
         _lastPosition = pos;
@@ -83,12 +79,42 @@ class LocationService {
     }
   }
 
+  static Future<Position?> _layToaDo() async {
+    try {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) {
+        _lastPosition = last;
+      }
+    } catch (_) {}
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+    } catch (_) {
+      try {
+        return await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.low,
+            timeLimit: Duration(seconds: 5),
+          ),
+        );
+      } catch (_) {
+        // Dự phòng khi GPS vệ tinh bị timeout hoặc trong nhà: lấy vị trí đã biết gần nhất
+        return await Geolocator.getLastKnownPosition() ?? _lastPosition;
+      }
+    }
+  }
+
   /// Đổi toạ độ thành địa chỉ dạng chữ (cần mạng). Trả null nếu không tra được.
   static Future<String?> reverseGeocode(double lat, double lng) async {
     try {
-      final marks = await Geocoding(locale: const Locale('vi', 'VN'))
-          .placemarkFromCoordinates(lat, lng);
-      if (marks.isEmpty) return null;
+      final marks = await _choToiDa(Geocoding(locale: const Locale('vi', 'VN'))
+          .placemarkFromCoordinates(lat, lng));
+      if (marks == null || marks.isEmpty) return null;
       final p = marks.first;
       final parts = <String?>[
         <String?>[p.subThoroughfare, p.thoroughfare]
@@ -139,9 +165,9 @@ class LocationService {
         await _diaGioiApi.dongBoDuLieuDinhVi().timeout(const Duration(seconds: 2));
       } catch (_) {}
 
-      final marks = await Geocoding(locale: const Locale('vi', 'VN'))
-          .placemarkFromCoordinates(lat, lng);
-      Placemark? p = marks.isNotEmpty ? marks.first : null;
+      final marks = await _choToiDa(Geocoding(locale: const Locale('vi', 'VN'))
+          .placemarkFromCoordinates(lat, lng));
+      Placemark? p = (marks != null && marks.isNotEmpty) ? marks.first : null;
 
       String? quanHuyen;
       if (p != null) {
@@ -180,17 +206,18 @@ class LocationService {
         if (out.isEmpty || out.last != s) out.add(s);
       }
 
+      final diaChi = out.isNotEmpty ? out.join(', ') : '$quanHuyen, $tinhThanh';
       return {
         'quanHuyen': quanHuyen,
         'tinhThanh': tinhThanh,
-        'diaChi': out.join(', '),
+        'diaChi': diaChi,
       };
     } catch (_) {
-      final q = doanQuanTheoToaDo(lat, lng) ?? '';
+      final q = doanQuanTheoToaDo(lat, lng) ?? 'Quận 1';
       return {
         'quanHuyen': q,
-        'tinhThanh': q.isNotEmpty ? 'Thành phố Hồ Chí Minh' : '',
-        'diaChi': q,
+        'tinhThanh': 'Thành phố Hồ Chí Minh',
+        'diaChi': '$q, Thành phố Hồ Chí Minh',
       };
     }
   }
@@ -204,9 +231,9 @@ class LocationService {
     if (_geoCache.containsKey(key)) return _geoCache[key];
     List<double>? out;
     try {
-      final locs = await Geocoding(locale: const Locale('vi', 'VN'))
-          .locationFromAddress(key);
-      if (locs.isNotEmpty) out = [locs.first.latitude, locs.first.longitude];
+      final locs = await _choToiDa(Geocoding(locale: const Locale('vi', 'VN'))
+          .locationFromAddress(key));
+      if (locs != null && locs.isNotEmpty) out = [locs.first.latitude, locs.first.longitude];
     } catch (_) {}
     _geoCache[key] = out;
     return out;

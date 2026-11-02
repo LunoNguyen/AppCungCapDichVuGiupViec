@@ -21,6 +21,15 @@ class _CollaboratorLocationScreenState extends State<CollaboratorLocationScreen>
     _addressText = CtvLocationTracker.instance.currentAddress;
     CtvLocationTracker.instance.addListener(_onTrackerUpdated);
     _loadCurrentAddress();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        if (CtvLocationTracker.instance.currentDistrict == null ||
+            CtvLocationTracker.instance.currentDistrict!.isEmpty) {
+          _refreshLocation(silent: true);
+        }
+      }
+    });
   }
 
   @override
@@ -56,11 +65,15 @@ class _CollaboratorLocationScreenState extends State<CollaboratorLocationScreen>
             _addressText = details['diaChi'];
           });
         }
+        final q = details['quanHuyen'];
+        if (q != null && q.isNotEmpty && (CtvLocationTracker.instance.currentDistrict == null || CtvLocationTracker.instance.currentDistrict!.isEmpty)) {
+          CtvLocationTracker.instance.setDistrictForTest(q);
+        }
       }
     } catch (_) {}
   }
 
-  Future<void> _refreshLocation() async {
+  Future<void> _refreshLocation({bool silent = false}) async {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
 
@@ -69,24 +82,28 @@ class _CollaboratorLocationScreenState extends State<CollaboratorLocationScreen>
       await _loadCurrentAddress();
 
       if (!mounted) return;
-      final district = CtvLocationTracker.instance.currentDistrict ?? 'Khu vực hiện tại';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã cập nhật vị trí mới nhất: $district'),
-          backgroundColor: AppColors.green500,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      final district = CtvLocationTracker.instance.currentDistrict ?? 'Quận 1';
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã cập nhật vị trí mới nhất: $district'),
+            backgroundColor: AppColors.green500,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi khi định vị: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi định vị: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isRefreshing = false);
     }

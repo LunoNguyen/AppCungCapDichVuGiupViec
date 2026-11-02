@@ -69,6 +69,7 @@ class CtvLocationTracker extends ChangeNotifier {
     final first = await LocationService.getCurrentPosition();
     if (first.ok && first.position != null) {
       _latest = first.position;
+      unawaited(_send());
     }
 
     try {
@@ -97,8 +98,8 @@ class CtvLocationTracker extends ChangeNotifier {
     final pos = await LocationService.getCurrentPosition();
     if (pos.ok && pos.position != null) {
       _latest = pos.position;
-      await _send();
     }
+    await _send();
   }
 
   void stop() {
@@ -109,21 +110,37 @@ class CtvLocationTracker extends ChangeNotifier {
   }
 
   Future<void> _send() async {
-    final p = _latest;
-    if (p == null || _sending) return;
+    if (_sending) return;
     _sending = true;
     try {
+      var p = _latest;
+      if (p == null) {
+        final cur = await LocationService.getCurrentPosition();
+        if (cur.ok && cur.position != null) {
+          p = cur.position;
+          _latest = p;
+        }
+      }
+      if (p == null) {
+        if (_currentDistrict == null || _currentDistrict!.isEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          final cached = prefs.getString('ctv_last_district_$_ctvId');
+          _setDistrict(cached != null && cached.isNotEmpty ? cached : 'Quận 1');
+        }
+        return;
+      }
+
       // Nhận diện nhanh quận theo toạ độ ngay lập tức để UI không phải chờ Geocoder mạng
-      final quickDistrict = LocationService.doanQuanTheoToaDo(p.latitude, p.longitude);
-      if (quickDistrict != null && quickDistrict.isNotEmpty && quickDistrict != _currentDistrict) {
+      final quickDistrict = LocationService.doanQuanTheoToaDo(p.latitude, p.longitude) ?? 'Quận 1';
+      if (quickDistrict.isNotEmpty && quickDistrict != _currentDistrict) {
         _currentDistrict = quickDistrict;
         notifyListeners();
       }
 
       // 1. Phân giải địa giới hành chính (Quận/Huyện, Tỉnh/Thành) từ GPS điện thoại & 2 API
       final geo = await LocationService.getAddressDetails(p.latitude, p.longitude);
-      final quanHuyen = ((geo['quanHuyen']?.isNotEmpty == true) ? geo['quanHuyen'] : quickDistrict) ?? '';
-      final tinhThanh = geo['tinhThanh'];
+      final quanHuyen = ((geo['quanHuyen']?.isNotEmpty == true) ? geo['quanHuyen'] : quickDistrict) ?? 'Quận 1';
+      final tinhThanh = (geo['tinhThanh']?.isNotEmpty == true) ? geo['tinhThanh'] : 'Thành phố Hồ Chí Minh';
       final diaChi = geo['diaChi'];
       if (diaChi != null && diaChi.isNotEmpty && diaChi != _currentAddress) {
         _currentAddress = diaChi;
@@ -131,7 +148,7 @@ class CtvLocationTracker extends ChangeNotifier {
       }
 
       // 2. Cập nhật ngay tại máy và báo UI nếu quận đã đổi (không phụ thuộc vào server)
-      if (quanHuyen != null && quanHuyen.isNotEmpty && quanHuyen != _currentDistrict) {
+      if (quanHuyen.isNotEmpty && quanHuyen != _currentDistrict) {
         _currentDistrict = quanHuyen;
         notifyListeners();
         try {
