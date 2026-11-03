@@ -594,7 +594,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            'Thực nhận (80%): ${_formatPrice(totalIncome)}',
+                            'Thực nhận: ${_formatPrice(totalIncome)}',
                             style: const TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w800,
@@ -1524,8 +1524,8 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                           children: [
                             Text(
                               currentTab == 'completed'
-                                  ? 'Tiền công thực nhận (80%):'
-                                  : 'Tiền công bạn nhận (80%):',
+                                  ? 'Tiền công thực nhận:'
+                                  : 'Tiền công bạn nhận:',
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -1579,7 +1579,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Tổng đơn: $grossPrice • Chiết khấu nền tảng (20%): -$feePrice',
+                    'Tổng đơn: $grossPrice • Chiết khấu nền tảng: -$feePrice',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -3816,6 +3816,9 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
     final String grossStr = _formatPrice(gross);
     final String feeStr = _formatPrice(fee);
     final String netStr = _formatPrice(net);
+    final bool isCash = (o['laTienMat'] == true) ||
+        (o['hinhThucThanhToan'] != null &&
+            o['hinhThucThanhToan'].toString().toLowerCase() == 'tienmat');
 
     await showModalBottomSheet<void>(
       context: context,
@@ -4010,7 +4013,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                         children: [
                           const Expanded(
                             child: Text(
-                              'Tổng giá trị đơn dịch vụ (100%)',
+                              'Tổng giá trị đơn dịch vụ',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Color(0xFF334155),
@@ -4037,7 +4040,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                         children: [
                           const Expanded(
                             child: Text(
-                              'Chiết khấu chi phí nền tảng (20%)',
+                              'Chiết khấu chi phí nền tảng',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Color(0xFF64748B),
@@ -4070,7 +4073,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Số tiền bạn thực nhận (80%)',
+                                  'Số tiền bạn thực nhận',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,
@@ -4135,7 +4138,7 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Bạn có xác nhận đã hoàn thành công việc và đồng ý nhận $netStr (sau khi trừ 20% phí nền tảng) vào Ví thu nhập không?',
+                          isCash ? 'Bạn xác nhận đã hoàn thành công việc và đã thu đủ $grossStr tiền mặt từ khách? Phí chiết khấu $feeStr sẽ được trừ vào ví.' : 'Bạn có xác nhận đã hoàn thành công việc và đồng ý nhận $netStr vào Ví thu nhập không?',
                           style: const TextStyle(
                             fontSize: 12.5,
                             color: Color(0xFF92400E),
@@ -4362,8 +4365,10 @@ class CollaboratorOrdersScreenState extends State<CollaboratorOrdersScreen>
                 ? 'Đã nhận việc thành công! Ca làm đã được thêm vào lịch.'
                 : (action == 'reject'
                     ? 'Đã bỏ qua. Đơn vẫn hiện cho CTV khác.'
-                    : '✅ Đã hoàn thành công việc! +${_formatPrice(_getNetIncome(o))} (80% tiền công) đã được cộng vào Ví thu nhập.'
-                        '${loiAnh != null ? ' Chưa gửi được ảnh tài sản: $loiAnh' : ''}')),
+                    : (res.data != null && res.data!['message'] != null
+                        ? res.data!['message'].toString()
+                        : '✅ Đã hoàn thành công việc!') +
+                        (loiAnh != null ? ' Chưa gửi được ảnh tài sản: $loiAnh' : ''))),
             backgroundColor: action == 'reject' || loiAnh != null
                 ? AppColors.warning
                 : AppColors.success,

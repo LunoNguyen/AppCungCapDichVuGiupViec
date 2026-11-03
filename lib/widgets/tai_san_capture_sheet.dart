@@ -286,11 +286,11 @@ class _TaiSanCaptureSheetState extends State<TaiSanCaptureSheet> {
   Widget build(BuildContext context) {
     final isBefore = widget.isBeforeService;
     final Color primaryColor =
-        isBefore ? const Color(0xFF0284C7) : const Color(0xFF15803D);
+        isBefore ? const Color(0xFF3E4989) : const Color(0xFF4A4E9E);
     final Color lightBgColor =
-        isBefore ? const Color(0xFFF0F9FF) : const Color(0xFFF0FDF4);
+        isBefore ? const Color(0xFFF5F3FF) : const Color(0xFFECEDF8);
     final Color borderColor =
-        isBefore ? const Color(0xFFBAE6FD) : const Color(0xFFBBF7D0);
+        isBefore ? const Color(0xFFDDD6FE) : const Color(0xFFC5C8EA);
     final List<String> moTaOptions =
         isBefore ? _moTaTruocOptions : _moTaSauOptions;
 
@@ -963,8 +963,8 @@ class _TaiSanPhotoPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bgGradient = isBefore
-        ? const [Color(0xFF0369A1), Color(0xFF0EA5E9)]
-        : const [Color(0xFF15803D), Color(0xFF22C55E)];
+        ? const [Color(0xFF2A3166), Color(0xFF3E4989)]
+        : const [Color(0xFF3E4989), Color(0xFF5C60C0)];
 
     final bool hasRealPhotoBytes = bytes != null && bytes!.isNotEmpty;
 
@@ -1030,8 +1030,8 @@ class _TaiSanPhotoPreviewCard extends StatelessWidget {
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
                               color: isBefore
-                                  ? const Color(0xFF0369A1)
-                                  : const Color(0xFF15803D),
+                                  ? const Color(0xFF2A3166)
+                                  : const Color(0xFF3E4989),
                             ),
                           ),
                         ),
@@ -1161,7 +1161,7 @@ class TaiSanBeforeAfterSection extends StatelessWidget {
               Icon(
                 Icons.photo_library_rounded,
                 size: 16,
-                color: Color(0xFF0284C7),
+                color: Color(0xFF3E4989),
               ),
               SizedBox(width: 6),
               Expanded(
@@ -1230,11 +1230,11 @@ class TaiSanBeforeAfterSection extends StatelessWidget {
     required String subtitle,
   }) {
     final Color accent =
-        isBefore ? const Color(0xFF0284C7) : const Color(0xFF15803D);
+        isBefore ? const Color(0xFF3E4989) : const Color(0xFF4A4E9E);
     final Color bg =
-        isBefore ? const Color(0xFFF0F9FF) : const Color(0xFFF0FDF4);
+        isBefore ? const Color(0xFFF5F3FF) : const Color(0xFFECEDF8);
     final Color border =
-        isBefore ? const Color(0xFFBAE6FD) : const Color(0xFFBBF7D0);
+        isBefore ? const Color(0xFFDDD6FE) : const Color(0xFFC5C8EA);
 
     return Container(
       padding: const EdgeInsets.all(9),

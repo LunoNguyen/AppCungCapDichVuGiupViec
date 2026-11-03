@@ -69,8 +69,8 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
   List<Map<String, dynamic>> _completedOrders = [];
 
   num get _effectiveWalletBalance {
-    final profileWallet = _profile?.soDuVi ?? 0;
-    return _totalIncome > profileWallet ? _totalIncome : profileWallet;
+    if (_profile?.soDuVi != null) return _profile!.soDuVi!;
+    return _totalIncome;
   }
 
   final NumberFormat _currencyFormat =
@@ -314,7 +314,7 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                         _MenuItem(
                             Icons.receipt_long_outlined,
                             'Lịch sử thu nhập',
-                            '$_completedCount đơn (80%)',
+                            '$_completedCount đơn',
                             const Color(0xFFC77700),
                             _showIncomeHistorySheet),
                       ]),
@@ -659,7 +659,7 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Ví thu nhập (Thực nhận 80%)',
+                    'Ví thu nhập',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -683,7 +683,7 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Đã trừ 20% phí nền tảng • $_completedCount đơn hoàn thành',
+                    '$_completedCount đơn hoàn thành',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -773,7 +773,7 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                           ),
                         ),
                         Text(
-                          'Tỷ lệ phân chia: CTV nhận 80% • Phí nền tảng 20%',
+                          'Chi tiết thu nhập & chiết khấu',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -831,7 +831,7 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                       children: [
                         const Expanded(
                           child: Text(
-                            'Tổng chiết khấu nền tảng (20%)',
+                            'Tổng chiết khấu nền tảng',
                             style: TextStyle(
                                 fontSize: 12.5, color: Color(0xFF64748B)),
                           ),
@@ -856,7 +856,7 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                       children: [
                         const Expanded(
                           child: Text(
-                            'Số dư thực nhận trong Ví (80%)',
+                            'Số dư trong Ví',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
@@ -869,7 +869,7 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
-                              '+${_currencyFormat.format(_effectiveWalletBalance)}',
+                              (_effectiveWalletBalance >= 0 ? '+${_currencyFormat.format(_effectiveWalletBalance)}' : '-${_currencyFormat.format(_effectiveWalletBalance.abs())}'),
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w900,
@@ -976,7 +976,7 @@ class CollaboratorAccountScreenState extends State<CollaboratorAccountScreen> {
                                       child: FittedBox(
                                         fit: BoxFit.scaleDown,
                                         child: Text(
-                                          'Gốc: ${_currencyFormat.format(gross)} (-20%: ${_currencyFormat.format(fee)})',
+                                          'Gốc: ${_currencyFormat.format(gross)} (Khấu trừ: ${_currencyFormat.format(fee)})',
                                           style: const TextStyle(
                                             fontSize: 11,
                                             color: Color(0xFF64748B),

@@ -1092,7 +1092,7 @@ class CollaboratorScheduleScreenState
                                 child: FittedBox(
                                   fit: BoxFit.scaleDown,
                                   child: Text(
-                                    '${_formatPrice(_getNetIncome(s))} (80%)',
+                                    '${_formatPrice(_getNetIncome(s))}',
                                     style: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w800,
@@ -2440,6 +2440,9 @@ class CollaboratorScheduleScreenState
     final String grossStr = _formatPrice(gross);
     final String feeStr = _formatPrice(fee);
     final String netStr = _formatPrice(net);
+    final bool isCash = (s['laTienMat'] == true) ||
+        (s['hinhThucThanhToan'] != null &&
+            s['hinhThucThanhToan'].toString().toLowerCase() == 'tienmat');
 
     final bool? confirmed = await showModalBottomSheet<bool>(
       context: context,
@@ -2604,7 +2607,7 @@ class CollaboratorScheduleScreenState
                         children: [
                           const Expanded(
                             child: Text(
-                              'Tổng giá trị đơn dịch vụ (100%)',
+                              'Tổng giá trị đơn dịch vụ',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Color(0xFF334155),
@@ -2629,7 +2632,7 @@ class CollaboratorScheduleScreenState
                         children: [
                           const Expanded(
                             child: Text(
-                              'Chiết khấu chi phí nền tảng (20%)',
+                              'Chiết khấu chi phí nền tảng',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Color(0xFF64748B),
@@ -2660,7 +2663,7 @@ class CollaboratorScheduleScreenState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Số tiền bạn thực nhận (80%)',
+                                  'Số tiền bạn thực nhận',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,
@@ -2723,7 +2726,7 @@ class CollaboratorScheduleScreenState
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Bạn có xác nhận đã hoàn thành công việc và đồng ý nhận $netStr (sau khi trừ 20% phí nền tảng) vào Ví thu nhập không?',
+                          isCash ? 'Bạn xác nhận đã hoàn thành công việc và đã thu đủ $grossStr tiền mặt từ khách? Phí chiết khấu $feeStr sẽ được trừ vào ví.' : 'Bạn có xác nhận đã hoàn thành công việc và đồng ý nhận $netStr vào Ví thu nhập không?',
                           style: const TextStyle(
                             fontSize: 12.5,
                             color: Color(0xFF92400E),
@@ -2832,14 +2835,35 @@ class CollaboratorScheduleScreenState
       }
       if (res.success) {
         if (!mounted) return;
+        final serverMsg = res.data != null && res.data!['message'] != null
+            ? res.data!['message'].toString()
+            : null;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Đã hoàn thành ca làm việc! +$netStr đã được cộng vào Ví thu nhập.'
-                '${loiAnh != null ? ' Chưa gửi được ảnh tài sản: $loiAnh' : ''}'),
+            content: Text((serverMsg ?? '✅ Đã hoàn thành ca làm việc!') +
+                (loiAnh != null ? ' Chưa gửi được ảnh tài sản: $loiAnh' : '')),
             backgroundColor: loiAnh != null ? AppColors.warning : AppColors.success,
           ),
         );
         await _fetchSchedules();
+      } else {
+        if (!mounted) return;
+        final String msg = (res.message != null && res.message!.isNotEmpty)
+            ? res.message!
+            : 'Thao tác thất bại';
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Thông báo'),
+            content: Text(msg),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
       }
     } catch (_) {} finally {
       if (mounted) setState(() => _isLoading = false);
